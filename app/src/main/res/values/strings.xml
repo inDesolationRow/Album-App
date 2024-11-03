@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">Photo Album</string>
+    <string name="bar_title_media_list">媒体列表</string>
+    <string name="bar_title_my_favorite">我的最爱</string>
+    <string name="bar_title_settings">设置</string>
+    <string name="settings_scan_local_storage">扫描本地文件</string>
+    <string name="settings_scan_local_storage_message">确定要进行本地扫描吗?</string>
+    <string name="file_permission_null">没有媒体权限请授权</string>
+    <string name="please_go_to_settings">无法获取媒体权限，请转跳至设置手动授权</string>
+    <string name="scanning">扫描中，请勿关闭应用</string>
+    <string name="scan_success">扫描完成</string>
+    <string name="scan_failed">扫描失败</string>
+    <string name="yes">确定</string>
+    <string name="no">取消</string>
+</resources>
