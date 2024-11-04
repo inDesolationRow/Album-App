@@ -2,7 +2,7 @@ package com.example.photoalbum.repository
 
 import android.content.Context
 import android.provider.MediaStore
-import com.example.photoalbum.model.MediaFile
+import com.example.photoalbum.database.model.MediaFile
 
 interface MediaStoreRepository {
 
@@ -56,7 +56,8 @@ class ImageStoreImageRepositoryImpl(private val context: Context): MediaStoreRep
                 if(name.isNullOrEmpty()||data.isNullOrEmpty()||size == 0L){
                     continue
                 }
-                mediaItems.add(MediaFile(mediaFileId = id,
+                mediaItems.add(
+                    MediaFile(mediaFileId = id,
                     dateTaken = dateTaken,
                     bucketId = bucket,
                     generationAdded = add,
@@ -67,7 +68,8 @@ class ImageStoreImageRepositoryImpl(private val context: Context): MediaStoreRep
                     ownerPackageName = packName?:"",
                     volumeName = volName,
                     isDownload = isDownload,
-                    mimeType = mimeType))
+                    mimeType = mimeType)
+                )
             }
         }
         return mediaItems

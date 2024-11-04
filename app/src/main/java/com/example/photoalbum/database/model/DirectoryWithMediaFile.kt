@@ -1,4 +1,4 @@
-package com.example.photoalbum.model
+package com.example.photoalbum.database.model
 
 import androidx.room.Embedded
 import androidx.room.Junction

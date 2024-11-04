@@ -4,8 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
-import com.example.photoalbum.model.Album
-import com.example.photoalbum.model.PhotoInfo
+import com.example.photoalbum.database.model.PhotoInfo
 
 @Dao
 interface PhotoDao {

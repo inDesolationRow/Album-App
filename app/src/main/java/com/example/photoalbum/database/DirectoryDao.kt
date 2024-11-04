@@ -5,8 +5,8 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
-import com.example.photoalbum.model.Directory
-import com.example.photoalbum.model.DirectoryWithMediaFile
+import com.example.photoalbum.database.model.Directory
+import com.example.photoalbum.database.model.DirectoryWithMediaFile
 
 @Dao
 interface DirectoryDao {

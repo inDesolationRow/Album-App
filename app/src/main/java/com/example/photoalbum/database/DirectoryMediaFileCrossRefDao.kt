@@ -4,7 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.example.photoalbum.model.DirectoryMediaFileCrossRef
+import com.example.photoalbum.database.model.DirectoryMediaFileCrossRef
 
 @Dao()
 interface DirectoryMediaFileCrossRefDao {

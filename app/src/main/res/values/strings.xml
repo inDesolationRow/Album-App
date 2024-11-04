@@ -10,6 +10,9 @@
     <string name="scanning">扫描中，请勿关闭应用</string>
     <string name="scan_success">扫描完成</string>
     <string name="scan_failed">扫描失败</string>
+    <string name="local_file">本地文件</string>
+    <string name="local_cloud_file">本地网络文件</string>
+    <string name="add_local_cloud">添加本地网络</string>
     <string name="yes">确定</string>
     <string name="no">取消</string>
 </resources>

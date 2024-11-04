@@ -9,8 +9,8 @@ import com.example.photoalbum.database.MediaDatabase
 import com.example.photoalbum.database.MediaFileDao
 import com.example.photoalbum.database.PhotoDao
 import com.example.photoalbum.enum.AlbumType
-import com.example.photoalbum.model.Album
-import com.example.photoalbum.model.PhotoInfo
+import com.example.photoalbum.database.model.Album
+import com.example.photoalbum.database.model.PhotoInfo
 import com.example.photoalbum.repository.ImageStoreImageRepositoryImpl
 import kotlinx.coroutines.runBlocking
 import org.junit.After

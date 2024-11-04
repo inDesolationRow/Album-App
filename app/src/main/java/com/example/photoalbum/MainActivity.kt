@@ -7,6 +7,7 @@ import android.view.WindowInsets
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.example.photoalbum.database.model.LocalNetStorageInfo
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.screen.MainScreen
 import com.example.photoalbum.ui.screen.MainScreenViewModel
@@ -48,6 +49,8 @@ class MainActivity : ComponentActivity() {
             if (isFirstRun) {
                 viewModel.checkAndRequestPermissions(myActivity)
                 viewModel.setFirstRunState()
+                myapplication.mediaDatabase.localNetStorageInfoDao.insert(LocalNetStorageInfo(displayName = "本地网络存储1"))
+                myapplication.mediaDatabase.localNetStorageInfoDao.insert(LocalNetStorageInfo(displayName = "本地网络存储2"))
             }
         }
         enableEdgeToEdge()

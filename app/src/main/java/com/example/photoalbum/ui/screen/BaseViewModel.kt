@@ -15,8 +15,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.enum.ScanResult
 import com.example.photoalbum.enum.UserState
-import com.example.photoalbum.model.Directory
-import com.example.photoalbum.model.DirectoryMediaFileCrossRef
+import com.example.photoalbum.database.model.Directory
+import com.example.photoalbum.database.model.DirectoryMediaFileCrossRef
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first

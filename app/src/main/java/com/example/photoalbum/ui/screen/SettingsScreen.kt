@@ -46,7 +46,6 @@ fun SettingsScreen(viewModel: SettingsScreenViewModel, modifier: Modifier) {
         ScanResult.NONE -> {}
     }
     Box(modifier = modifier) {
-        val activity = LocalContext.current as Activity
         Column {
             Button(onClick = {
                 if (viewModel.checkPermissions()) {
