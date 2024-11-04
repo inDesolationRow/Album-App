@@ -29,8 +29,8 @@ abstract class BaseViewModel(private val application: MediaApplication) : ViewMo
 
     lateinit var expand : MutableStateFlow<Boolean>
 
-    fun checkAndRequestPermissions(activity: Activity, onlyCheck: Boolean = false): Boolean {
-        return application.appPermission.checkAndRequestPermissions(activity, onlyCheck)
+    fun checkAndRequestPermissions(activity: Activity) {
+        return application.appPermission.checkAndRequestPermissions(activity)
     }
 
     fun checkPermissions(): Boolean {
@@ -40,9 +40,7 @@ abstract class BaseViewModel(private val application: MediaApplication) : ViewMo
     suspend fun checkFirstRunApp(): Boolean {
         return application.dataStore.data.map {
             it[booleanPreferencesKey(UserState.FIRST_RUN_APP.name)] ?: true
-        }.first {
-            it
-        }
+        }.first()
     }
 
     suspend fun setFirstRunState() {

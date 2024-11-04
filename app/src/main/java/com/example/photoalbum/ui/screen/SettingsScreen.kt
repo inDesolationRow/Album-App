@@ -55,18 +55,10 @@ fun SettingsScreen(viewModel: SettingsScreenViewModel, modifier: Modifier) {
                         isShow = true
                     )
                 } else {
-                    val popPermissionDialog = viewModel.checkAndRequestPermissions(activity, true)
-                    if (popPermissionDialog) {
-                        viewModel.showDialog = DialogEntity(
-                            settingsDialog = SettingsDialog.GET_PERMISSION,
-                            isShow = true
-                        )
-                    } else {
-                        viewModel.showDialog = DialogEntity(
-                            settingsDialog = SettingsDialog.GO_TO_APP_SETTINGS,
-                            isShow = true
-                        )
-                    }
+                    viewModel.showDialog = DialogEntity(
+                        settingsDialog = SettingsDialog.GO_TO_APP_SETTINGS,
+                        isShow = true
+                    )
                 }
             }) {
                 Text(text = stringResource(R.string.settings_scan_local_storage))
@@ -88,20 +80,6 @@ fun ShowDialog(viewModel: SettingsScreenViewModel, settingsDialog: SettingsDialo
                     viewModel.scanLocalStorage()
                 },
                 clickCancel = { viewModel.showDialog = DialogEntity(SettingsDialog.NONE, false) })
-        }
-
-        SettingsDialog.GET_PERMISSION -> {
-            val activity = LocalContext.current as Activity
-            MessageDialog(
-                messageRes = R.string.file_permission_null,
-                onDismiss = {
-                    viewModel.checkAndRequestPermissions(activity)
-                    viewModel.showDialog = DialogEntity(SettingsDialog.NONE, false)
-                },
-                clickConfirm = {
-                    viewModel.checkAndRequestPermissions(activity)
-                    viewModel.showDialog = DialogEntity(SettingsDialog.NONE, false)
-                })
         }
 
         SettingsDialog.GO_TO_APP_SETTINGS -> {

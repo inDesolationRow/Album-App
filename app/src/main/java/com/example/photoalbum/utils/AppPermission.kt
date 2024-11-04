@@ -12,14 +12,7 @@ import androidx.core.content.ContextCompat
 
 class PermissionHelper(private val context: Context) {
 
-    /**
-     * 检查并弹出授权
-     *
-     * @param activity
-     * @param onlyCheck 检查是否能弹出授权框但不申请授权
-     * @return return true 代表弹出授权框 return false 代表无法弹出请手动转跳设置
-     */
-    fun checkAndRequestPermissions(activity: Activity, onlyCheck: Boolean = false): Boolean {
+    fun checkAndRequestPermissions(activity: Activity){
         val permissionsToRequest = mutableListOf<String>()
 
         when {
@@ -50,17 +43,8 @@ class PermissionHelper(private val context: Context) {
         }
 
         if (permissionsToRequest.isNotEmpty()) {
-            for(permission in permissionsToRequest){
-                if (!ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)) {
-                    // 权限被永久拒绝，显示提示，并引导用户前往系统设置
-                    return false
-                }
-            }
-            if (!onlyCheck){
-                ActivityCompat.requestPermissions(activity, permissionsToRequest.toTypedArray(), REQUEST_CODE)
-            }
+            ActivityCompat.requestPermissions(activity, permissionsToRequest.toTypedArray(), REQUEST_CODE)
         }
-        return true
     }
 
     // 需要权限时仅检查权限

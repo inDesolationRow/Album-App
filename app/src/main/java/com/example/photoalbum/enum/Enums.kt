@@ -22,7 +22,6 @@ enum class UserState{
 }
 
 enum class SettingsDialog{
-    GET_PERMISSION,
     SCAN_LOCAL_STORAGE,
     GO_TO_APP_SETTINGS,
     SCAN_SUCCESS,

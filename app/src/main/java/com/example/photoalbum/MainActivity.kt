@@ -42,6 +42,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+
         CoroutineScope(context = Dispatchers.IO).launch {
             val isFirstRun = viewModel.checkFirstRunApp()
             if (isFirstRun) {
