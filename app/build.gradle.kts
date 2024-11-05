@@ -70,6 +70,7 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.smbj)
     implementation(libs.androidx.material.icons.extended)
+    implementation(libs.picasso)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

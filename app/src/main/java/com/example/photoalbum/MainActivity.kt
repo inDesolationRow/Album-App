@@ -49,8 +49,8 @@ class MainActivity : ComponentActivity() {
             if (isFirstRun) {
                 viewModel.checkAndRequestPermissions(myActivity)
                 viewModel.setFirstRunState()
-                myapplication.mediaDatabase.localNetStorageInfoDao.insert(LocalNetStorageInfo(displayName = "本地网络存储1"))
-                myapplication.mediaDatabase.localNetStorageInfoDao.insert(LocalNetStorageInfo(displayName = "本地网络存储2"))
+/*                myapplication.mediaDatabase.localNetStorageInfoDao.insert(LocalNetStorageInfo(displayName = "本地网络存储1"))
+                myapplication.mediaDatabase.localNetStorageInfoDao.insert(LocalNetStorageInfo(displayName = "本地网络存储2"))*/
             }
         }
         enableEdgeToEdge()

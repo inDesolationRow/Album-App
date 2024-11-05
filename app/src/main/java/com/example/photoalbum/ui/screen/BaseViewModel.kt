@@ -75,22 +75,26 @@ abstract class BaseViewModel(private val application: MediaApplication) : ViewMo
                                     var parentId: Long? = null
                                     var directoryId: Long? = null
                                     for (dir in directories) {
-                                        val queryResult =
-                                            application.mediaDatabase.directoryDao.queryByDisplayName(
-                                                displayName = dir
-                                            )
-                                        if (queryResult == null) {
-                                            parentId =
-                                                application.mediaDatabase.directoryDao.insert(
-                                                    directory = Directory(
-                                                        displayName = dir,
-                                                        parentId = parentId ?: -1,
-                                                    )
+                                        if (dir.isNotEmpty() && dir.isNotBlank()){
+                                            val queryResult =
+                                                application.mediaDatabase.directoryDao.queryByDisplayName(
+                                                    displayName = dir
                                                 )
-                                            if (!directoryList.contains(dir))
-                                                directoryList.add(dir)
+                                            if (queryResult == null) {
+                                                parentId =
+                                                    application.mediaDatabase.directoryDao.insert(
+                                                        directory = Directory(
+                                                            displayName = dir,
+                                                            parentId = parentId ?: -1,
+                                                        )
+                                                    )
+                                                if (!directoryList.contains(dir))
+                                                    directoryList.add(dir)
+                                            }else{
+                                                parentId = queryResult.directoryId
+                                            }
+                                            directoryId = queryResult?.directoryId ?: parentId!!
                                         }
-                                        directoryId = queryResult?.directoryId ?: parentId!!
                                     }
                                     val itemId = application.mediaDatabase.mediaFileDao.insert(item)
                                     crossRefList.add(

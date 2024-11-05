@@ -7,7 +7,7 @@ import androidx.room.PrimaryKey
 @Entity(tableName = "local_net_storage_info_table")
 data class LocalNetStorageInfo(
     @PrimaryKey(autoGenerate = true)
-    val id: Int = 0,
+    var id: Int = 0,
     @ColumnInfo(name = "display_name")
     val displayName: String = "",
     val ip: String = "",
