@@ -17,6 +17,7 @@ import com.example.photoalbum.R
 import com.example.photoalbum.database.model.DirectoryWithMediaFile
 import com.example.photoalbum.database.model.LocalNetStorageInfo
 import com.example.photoalbum.model.Menu
+import com.example.photoalbum.utils.decodeSampledBitmapFromStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -47,12 +48,6 @@ class MediaListScreenViewModel(private val application: MediaApplication) :
             originalDirectoryList =
                 application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileByParentId(-1)
                     ?: listOf()
-//            val directoryList = application.mediaDatabase.directoryDao.queryDirectoryByParentId(-1) ?: listOf()
-//            var bitmap = null
-//            for (dir in directoryList){
-//                val previewSrc = application.mediaDatabase.directoryDao.queryPreviewImageByParentId(dir.directoryId)
-//            }
-
             for (dir in originalDirectoryList) {
                 if (dir.mediaFileList.isNotEmpty() && dir.mediaFileList[0].data.isNotBlank() && dir.mediaFileList[0].data.isNotEmpty()) {
                     val file = File(dir.mediaFileList[0].data)
@@ -61,7 +56,10 @@ class MediaListScreenViewModel(private val application: MediaApplication) :
                             try {
                                 val loadImageStartTime = System.currentTimeMillis()
                                 //val image = Picasso.get().load(file.absolutePath).get()
-                                val image = BitmapFactory.decodeFile(file.absolutePath)
+                                dir.mediaFileList[0].thumbnail.isBlank().let {
+
+                                }
+                                val image = decodeSampledBitmapFromStream(file.absolutePath)
                                 val loadImageEndTime = System.currentTimeMillis()
                                 val duration = loadImageStartTime - loadImageEndTime
                                 println("加载耗时 $duration ms 路径:${file.absolutePath}")

@@ -57,7 +57,8 @@ class ImageStoreImageRepositoryImpl(private val context: Context): MediaStoreRep
                     continue
                 }
                 mediaItems.add(
-                    MediaFile(mediaFileId = id,
+                    MediaFile(
+                    mediaFileId = id,
                     dateTaken = dateTaken,
                     bucketId = bucket,
                     generationAdded = add,
@@ -68,7 +69,8 @@ class ImageStoreImageRepositoryImpl(private val context: Context): MediaStoreRep
                     ownerPackageName = packName?:"",
                     volumeName = volName,
                     isDownload = isDownload,
-                    mimeType = mimeType)
+                    mimeType = mimeType,
+                    size = size)
                 )
             }
         }

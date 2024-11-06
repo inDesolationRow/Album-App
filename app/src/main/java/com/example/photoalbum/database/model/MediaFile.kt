@@ -42,4 +42,9 @@ data class MediaFile(
 
     @ColumnInfo(name = "mime_type")
     var mimeType: String,
+
+    var size: Long,
+
+    @ColumnInfo(name = "thumbnail_path")
+    var thumbnail: String = "",
 )
