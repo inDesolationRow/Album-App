@@ -1,11 +1,13 @@
 package com.example.photoalbum.database.model
 
+import android.graphics.Bitmap
 import androidx.room.ColumnInfo
 import androidx.room.Entity
+import androidx.room.Ignore
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "directory_table")
-data class Directory (
+data class Directory(
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "directory_id")
     var directoryId: Long = 0L,
@@ -33,4 +35,7 @@ data class Directory (
 
     @ColumnInfo(name = "thumbnail_src")
     var thumbnail: String = "",
-)
+){
+    @Ignore
+    var thumbnailBitmap: Bitmap? = null
+}

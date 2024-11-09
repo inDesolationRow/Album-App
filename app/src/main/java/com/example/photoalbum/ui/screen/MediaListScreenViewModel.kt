@@ -1,6 +1,5 @@
 package com.example.photoalbum.ui.screen
 
-import android.graphics.BitmapFactory
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudSync
@@ -11,6 +10,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewModelScope
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
@@ -21,12 +21,14 @@ import com.example.photoalbum.utils.decodeSampledBitmapFromStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
-import java.io.File
 
 class MediaListScreenViewModel(private val application: MediaApplication) :
     BaseViewModel(application) {
 
-    lateinit var originalDirectoryList: List<DirectoryWithMediaFile>
+    //-1代表所有根目录
+    var currentDirectoryId: MutableStateFlow<Long> = MutableStateFlow(-1)
+
+    var originalDirectoryList: MutableState<List<DirectoryWithMediaFile>> = mutableStateOf(listOf())
 
     lateinit var localNetStorageInfoListStateFlow: MutableStateFlow<MutableList<LocalNetStorageInfo>>
 
@@ -38,43 +40,17 @@ class MediaListScreenViewModel(private val application: MediaApplication) :
 
     private var newLocalNetStorageInfoId: Int? = null
 
-    private final val MENU_MEDIA_LIST_ID = -1
+    private val menuMediaListId = -1
 
-    private final val MENU_ADD_LOCAL_NET_STORAGE_ID = -2
+    private val menuAddLocalNetStorageId = -2
+
+    val notPreview = application.getDrawable(R.drawable.folder)!!.toBitmap()
 
     init {
         viewModelScope.launch(context = Dispatchers.IO) {
-            val startTime = System.currentTimeMillis()
-            originalDirectoryList =
-                application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileByParentId(-1)
-                    ?: listOf()
-            for (dir in originalDirectoryList) {
-                if (dir.mediaFileList.isNotEmpty() && dir.mediaFileList[0].data.isNotBlank() && dir.mediaFileList[0].data.isNotEmpty()) {
-                    val file = File(dir.mediaFileList[0].data)
-                    viewModelScope.launch(context = Dispatchers.IO) {
-                        if (file.exists()) {
-                            try {
-                                val loadImageStartTime = System.currentTimeMillis()
-                                //val image = Picasso.get().load(file.absolutePath).get()
-                                dir.mediaFileList[0].thumbnail.isBlank().let {
-
-                                }
-                                val image = decodeSampledBitmapFromStream(file.absolutePath)
-                                val loadImageEndTime = System.currentTimeMillis()
-                                val duration = loadImageStartTime - loadImageEndTime
-                                println("加载耗时 $duration ms 路径:${file.absolutePath}")
-                            } catch (e: Exception) {
-                                println("为什么不崩溃${e.message}")
-                            }
-                        }
-                    }
-                } else {
-                    println(dir)
-                }
+            currentDirectoryId.collect() {
+                loadDirectoryAndMediaFile(it)
             }
-            val endTime = System.currentTimeMillis()
-            val duration = endTime - startTime
-            println("查询耗时 $duration ms")
         }
 
         //初始化拖拽抽屉所需的数据
@@ -98,6 +74,35 @@ class MediaListScreenViewModel(private val application: MediaApplication) :
         }
     }
 
+    private suspend fun loadDirectoryAndMediaFile(directoryId: Long) {
+        originalDirectoryList.value =
+            application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileByParentId(parentId = directoryId)
+                ?: listOf()
+        val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
+            ?: application.applicationContext.filesDir).absolutePath.plus("/Thumbnail")
+        var count = -1
+        for (dir in originalDirectoryList.value) {
+            count++
+            viewModelScope.launch(context = Dispatchers.IO) {
+                if (dir.mediaFileList.isNotEmpty() && dir.mediaFileList[0].data.isNotBlank()) {
+                    dir.mediaFileList[0].thumbnail.isBlank().let {
+                        val thumbnail = if (it) createThumbnail(
+                            dir.mediaFileList[0].data,
+                            dir.mediaFileList[0].mediaFileId,
+                            dir.mediaFileList[0].displayName
+                        ) else decodeSampledBitmapFromStream(dir.mediaFileList[0].data)
+                        viewModelScope.launch(context = Dispatchers.Main) {
+                            val update = originalDirectoryList.value.toMutableList()
+                            update[count].directory.thumbnailBitmap = thumbnail
+                            originalDirectoryList.value = update
+                        }
+                    }
+                }
+            }
+        }
+        println("加载完毕: $originalDirectoryList.value ")
+    }
+
     fun delLocalNetStorageInfo() {
         val list = localNetStorageInfoListStateFlow.value.toMutableList()
         val del = list.filter { it.id == selectedItem.value.id }
@@ -106,7 +111,7 @@ class MediaListScreenViewModel(private val application: MediaApplication) :
         viewModelScope.launch(Dispatchers.IO) {
             application.mediaDatabase.localNetStorageInfoDao.deleteById(del.first().id)
         }
-        updateSelectItem(MENU_ADD_LOCAL_NET_STORAGE_ID)
+        updateSelectItem(menuAddLocalNetStorageId)
     }
 
     fun addLocalNetStorageInfo(info: LocalNetStorageInfo) {
@@ -130,7 +135,7 @@ class MediaListScreenViewModel(private val application: MediaApplication) :
         val menuList: MutableList<Menu> = mutableListOf()
         menuList.add(
             Menu(
-                MENU_MEDIA_LIST_ID,
+                menuMediaListId,
                 application.getString(R.string.local_file),
                 true,
                 Icons.Filled.Folder
@@ -143,7 +148,7 @@ class MediaListScreenViewModel(private val application: MediaApplication) :
         }
         menuList.add(
             Menu(
-                MENU_ADD_LOCAL_NET_STORAGE_ID,
+                menuAddLocalNetStorageId,
                 application.getString(R.string.add_local_cloud),
                 true,
                 Icons.Filled.CloudSync

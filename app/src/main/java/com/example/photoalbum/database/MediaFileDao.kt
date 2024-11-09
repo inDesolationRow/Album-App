@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.example.photoalbum.database.model.DirectoryWithMediaFile
 import com.example.photoalbum.database.model.MediaFile
 
@@ -15,6 +16,9 @@ interface MediaFileDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(mediaFile: MediaFile): Long
+
+    @Query(value = "UPDATE media_file_table SET thumbnail_path = :thumbnail WHERE media_file_id = :id")
+    suspend fun updateThumbnail(id: Long, thumbnail: String)
 
     @Query(value = "SELECT * FROM media_file_table")
     suspend fun query(): List<MediaFile>?

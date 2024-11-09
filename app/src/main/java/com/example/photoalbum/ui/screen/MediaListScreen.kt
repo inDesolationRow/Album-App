@@ -1,5 +1,6 @@
 package com.example.photoalbum.ui.screen
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -46,6 +48,7 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.example.photoalbum.R
+import com.example.photoalbum.database.model.DirectoryWithMediaFile
 import com.example.photoalbum.database.model.LocalNetStorageInfo
 import com.example.photoalbum.ui.theme.MediumPadding
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
@@ -89,9 +92,9 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
             Scaffold(topBar = {
                 TopBar(viewModel = viewModel, modifier = Modifier.padding(start = MediumPadding))
             }) { padding ->
-                Box(modifier = Modifier.padding(padding)) {
-                    MediaList(viewModel = viewModel)
-                    Row {
+                Column (modifier = Modifier.padding(padding).fillMaxSize()) {
+                    MediaList(itemList = viewModel.originalDirectoryList.value, viewModel.notPreview, modifier = Modifier.fillMaxHeight())
+                    /*Row {
                         Button(onClick = {
                             viewModel.delLocalNetStorageInfo()
                         }) {
@@ -103,11 +106,11 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                         }) {
                             Text(text = "测试添加一个网络存储")
                         }
-                    }
+                    }*/
                 }
             }
         },
-        modifier = modifier
+        modifier = modifier.fillMaxSize()
     )
 }
 
@@ -152,18 +155,17 @@ fun TopBar(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun MediaList(viewModel: MediaListScreenViewModel) {
-    val itemsList = (0..5).toList()
-
+fun MediaList(itemList: List<DirectoryWithMediaFile>, nullPreview: Bitmap, modifier: Modifier = Modifier) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
-        modifier = Modifier
-            .aspectRatio(1f)
+        modifier = modifier
             .padding(start = MediumPadding)
     ) {
-        items(itemsList) {
+        items(itemList) {
             MediaFilePreview(
-                viewModel = viewModel,
+                image = it.directory.thumbnailBitmap,
+                nullPreview = nullPreview,
+                it.directory.displayName,
                 modifier = Modifier.padding(end = MediumPadding, top = MediumPadding)
             )
         }
@@ -171,21 +173,21 @@ fun MediaList(viewModel: MediaListScreenViewModel) {
 }
 
 @Composable
-fun MediaFilePreview(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
+fun MediaFilePreview(image: Bitmap?, nullPreview: Bitmap, directoryName: String, modifier: Modifier = Modifier) {
     Column(modifier = modifier) {
         Card(
             shape = MaterialTheme.shapes.large,
             modifier = Modifier.padding(bottom = TinyPadding)
         ) {
-            Image(
-                painter = painterResource(R.drawable.ic_launcher_background),
+            AsyncImage(
+                model = image ?: nullPreview,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier.fillMaxSize().aspectRatio(1f)
             )
         }
         Text(
-            text = "目录",
+            text = directoryName,
             style = MaterialTheme.typography.labelMedium
         )
     }
