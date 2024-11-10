@@ -1,5 +1,6 @@
 package com.example.photoalbum.database
 
+import androidx.compose.runtime.MutableState
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
@@ -26,7 +27,7 @@ interface DirectoryDao {
 
     @Transaction
     @Query(value = "SELECT * FROM directory_table WHERE parent_id = :parentId")
-    suspend fun queryDirectoryWithMediaFileByParentId(parentId: Long): List<DirectoryWithMediaFile>?
+    suspend fun queryDirectoryWithMediaFileByParentId(parentId: Long):  List<DirectoryWithMediaFile>?
 
     @Transaction
     @Query(value = "SELECT m.data FROM directory_table CROSS JOIN media_file_table AS m WHERE parent_id = :id ORDER BY m.date_taken DESC Limit 1")

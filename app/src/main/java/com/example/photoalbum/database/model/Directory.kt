@@ -1,6 +1,8 @@
 package com.example.photoalbum.database.model
 
 import android.graphics.Bitmap
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Ignore
@@ -37,5 +39,5 @@ data class Directory(
     var thumbnail: String = "",
 ){
     @Ignore
-    var thumbnailBitmap: Bitmap? = null
+    val thumbnailBitmap: MutableState<Bitmap?> = mutableStateOf(null)
 }

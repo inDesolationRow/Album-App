@@ -35,25 +35,25 @@ import androidx.navigation.compose.rememberNavController
 import com.example.photoalbum.enum.NavType
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.res.stringResource
-import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.photoalbum.R
+import com.example.photoalbum.ui.action.UserAction
 
 @Composable
 fun MainScreen(viewModel: MainScreenViewModel) {
-    val mediaListScreenViewModel = viewModel<MediaListScreenViewModel> (factory = BaseViewModel.Factory(modelClass = MediaListScreenViewModel::class.java) { MediaListScreenViewModel(it) })
-    val favoriteScreenViewModel = viewModel<FavoriteScreenViewModel> (factory = BaseViewModel.Factory(modelClass = FavoriteScreenViewModel::class.java) { FavoriteScreenViewModel(it) })
-    val settingsScreenViewModel = viewModel<SettingsScreenViewModel> (factory = BaseViewModel.Factory(modelClass = SettingsScreenViewModel::class.java) { SettingsScreenViewModel(it) })
-    mediaListScreenViewModel.expand = viewModel.expand
-    favoriteScreenViewModel.expand = viewModel.expand
-    settingsScreenViewModel.expand = viewModel.expand
-
+    println("测试:重组mainScreen")
     var getNavHostHeight by rememberSaveable { mutableStateOf(false) }
     var hostHeight by rememberSaveable(saver = dpSaver) { mutableStateOf(0.dp) }
     val density = LocalDensity.current
     val navHost = rememberNavController()
-    val expand = viewModel.expand.collectAsState()
+    val userAction = viewModel.userAction.collectAsState()
+    when(val action = userAction.value){
+        is UserAction.ExpandStatusBarAction ->{viewModel.expand = action.expand}
+        is UserAction.ScanAction -> {
+        }
+        is UserAction.NoneAction -> {}
+    }
     val bottomBarAnimateDp: State<Dp>? = if(getNavHostHeight){
-        animateDpAsState(targetValue = if (expand.value) hostHeight else 0.dp,
+        animateDpAsState(targetValue = if (viewModel.expand) hostHeight else 0.dp,
             animationSpec = tween(durationMillis = 600),
             label = "隐藏或显示bottomBar")
     }else{null}
@@ -102,11 +102,10 @@ fun MainScreen(viewModel: MainScreenViewModel) {
         }
     },
         modifier = Modifier.fillMaxSize()) { innerPadding ->
-
         NavHost(navController = navHost, startDestination = NavType.MEDIA_LIST.name) {
-            composable(route = NavType.MEDIA_LIST.name){ MediaListScreen(viewModel = mediaListScreenViewModel, modifier = Modifier.padding(innerPadding)) }
-            composable(route = NavType.FAVORITE.name){ FavoriteScreen(viewModel = favoriteScreenViewModel, modifier = Modifier.padding(innerPadding)) }
-            composable(route = NavType.SETTINGS.name){ SettingsScreen(viewModel = settingsScreenViewModel, modifier = Modifier.padding(innerPadding)) }
+            composable(route = NavType.MEDIA_LIST.name){ MediaListScreen(viewModel = viewModel.mediaListScreenViewModel, modifier = Modifier.padding(innerPadding)) }
+            composable(route = NavType.FAVORITE.name){ FavoriteScreen(viewModel = viewModel.favoriteScreenViewModel, modifier = Modifier.padding(innerPadding)) }
+            composable(route = NavType.SETTINGS.name){ SettingsScreen(viewModel = viewModel.settingsScreenViewModel, modifier = Modifier.padding(innerPadding)) }
         }
     }
 }

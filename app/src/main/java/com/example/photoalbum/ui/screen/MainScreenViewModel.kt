@@ -5,10 +5,28 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.enum.NavType
+import com.example.photoalbum.ui.action.UserAction
 import kotlinx.coroutines.flow.MutableStateFlow
 
-class MainScreenViewModel(private val application: MediaApplication): BaseViewModel(application) {
+class MainScreenViewModel(
+    private val application: MediaApplication,
+    userAction: MutableStateFlow<UserAction>
+) : BaseViewModel(application, userAction) {
 
     var selectPage by mutableStateOf(NavType.MEDIA_LIST)
 
+    val mediaListScreenViewModel: MediaListScreenViewModel = MediaListScreenViewModel(
+        application,
+        userAction
+    )
+
+    val favoriteScreenViewModel: FavoriteScreenViewModel = FavoriteScreenViewModel(
+        application,
+        userAction
+    )
+
+    val settingsScreenViewModel: SettingsScreenViewModel = SettingsScreenViewModel(
+        application,
+        userAction
+    )
 }

@@ -1,8 +1,6 @@
 package com.example.photoalbum.ui.screen
 
 import android.graphics.Bitmap
-import androidx.compose.foundation.Image
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,9 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
@@ -24,7 +20,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdsClick
 import androidx.compose.material.icons.filled.Dehaze
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,26 +32,21 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import com.example.photoalbum.R
 import com.example.photoalbum.database.model.DirectoryWithMediaFile
-import com.example.photoalbum.database.model.LocalNetStorageInfo
 import com.example.photoalbum.ui.theme.MediumPadding
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 
 
 @Composable
@@ -92,8 +82,16 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
             Scaffold(topBar = {
                 TopBar(viewModel = viewModel, modifier = Modifier.padding(start = MediumPadding))
             }) { padding ->
-                Column (modifier = Modifier.padding(padding).fillMaxSize()) {
-                    MediaList(itemList = viewModel.originalDirectoryList.value, viewModel.notPreview, modifier = Modifier.fillMaxHeight())
+                Column(
+                    modifier = Modifier
+                        .padding(padding)
+                        .fillMaxSize()
+                ) {
+                    MediaList(
+                        itemList = viewModel.originalDirectoryList,
+                        nullPreview = viewModel.notPreview,
+                        modifier = Modifier.fillMaxHeight()
+                    )
                     /*Row {
                         Button(onClick = {
                             viewModel.delLocalNetStorageInfo()
@@ -155,7 +153,11 @@ fun TopBar(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun MediaList(itemList: List<DirectoryWithMediaFile>, nullPreview: Bitmap, modifier: Modifier = Modifier) {
+fun MediaList(
+    itemList: SnapshotStateList<DirectoryWithMediaFile>,
+    nullPreview: Bitmap,
+    modifier: Modifier = Modifier
+) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
         modifier = modifier
@@ -163,7 +165,7 @@ fun MediaList(itemList: List<DirectoryWithMediaFile>, nullPreview: Bitmap, modif
     ) {
         items(itemList) {
             MediaFilePreview(
-                image = it.directory.thumbnailBitmap,
+                image = it.directory.thumbnailBitmap.value ?: nullPreview,
                 nullPreview = nullPreview,
                 it.directory.displayName,
                 modifier = Modifier.padding(end = MediumPadding, top = MediumPadding)
@@ -173,7 +175,13 @@ fun MediaList(itemList: List<DirectoryWithMediaFile>, nullPreview: Bitmap, modif
 }
 
 @Composable
-fun MediaFilePreview(image: Bitmap?, nullPreview: Bitmap, directoryName: String, modifier: Modifier = Modifier) {
+fun MediaFilePreview(
+    image: Bitmap?,
+    nullPreview: Bitmap,
+    directoryName: String,
+    modifier: Modifier = Modifier
+) {
+    println("测试:item重组")
     Column(modifier = modifier) {
         Card(
             shape = MaterialTheme.shapes.large,
@@ -183,7 +191,9 @@ fun MediaFilePreview(image: Bitmap?, nullPreview: Bitmap, directoryName: String,
                 model = image ?: nullPreview,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize().aspectRatio(1f)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .aspectRatio(1f)
             )
         }
         Text(

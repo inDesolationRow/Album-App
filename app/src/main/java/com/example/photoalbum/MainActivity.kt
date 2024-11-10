@@ -7,7 +7,7 @@ import android.view.WindowInsets
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import com.example.photoalbum.database.model.LocalNetStorageInfo
+import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.screen.MainScreen
 import com.example.photoalbum.ui.screen.MainScreenViewModel
@@ -20,26 +20,31 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val myapplication = application as MediaApplication
-        val viewModel = MainScreenViewModel(myapplication)
+        val viewModel = MainScreenViewModel(myapplication, MutableStateFlow(UserAction.NoneAction))
         val myActivity = this
-        viewModel.expand = MutableStateFlow(true)
         CoroutineScope(context = Dispatchers.Main).launch {
-            viewModel.expand.collect() {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val controller = window.insetsController
-                    if (it) {
-                        controller?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                    } else {
-                        controller?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+            viewModel.userAction.collect(){
+                when(it){
+                    is UserAction.ExpandStatusBarAction -> {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            val controller = window.insetsController
+                            if (it.expand) {
+                                controller?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                            } else {
+                                controller?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                            }
+                        } else {
+                            if (it.expand) {
+                                window.decorView.systemUiVisibility =
+                                    View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            } else {
+                                window.decorView.systemUiVisibility =
+                                    View.SYSTEM_UI_FLAG_VISIBLE or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                            }
+                        }
                     }
-                } else {
-                    if (it) {
-                        window.decorView.systemUiVisibility =
-                            View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                    } else {
-                        window.decorView.systemUiVisibility =
-                            View.SYSTEM_UI_FLAG_VISIBLE or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                    }
+                    is UserAction.ScanAction ->{}
+                    UserAction.NoneAction -> {}
                 }
             }
         }
@@ -49,8 +54,6 @@ class MainActivity : ComponentActivity() {
             if (isFirstRun) {
                 viewModel.checkAndRequestPermissions(myActivity)
                 viewModel.setFirstRunState()
-/*                myapplication.mediaDatabase.localNetStorageInfoDao.insert(LocalNetStorageInfo(displayName = "本地网络存储1"))
-                myapplication.mediaDatabase.localNetStorageInfoDao.insert(LocalNetStorageInfo(displayName = "本地网络存储2"))*/
             }
         }
         enableEdgeToEdge()

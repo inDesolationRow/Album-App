@@ -18,6 +18,7 @@ import com.example.photoalbum.enum.ScanResult
 import com.example.photoalbum.enum.UserState
 import com.example.photoalbum.database.model.Directory
 import com.example.photoalbum.database.model.DirectoryMediaFileCrossRef
+import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.utils.decodeSampledBitmapFromStream
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.Dispatchers
@@ -31,13 +32,12 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import java.io.File
-import java.util.concurrent.ConcurrentHashMap
 
-abstract class BaseViewModel(private val application: MediaApplication) : ViewModel() {
+abstract class BaseViewModel(private val application: MediaApplication, val userAction: MutableStateFlow<UserAction>) : ViewModel() {
 
     var scanResult by mutableStateOf(ScanResult.NONE)
 
-    lateinit var expand: MutableStateFlow<Boolean>
+    var expand by mutableStateOf(true)
 
     fun checkAndRequestPermissions(activity: Activity) {
         return application.appPermission.checkAndRequestPermissions(activity)
@@ -67,6 +67,7 @@ abstract class BaseViewModel(private val application: MediaApplication) : ViewMo
             val delimiter = "[\\\\/]".toRegex()
             val mutex = Mutex()
             if (checkPermissions()) {
+                userAction.value = UserAction.ScanAction(false)
                 val startTime = System.currentTimeMillis()
                 val lists =
                     application.mediaStoreContainer.imageStoreRepository.getMediaList().chunked(600)
@@ -105,18 +106,14 @@ abstract class BaseViewModel(private val application: MediaApplication) : ViewMo
                                             }
                                         }
 
-                                        viewModelScope.launch(context = Dispatchers.IO) {
-                                            semaphore.acquire()
-                                            val itemId =
-                                                application.mediaDatabase.mediaFileDao.insert(item)
-                                            crossRefList.add(
-                                                DirectoryMediaFileCrossRef(
-                                                    directoryId!!,
-                                                    itemId
-                                                )
+                                        val itemId =
+                                            application.mediaDatabase.mediaFileDao.insert(item)
+                                        crossRefList.add(
+                                            DirectoryMediaFileCrossRef(
+                                                directoryId!!,
+                                                itemId
                                             )
-                                            semaphore.release()
-                                        }
+                                        )
 
                                         //文件信息插入media_file表 文件大于5242880字节(5m 4k无损压缩图标准大小)生成缩略图
                                         if (item.size > 5242880) {
@@ -146,24 +143,28 @@ abstract class BaseViewModel(private val application: MediaApplication) : ViewMo
                                         }
 
                                     }
-                                    application.mediaDatabase.directoryMediaFileCrossRefDao.insert(
-                                        crossRefList
-                                    )
+                                    viewModelScope.launch(context = Dispatchers.IO) {
+                                        application.mediaDatabase.directoryMediaFileCrossRefDao.insert(
+                                            crossRefList
+                                        )
+                                    }
                                 }
                                 jobs.add(job)
                             }
-                            jobs.forEach() {
+                            jobs.forEach{
                                 it.join()
                             }
                             val endTime = System.currentTimeMillis()
                             val duration = endTime - startTime
                             println("Test testSQL took $duration ms")
+                            userAction.value = UserAction.ScanAction(true)
                             scanResult = ScanResult.SUCCESS
                         } catch (e: Exception) {
                             scanResult = ScanResult.FAILED
                         }
                     }
                 }
+
             }
         }
     }

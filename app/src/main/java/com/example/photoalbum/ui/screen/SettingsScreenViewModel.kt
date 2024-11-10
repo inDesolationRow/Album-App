@@ -5,8 +5,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.model.DialogEntity
-class SettingsScreenViewModel(val application: MediaApplication) : BaseViewModel(application) {
+import com.example.photoalbum.ui.action.UserAction
+import kotlinx.coroutines.flow.MutableStateFlow
 
-    var showDialog by mutableStateOf<DialogEntity>(DialogEntity())
+class SettingsScreenViewModel(
+    val application: MediaApplication,
+    userAction: MutableStateFlow<UserAction>
+) : BaseViewModel(application, userAction) {
+
+    var showDialog by mutableStateOf(DialogEntity())
 
 }

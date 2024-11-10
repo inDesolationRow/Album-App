@@ -8,8 +8,11 @@ import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewModelScope
 import com.example.photoalbum.MediaApplication
@@ -17,18 +20,25 @@ import com.example.photoalbum.R
 import com.example.photoalbum.database.model.DirectoryWithMediaFile
 import com.example.photoalbum.database.model.LocalNetStorageInfo
 import com.example.photoalbum.model.Menu
+import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.utils.decodeSampledBitmapFromStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
+import java.io.File
 
-class MediaListScreenViewModel(private val application: MediaApplication) :
-    BaseViewModel(application) {
+class MediaListScreenViewModel(
+    private val application: MediaApplication,
+    userAction: MutableStateFlow<UserAction>
+) :
+    BaseViewModel(application, userAction) {
 
     //-1代表所有根目录
     var currentDirectoryId: MutableStateFlow<Long> = MutableStateFlow(-1)
 
-    var originalDirectoryList: MutableState<List<DirectoryWithMediaFile>> = mutableStateOf(listOf())
+    var recomposeKey: MutableStateFlow<Int> = MutableStateFlow(0)
+
+    lateinit var originalDirectoryList: SnapshotStateList<DirectoryWithMediaFile>
 
     lateinit var localNetStorageInfoListStateFlow: MutableStateFlow<MutableList<LocalNetStorageInfo>>
 
@@ -48,8 +58,35 @@ class MediaListScreenViewModel(private val application: MediaApplication) :
 
     init {
         viewModelScope.launch(context = Dispatchers.IO) {
-            currentDirectoryId.collect() {
-                loadDirectoryAndMediaFile(it)
+            currentDirectoryId.collect {
+                if (it >= -1) {
+                    println("测试:通过currentDirectoryId更新")
+                    loadDirectoryAndMediaFile(it)
+                }
+            }
+        }
+
+        viewModelScope.launch {
+            recomposeKey.collect {
+                println("测试:通过recomposeKey更新")
+                updateForUpdateKey(currentDirectoryId.value, it)
+            }
+        }
+
+        viewModelScope.launch {
+            super.userAction.collect {
+                when (val action = it) {
+                    is UserAction.ExpandStatusBarAction -> {
+                    }
+
+                    is UserAction.ScanAction -> {
+                        if (action.end) {
+                            recomposeKey.value += 1
+                        }
+                    }
+
+                    UserAction.NoneAction -> {}
+                }
             }
         }
 
@@ -58,7 +95,7 @@ class MediaListScreenViewModel(private val application: MediaApplication) :
             val localNetStorageInfoList =
                 application.mediaDatabase.localNetStorageInfoDao.getList()?.toMutableList()
             localNetStorageInfoListStateFlow =
-                MutableStateFlow(localNetStorageInfoList ?: mutableListOf<LocalNetStorageInfo>())
+                MutableStateFlow(localNetStorageInfoList ?: mutableListOf())
             //生成Menu列表
             menu = mutableStateOf(getMenuList(localNetStorageInfoList))
             selectedItem = mutableStateOf(menu.value[0])
@@ -75,32 +112,51 @@ class MediaListScreenViewModel(private val application: MediaApplication) :
     }
 
     private suspend fun loadDirectoryAndMediaFile(directoryId: Long) {
-        originalDirectoryList.value =
+        originalDirectoryList =
             application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileByParentId(parentId = directoryId)
-                ?: listOf()
+                ?.toMutableStateList()
+                ?: mutableStateListOf()
         val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
             ?: application.applicationContext.filesDir).absolutePath.plus("/Thumbnail")
-        var count = -1
-        for (dir in originalDirectoryList.value) {
-            count++
+        for (dir in originalDirectoryList) {
             viewModelScope.launch(context = Dispatchers.IO) {
                 if (dir.mediaFileList.isNotEmpty() && dir.mediaFileList[0].data.isNotBlank()) {
                     dir.mediaFileList[0].thumbnail.isBlank().let {
-                        val thumbnail = if (it) createThumbnail(
-                            dir.mediaFileList[0].data,
-                            dir.mediaFileList[0].mediaFileId,
-                            dir.mediaFileList[0].displayName
-                        ) else decodeSampledBitmapFromStream(dir.mediaFileList[0].data)
+                        val thumbnail = if (it) {
+                            createThumbnail(
+                                dir.mediaFileList[0].data,
+                                dir.mediaFileList[0].mediaFileId,
+                                dir.mediaFileList[0].displayName
+                            ) ?: decodeSampledBitmapFromStream(
+                                File(
+                                    thumbnailsPath,
+                                    dir.mediaFileList[0].displayName.split(".").first()
+                                        .plus("_thumbnail.png")
+                                ).absolutePath
+                            )
+                        } else decodeSampledBitmapFromStream(dir.mediaFileList[0].data)
                         viewModelScope.launch(context = Dispatchers.Main) {
-                            val update = originalDirectoryList.value.toMutableList()
-                            update[count].directory.thumbnailBitmap = thumbnail
-                            originalDirectoryList.value = update
+                            println("测试:替换缩略图")
+                            val index = originalDirectoryList.indexOf(dir)
+                            originalDirectoryList[index].directory.thumbnailBitmap.value = thumbnail
                         }
                     }
                 }
             }
         }
-        println("加载完毕: $originalDirectoryList.value ")
+    }
+
+    /**
+     * 强制触发更新
+     *
+     * @param directoryId 当前目录的id
+     * @param updateKey 新的key，不得重复
+     */
+    private suspend fun updateForUpdateKey(directoryId: Long, updateKey: Int) {
+        updateKey.let {
+            if (updateKey != 0)
+                loadDirectoryAndMediaFile(directoryId)
+        }
     }
 
     fun delLocalNetStorageInfo() {
