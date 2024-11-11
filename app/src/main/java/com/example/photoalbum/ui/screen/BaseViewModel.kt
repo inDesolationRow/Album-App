@@ -16,8 +16,8 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.enums.ScanResult
 import com.example.photoalbum.enums.UserState
-import com.example.photoalbum.database.model.Directory
-import com.example.photoalbum.database.model.DirectoryMediaFileCrossRef
+import com.example.photoalbum.data.model.Directory
+import com.example.photoalbum.data.model.DirectoryMediaFileCrossRef
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.utils.decodeSampledBitmapFromStream
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage

@@ -2,7 +2,7 @@ package com.example.photoalbum.repository
 
 import android.content.Context
 import android.provider.MediaStore
-import com.example.photoalbum.database.model.MediaFile
+import com.example.photoalbum.data.model.MediaFile
 
 interface MediaStoreRepository {
 

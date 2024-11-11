@@ -1,10 +1,10 @@
-package com.example.photoalbum.database
+package com.example.photoalbum.data.dao
 
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.example.photoalbum.database.model.MediaFile
+import com.example.photoalbum.data.model.MediaFile
 
 @Dao
 interface MediaFileDao {

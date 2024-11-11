@@ -171,7 +171,7 @@ fun MediaList(
         modifier = modifier
             .padding(start = MediumPadding)
     ) {
-        items(itemList) {
+        items(itemList, key = { it.id }) {
             MediaFilePreview(
                 image = it.thumbnail.value,
                 nullPreview = nullPreview,

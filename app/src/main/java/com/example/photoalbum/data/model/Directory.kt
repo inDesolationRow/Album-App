@@ -1,4 +1,4 @@
-package com.example.photoalbum.database.model
+package com.example.photoalbum.data.model
 
 import android.graphics.Bitmap
 import androidx.compose.runtime.MutableState

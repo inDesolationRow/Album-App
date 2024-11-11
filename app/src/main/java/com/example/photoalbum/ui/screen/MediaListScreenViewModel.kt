@@ -16,7 +16,7 @@ import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewModelScope
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
-import com.example.photoalbum.database.model.LocalNetStorageInfo
+import com.example.photoalbum.data.model.LocalNetStorageInfo
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.model.Menu
@@ -171,6 +171,7 @@ class MediaListScreenViewModel(
             application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileById(directoryId = directoryId)
         if (directory == null || directory.mediaFileList.isEmpty()) return
         val tempList : MutableList<MediaItem> = mutableListOf()
+        println("测试: 列表大小${directory.mediaFileList.size}")
         for (mediaFile in directory.mediaFileList) {
             val item = MediaItem(
                 id = mediaFile.mediaFileId,
@@ -185,12 +186,13 @@ class MediaListScreenViewModel(
                 displayName = mediaFile.displayName,
                 mimeType = mediaFile.mimeType
             )
+
             tempList.add(item)
-            if (tempList.size == 100 || tempList.size == directory.mediaFileList.size){
+            if (tempList.size >= 200 || tempList.size == directory.mediaFileList.size){
                 items.addAll(tempList)
             }
 
-            val job = viewModelScope.launch(context = Dispatchers.IO) {
+            /*val job = viewModelScope.launch(context = Dispatchers.IO) {
                 semaphore.acquire()
                 val thumbnail = if (mediaFile.thumbnail.isNotBlank()) {
                     createThumbnail(
@@ -207,8 +209,8 @@ class MediaListScreenViewModel(
                 } else decodeSampledBitmapFromStream(mediaFile.data)
                 item.thumbnail.value = thumbnail
                 semaphore.release()
-            }
-            jobs.add(job)
+            }*/
+            //jobs.add(job)
         }
         jobs.forEach{
             it.join()

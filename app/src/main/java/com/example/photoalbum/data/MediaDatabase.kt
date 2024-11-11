@@ -1,15 +1,21 @@
-package com.example.photoalbum.database
+package com.example.photoalbum.data
 
 import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.example.photoalbum.database.model.Album
-import com.example.photoalbum.database.model.Directory
-import com.example.photoalbum.database.model.DirectoryMediaFileCrossRef
-import com.example.photoalbum.database.model.LocalNetStorageInfo
-import com.example.photoalbum.database.model.MediaFile
-import com.example.photoalbum.database.model.PhotoInfo
+import com.example.photoalbum.data.dao.AlbumDao
+import com.example.photoalbum.data.dao.DirectoryDao
+import com.example.photoalbum.data.dao.DirectoryMediaFileCrossRefDao
+import com.example.photoalbum.data.dao.LocalNetStorageInfoDao
+import com.example.photoalbum.data.dao.MediaFileDao
+import com.example.photoalbum.data.dao.PhotoDao
+import com.example.photoalbum.data.model.Album
+import com.example.photoalbum.data.model.Directory
+import com.example.photoalbum.data.model.DirectoryMediaFileCrossRef
+import com.example.photoalbum.data.model.LocalNetStorageInfo
+import com.example.photoalbum.data.model.MediaFile
+import com.example.photoalbum.data.model.PhotoInfo
 
 @Database(entities = [Album::class,
     PhotoInfo::class,

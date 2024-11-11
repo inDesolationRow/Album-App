@@ -1,13 +1,12 @@
-package com.example.photoalbum.database
+package com.example.photoalbum.data.dao
 
-import androidx.compose.runtime.MutableState
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
-import com.example.photoalbum.database.model.Directory
-import com.example.photoalbum.database.model.DirectoryWithMediaFile
+import com.example.photoalbum.data.model.Directory
+import com.example.photoalbum.data.model.DirectoryWithMediaFile
 
 @Dao
 interface DirectoryDao {
