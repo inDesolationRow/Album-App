@@ -12,20 +12,22 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.runtime.toMutableStateList
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewModelScope
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
-import com.example.photoalbum.database.model.DirectoryWithMediaFile
 import com.example.photoalbum.database.model.LocalNetStorageInfo
+import com.example.photoalbum.enums.ItemType
+import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.model.Menu
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.utils.decodeSampledBitmapFromStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import java.io.File
+import java.util.concurrent.Semaphore
 
 class MediaListScreenViewModel(
     private val application: MediaApplication,
@@ -38,7 +40,7 @@ class MediaListScreenViewModel(
 
     var recomposeKey: MutableStateFlow<Int> = MutableStateFlow(0)
 
-    lateinit var originalDirectoryList: SnapshotStateList<DirectoryWithMediaFile>
+    var items: SnapshotStateList<MediaItem> = mutableStateListOf()
 
     lateinit var localNetStorageInfoListStateFlow: MutableStateFlow<MutableList<LocalNetStorageInfo>>
 
@@ -54,14 +56,18 @@ class MediaListScreenViewModel(
 
     private val menuAddLocalNetStorageId = -2
 
-    val notPreview = application.getDrawable(R.drawable.folder)!!.toBitmap()
+    val notPreview = application.getDrawable(R.drawable.baseline_folder)!!.toBitmap()
 
     init {
         viewModelScope.launch(context = Dispatchers.IO) {
             currentDirectoryId.collect {
                 if (it >= -1) {
                     println("测试:通过currentDirectoryId更新")
-                    loadDirectoryAndMediaFile(it)
+                    try {
+                        loadDirectoryAndMediaFile(it)
+                    }catch (e: Exception){
+                        println("错误原因${e.message}")
+                    }
                 }
             }
         }
@@ -112,14 +118,28 @@ class MediaListScreenViewModel(
     }
 
     private suspend fun loadDirectoryAndMediaFile(directoryId: Long) {
-        originalDirectoryList =
+        val start = System.currentTimeMillis()
+        val originalDirectoryList =
             application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileByParentId(parentId = directoryId)
-                ?.toMutableStateList()
                 ?: mutableStateListOf()
         val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
             ?: application.applicationContext.filesDir).absolutePath.plus("/Thumbnail")
+        val semaphore = Semaphore(32)
+        items.clear()
+        val jobs: MutableList<Job> = mutableListOf()
+
+        //遍历需要显示的子目录
         for (dir in originalDirectoryList) {
-            viewModelScope.launch(context = Dispatchers.IO) {
+            val item = MediaItem(
+                id = dir.directory.directoryId,
+                type = ItemType.DIRECTORY,
+                displayName = dir.directory.displayName,
+                mimeType = ""
+            )
+            items.add(item)
+            //获取缩略图
+            val job = viewModelScope.launch(context = Dispatchers.IO) {
+                semaphore.acquire()
                 if (dir.mediaFileList.isNotEmpty() && dir.mediaFileList[0].data.isNotBlank()) {
                     dir.mediaFileList[0].thumbnail.isBlank().let {
                         val thumbnail = if (it) {
@@ -136,16 +156,176 @@ class MediaListScreenViewModel(
                             )
                         } else decodeSampledBitmapFromStream(dir.mediaFileList[0].data)
                         viewModelScope.launch(context = Dispatchers.Main) {
-                            println("测试:替换缩略图")
-                            val index = originalDirectoryList.indexOf(dir)
-                            originalDirectoryList[index].directory.thumbnailBitmap.value = thumbnail
+                            item.thumbnail.value = thumbnail
                         }
                     }
                 }
+                semaphore.release()
             }
+            jobs.add(job)
         }
+
+        //遍历需要显示的子文件，如果directoryId = -1 则显示的是根目录无子文件不需要遍历
+        if (directoryId == -1L) return
+        val directory =
+            application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileById(directoryId = directoryId)
+        if (directory == null || directory.mediaFileList.isEmpty()) return
+        val tempList : MutableList<MediaItem> = mutableListOf()
+        for (mediaFile in directory.mediaFileList) {
+            val item = MediaItem(
+                id = mediaFile.mediaFileId,
+                type = mediaFile.mimeType.let {
+                    val test = it.lowercase()
+                    return@let when {
+                        test.contains("image") -> { ItemType.IMAGE }
+                        test.contains("video") -> { ItemType.VIDEO }
+                        else -> { ItemType.ERROR }
+                    }
+                },
+                displayName = mediaFile.displayName,
+                mimeType = mediaFile.mimeType
+            )
+            tempList.add(item)
+            if (tempList.size == 100 || tempList.size == directory.mediaFileList.size){
+                items.addAll(tempList)
+            }
+
+            val job = viewModelScope.launch(context = Dispatchers.IO) {
+                semaphore.acquire()
+                val thumbnail = if (mediaFile.thumbnail.isNotBlank()) {
+                    createThumbnail(
+                        mediaFile.data,
+                        mediaFile.mediaFileId,
+                        mediaFile.displayName
+                    ) ?: decodeSampledBitmapFromStream(
+                        File(
+                            thumbnailsPath,
+                            mediaFile.displayName.split(".").first()
+                                .plus("_thumbnail.png")
+                        ).absolutePath
+                    )
+                } else decodeSampledBitmapFromStream(mediaFile.data)
+                item.thumbnail.value = thumbnail
+                semaphore.release()
+            }
+            jobs.add(job)
+        }
+        jobs.forEach{
+            it.join()
+        }
+        val end = System.currentTimeMillis()
+        val d = end - start
+        println("测试:渲染用时$d")
+    }
+/*    private suspend fun loadDirectory(directoryId: Long) {
+        val start = System.currentTimeMillis()
+        val originalDirectoryList =
+            application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileByParentId(parentId = directoryId)
+                ?: mutableStateListOf()
+        items.clear()
+        if (originalDirectoryList.isEmpty()) return
+        val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
+            ?: application.applicationContext.filesDir).absolutePath.plus("/Thumbnail")
+        val semaphore = Semaphore(10)
+        val jobs: MutableList<Job> = mutableListOf()
+
+        //遍历需要显示的子目录
+        for (dir in originalDirectoryList) {
+            val item = MediaItem(
+                id = dir.directory.directoryId,
+                type = ItemType.DIRECTORY,
+                displayName = dir.directory.displayName,
+                mimeType = ""
+            )
+            items.add(item)
+            //获取缩略图
+            val job = viewModelScope.launch(context = Dispatchers.IO) {
+                semaphore.acquire()
+                if (dir.mediaFileList.isNotEmpty() && dir.mediaFileList[0].data.isNotBlank()) {
+                    dir.mediaFileList[0].thumbnail.isBlank().let {
+                        val thumbnail = if (it) {
+                            createThumbnail(
+                                dir.mediaFileList[0].data,
+                                dir.mediaFileList[0].mediaFileId,
+                                dir.mediaFileList[0].displayName
+                            ) ?: decodeSampledBitmapFromStream(
+                                File(
+                                    thumbnailsPath,
+                                    dir.mediaFileList[0].displayName.split(".").first()
+                                        .plus("_thumbnail.png")
+                                ).absolutePath
+                            )
+                        } else decodeSampledBitmapFromStream(dir.mediaFileList[0].data)
+                        viewModelScope.launch(context = Dispatchers.Main) {
+                            item.thumbnail.value = thumbnail
+                        }
+                    }
+                }
+                semaphore.release()
+            }
+            jobs.add(job)
+        }
+
+        jobs.forEach{
+            it.join()
+        }
+        val end = System.currentTimeMillis()
+        val d = end - start
+        println("测试:渲染目录用时 $d ms")
     }
 
+    private suspend fun loadMediaFile(directoryId: Long){
+        if (directoryId == -1L) return
+        val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
+            ?: application.applicationContext.filesDir).absolutePath.plus("/Thumbnail")
+        val semaphore = Semaphore(22)
+        val jobs: MutableList<Job> = mutableListOf()
+        val start = System.currentTimeMillis()
+        val directory =
+            application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileById(directoryId = directoryId)
+        if (directory == null || directory.mediaFileList.isEmpty()) return
+        for (mediaFile in directory.mediaFileList) {
+            val item = MediaItem(
+                id = mediaFile.mediaFileId,
+                type = mediaFile.mimeType.let {
+                    val test = it.lowercase()
+                    return@let when {
+                        test.contains("image") -> { ItemType.IMAGE }
+                        test.contains("video") -> { ItemType.VIDEO }
+                        else -> { ItemType.ERROR }
+                    }
+                },
+                displayName = mediaFile.displayName,
+                mimeType = mediaFile.mimeType
+            )
+            items.add(item)
+            val job = viewModelScope.launch(context = Dispatchers.IO) {
+                semaphore.acquire()
+                val thumbnail = if (mediaFile.thumbnail.isNotBlank()) {
+                    createThumbnail(
+                        mediaFile.data,
+                        mediaFile.mediaFileId,
+                        mediaFile.displayName
+                    ) ?: decodeSampledBitmapFromStream(
+                        File(
+                            thumbnailsPath,
+                            mediaFile.displayName.split(".").first()
+                                .plus("_thumbnail.png")
+                        ).absolutePath
+                    )
+                } else decodeSampledBitmapFromStream(mediaFile.data)
+                item.thumbnail.value = thumbnail
+                semaphore.release()
+            }
+            jobs.add(job)
+        }
+        jobs.forEach{
+            it.join()
+        }
+        val end = System.currentTimeMillis()
+        val d = end - start
+        println("测试:渲染文件用时 $d ms")
+    }*/
     /**
      * 强制触发更新
      *

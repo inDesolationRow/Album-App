@@ -8,7 +8,7 @@ import com.example.photoalbum.database.AlbumDao
 import com.example.photoalbum.database.MediaDatabase
 import com.example.photoalbum.database.MediaFileDao
 import com.example.photoalbum.database.PhotoDao
-import com.example.photoalbum.enum.AlbumType
+import com.example.photoalbum.enums.AlbumType
 import com.example.photoalbum.database.model.Album
 import com.example.photoalbum.database.model.PhotoInfo
 import com.example.photoalbum.repository.ImageStoreImageRepositoryImpl

@@ -1,4 +1,4 @@
-package com.example.photoalbum.enum
+package com.example.photoalbum.enums
 
 enum class AlbumType {
     MAIN_ALBUM, //显示在主页的相册
@@ -35,4 +35,11 @@ enum class ScanResult {
     FAILED,
     SCANNING,
     NONE
+}
+
+enum class ItemType{
+    DIRECTORY,
+    IMAGE,
+    VIDEO,
+    ERROR
 }

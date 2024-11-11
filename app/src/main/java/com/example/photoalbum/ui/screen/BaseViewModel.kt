@@ -14,8 +14,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.photoalbum.MediaApplication
-import com.example.photoalbum.enum.ScanResult
-import com.example.photoalbum.enum.UserState
+import com.example.photoalbum.enums.ScanResult
+import com.example.photoalbum.enums.UserState
 import com.example.photoalbum.database.model.Directory
 import com.example.photoalbum.database.model.DirectoryMediaFileCrossRef
 import com.example.photoalbum.ui.action.UserAction

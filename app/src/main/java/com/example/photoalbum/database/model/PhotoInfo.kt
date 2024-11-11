@@ -3,7 +3,7 @@ package com.example.photoalbum.database.model
 import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import com.example.photoalbum.enum.StorageType
+import com.example.photoalbum.enums.StorageType
 
 @Entity(tableName = "photo_info_table")
 data class PhotoInfo (

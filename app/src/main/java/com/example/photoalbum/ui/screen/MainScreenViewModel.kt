@@ -4,7 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.example.photoalbum.MediaApplication
-import com.example.photoalbum.enum.NavType
+import com.example.photoalbum.enums.NavType
 import com.example.photoalbum.ui.action.UserAction
 import kotlinx.coroutines.flow.MutableStateFlow
 

@@ -22,8 +22,8 @@ interface DirectoryDao {
     suspend fun queryDirectoryByParentId(parentId: Long): List<Directory>?
 
     @Transaction
-    @Query(value = "SELECT * FROM directory_table WHERE display_name = :displayName")
-    suspend fun queryDirectoryWithMediaFileByDisplayName(displayName: String): List<DirectoryWithMediaFile>?
+    @Query(value = "SELECT * FROM directory_table WHERE directory_id = :directoryId")
+    suspend fun queryDirectoryWithMediaFileById(directoryId: Long): DirectoryWithMediaFile?
 
     @Transaction
     @Query(value = "SELECT * FROM directory_table WHERE parent_id = :parentId")

@@ -32,7 +32,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.photoalbum.enum.NavType
+import com.example.photoalbum.enums.NavType
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.res.stringResource
 import com.example.photoalbum.R

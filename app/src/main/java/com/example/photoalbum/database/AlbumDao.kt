@@ -4,7 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
-import com.example.photoalbum.enum.AlbumType
+import com.example.photoalbum.enums.AlbumType
 import com.example.photoalbum.database.model.Album
 
 @Dao

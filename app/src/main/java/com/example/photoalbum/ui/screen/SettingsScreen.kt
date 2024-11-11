@@ -21,8 +21,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.photoalbum.R
-import com.example.photoalbum.enum.ScanResult
-import com.example.photoalbum.enum.SettingsDialog
+import com.example.photoalbum.enums.ScanResult
+import com.example.photoalbum.enums.SettingsDialog
 import com.example.photoalbum.model.DialogEntity
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 
