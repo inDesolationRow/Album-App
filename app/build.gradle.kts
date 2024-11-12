@@ -70,7 +70,8 @@ dependencies {
     implementation(libs.coil.compose)
     implementation(libs.smbj)
     implementation(libs.androidx.material.icons.extended)
-    implementation(libs.picasso)
+    implementation(libs.androidx.paging.compose)
+    implementation(libs.androidx.paging.runtime)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

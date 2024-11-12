@@ -1,6 +1,7 @@
 package com.example.photoalbum.ui.screen
 
 import android.graphics.Bitmap
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -32,8 +33,10 @@ import androidx.compose.material3.NavigationDrawerItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
@@ -41,9 +44,12 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.paging.compose.LazyPagingItems
+import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.model.MediaItem
+import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.ui.theme.MediumPadding
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.theme.SmallPadding
@@ -54,6 +60,12 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
+    BackHandler(viewModel.level >= 2) {
+        viewModel.level -= 1
+        val levelStack = viewModel.levelStack
+        levelStack.removeLast()
+        viewModel.currentDirectoryId.value = levelStack.last()
+    }
     MediaListMainScreen(viewModel, modifier = modifier)
 }
 
@@ -90,28 +102,20 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                         .padding(padding)
                         .fillMaxSize()
                 ) {
+                    val items = viewModel.flow.value.collectAsLazyPagingItems()
+
                     MediaList(
-                        itemList = viewModel.items,
-                        nullPreview = viewModel.notPreview,
+                        itemList = items,
+                        nullPreviewIcon = viewModel.notPreviewIcon,
+                        directoryIcon = viewModel.directoryIcon,
                         click = { id, type ->
-                            println("测试: id被传递了 id是$id")
                             if (type == ItemType.DIRECTORY) viewModel.currentDirectoryId.value = id
+                        },
+                        expand = {
+                            viewModel.userAction.value = UserAction.ExpandStatusBarAction(it)
                         },
                         modifier = Modifier.fillMaxHeight()
                     )
-                    /*Row {
-                        Button(onClick = {
-                            viewModel.delLocalNetStorageInfo()
-                        }) {
-                            Text(text = "测试删除一个网络存储")
-                        }
-
-                        Button(onClick = {
-                            viewModel.addLocalNetStorageInfo(LocalNetStorageInfo(displayName = Random.nextFloat().toString()))
-                        }) {
-                            Text(text = "测试添加一个网络存储")
-                        }
-                    }*/
                 }
             }
         },
@@ -161,46 +165,67 @@ fun TopBar(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
 
 @Composable
 fun MediaList(
-    itemList: SnapshotStateList<MediaItem>,
-    nullPreview: Bitmap,
+    itemList: LazyPagingItems<MediaItem>,
+    nullPreviewIcon: Bitmap,
+    directoryIcon: Bitmap,
+    expand: (Boolean) -> Unit,
     click: (Long, ItemType) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val lazyState = rememberLazyGridState()
     LazyVerticalGrid(
         columns = GridCells.Fixed(3),
+        state = lazyState,
         modifier = modifier
             .padding(start = MediumPadding)
     ) {
-        items(itemList, key = { it.id }) {
-            MediaFilePreview(
-                image = it.thumbnail.value,
-                nullPreview = nullPreview,
-                it.displayName,
-                modifier = Modifier
-                    .padding(end = MediumPadding, top = MediumPadding)
-                    .clickable { click(it.id, it.type) }
-            )
+        items(itemList.itemCount) { index ->
+            itemList[index]?.let {
+                MediaFilePreview(
+                    image = it.thumbnail,
+                    nullPreviewIcon = nullPreviewIcon,
+                    directoryIcon = directoryIcon,
+                    directoryName = it.displayName,
+                    fileType = it.type,
+                    modifier = Modifier
+                        .padding(end = MediumPadding, top = MediumPadding)
+                        .clickable { click(it.id, it.type) }
+                )
+            }
         }
     }
+    val invisibleStatusBar by remember {
+        derivedStateOf {
+            lazyState.firstVisibleItemScrollOffset > 0
+        }
+    }
+    expand(!invisibleStatusBar)
 }
 
 @Composable
 fun MediaFilePreview(
     image: Bitmap?,
-    nullPreview: Bitmap,
+    nullPreviewIcon: Bitmap,
+    directoryIcon: Bitmap,
+    fileType: ItemType,
     directoryName: String,
     modifier: Modifier = Modifier
 ) {
     println("测试:item重组")
     Column(modifier = modifier) {
         if (image == null) {
-            DisplayImage(nullPreview, true)
+            when (fileType) {
+                ItemType.DIRECTORY -> { DisplayImage(bitmap = directoryIcon, scale = true) }
+                ItemType.IMAGE -> { DisplayImage(bitmap = nullPreviewIcon, scale = true) }
+                ItemType.VIDEO -> {}
+                ItemType.ERROR -> {}
+            }
         } else {
             Card(
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.padding(bottom = TinyPadding)
             ) {
-                DisplayImage(image)
+                DisplayImage(bitmap = image)
             }
         }
         Text(
@@ -211,12 +236,12 @@ fun MediaFilePreview(
 }
 
 @Composable
-fun DisplayImage(bitmap: Bitmap, scale: Boolean = false) {
+fun DisplayImage(modifier: Modifier = Modifier, bitmap: Bitmap, scale: Boolean = false) {
     AsyncImage(
         model = bitmap,
         contentDescription = null,
         contentScale = ContentScale.Crop,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .aspectRatio(1f)
             .graphicsLayer {
