@@ -23,7 +23,9 @@ import com.example.photoalbum.data.MediaItemPagingSource
 import com.example.photoalbum.data.MediaItemPagingSourceService
 import com.example.photoalbum.data.model.LocalNetStorageInfo
 import com.example.photoalbum.model.MediaItem
+import com.example.photoalbum.model.MediaListDialogEntity
 import com.example.photoalbum.model.Menu
+import com.example.photoalbum.smb.SmbClient
 import com.example.photoalbum.ui.action.UserAction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -34,38 +36,45 @@ import kotlinx.coroutines.launch
 class MediaListScreenViewModel(
     private val application: MediaApplication,
     userAction: MutableStateFlow<UserAction>
-) :
-    BaseViewModel(application, userAction) {
-    //-1代表所有根目录
-    var currentDirectoryId: MutableStateFlow<Long> = MutableStateFlow(-1)
+) : BaseViewModel(application, userAction) {
 
-    var recomposeKey: MutableStateFlow<Int> = MutableStateFlow(0)
+    var showDialog by mutableStateOf(MediaListDialogEntity())
+    /**
+     * 拖拽抽屉相关的状态
+     */
+    val menuLocalStorage = -1
 
-    lateinit var localNetStorageInfoListStateFlow: MutableStateFlow<MutableList<LocalNetStorageInfo>>
-
-    lateinit var menu: MutableState<List<Menu>>
+    val menuAddLocalNetStorage = -2
 
     var drawerState by mutableStateOf(DrawerState(DrawerValue.Closed))
 
+    lateinit var menu: MutableState<List<Menu>>
+
     lateinit var selectedItem: MutableState<Menu>
+
+    lateinit var localNetStorageInfoListStateFlow: MutableStateFlow<MutableList<LocalNetStorageInfo>>
 
     private var newLocalNetStorageInfoId: Int? = null
 
-    private val menuMediaListId = -1
+    /**
+     * 本地媒体列表相关的状态
+     * -1代表所有根目录
+     */
+    var currentDirectoryId: MutableStateFlow<Long> = MutableStateFlow(-1)
 
-    private val menuAddLocalNetStorageId = -2
+    val levelStack: MutableList<Long> = mutableListOf()
+
+    var level by mutableIntStateOf(1)
 
     val notPreviewIcon = application.getDrawable(R.drawable.hide)!!.toBitmap()
 
     val directoryIcon = application.getDrawable(R.drawable.baseline_folder)!!.toBitmap()
 
+    var recomposeKey: MutableStateFlow<Int> = MutableStateFlow(0)
+
     lateinit var flow: MutableState<Flow<PagingData<MediaItem>>>
 
     private val mediaService = MediaItemPagingSourceService(application)
-
-    val levelStack: MutableList<Long> = mutableListOf()
-
-    var level by mutableIntStateOf(1)
 
     init {
         viewModelScope.launch(context = Dispatchers.IO) {
@@ -75,7 +84,7 @@ class MediaListScreenViewModel(
                     levelStack.add(-1L)
                 } else {
                     initPaging(it)
-                    if (levelStack.last() != it){
+                    if (levelStack.last() != it) {
                         level += 1
                         levelStack.add(it)
                     }
@@ -127,6 +136,37 @@ class MediaListScreenViewModel(
         }
     }
 
+    private fun updateSelectItem(id: Int) {
+        val selectItem = menu.value.filter { it.id == id }
+        selectedItem.value = selectItem.first()
+    }
+
+    private fun getMenuList(list: MutableList<LocalNetStorageInfo>?): List<Menu> {
+        val menuList: MutableList<Menu> = mutableListOf()
+        menuList.add(
+            Menu(
+                menuLocalStorage,
+                application.getString(R.string.local_file),
+                true,
+                Icons.Filled.Folder
+            )
+        )
+        if (!list.isNullOrEmpty()) {
+            for (info in list) {
+                menuList.add(Menu(info.id, info.displayName, true, Icons.Filled.Cloud))
+            }
+        }
+        menuList.add(
+            Menu(
+                menuAddLocalNetStorage,
+                application.getString(R.string.add_local_cloud),
+                true,
+                Icons.Filled.CloudSync
+            )
+        )
+        return menuList
+    }
+
     private fun initPaging(directoryId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             mediaService.getAllDataForMediaList(directoryId)
@@ -171,7 +211,7 @@ class MediaListScreenViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             application.mediaDatabase.localNetStorageInfoDao.deleteById(del.first().id)
         }
-        updateSelectItem(menuAddLocalNetStorageId)
+        updateSelectItem(menuAddLocalNetStorage)
     }
 
     fun addLocalNetStorageInfo(info: LocalNetStorageInfo) {
@@ -186,35 +226,9 @@ class MediaListScreenViewModel(
         }
     }
 
-    private fun updateSelectItem(id: Int) {
-        val selectItem = menu.value.filter { it.id == id }
-        selectedItem.value = selectItem.first()
-    }
-
-    private fun getMenuList(list: MutableList<LocalNetStorageInfo>?): List<Menu> {
-        val menuList: MutableList<Menu> = mutableListOf()
-        menuList.add(
-            Menu(
-                menuMediaListId,
-                application.getString(R.string.local_file),
-                true,
-                Icons.Filled.Folder
-            )
-        )
-        if (!list.isNullOrEmpty()) {
-            for (info in list) {
-                menuList.add(Menu(info.id, info.displayName, true, Icons.Filled.Cloud))
-            }
+    fun connectSmb(ip: String, user: String, pwd: String?){
+        viewModelScope.async(Dispatchers.IO) {
+            SmbClient().connect(ip, user, pwd)
         }
-        menuList.add(
-            Menu(
-                menuAddLocalNetStorageId,
-                application.getString(R.string.add_local_cloud),
-                true,
-                Icons.Filled.CloudSync
-            )
-        )
-        return menuList
     }
-
 }

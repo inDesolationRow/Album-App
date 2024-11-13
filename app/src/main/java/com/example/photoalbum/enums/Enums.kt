@@ -21,6 +21,15 @@ enum class UserState {
     FIRST_RUN_APP
 }
 
+enum class MediaListDialog {
+    LOCAL_NET_IP_ERROR,
+    LOCAL_NET_USER_ERROR,
+    LOCAL_NET_SHARED_ERROR,
+    LOCAL_NET_ADD_SUCCESS,
+    LOCAL_NET_CONNECTING,
+    NONE
+}
+
 enum class SettingsDialog {
     SCAN_LOCAL_STORAGE,
     GO_TO_APP_SETTINGS,
@@ -37,7 +46,7 @@ enum class ScanResult {
     NONE
 }
 
-enum class ItemType{
+enum class ItemType {
     DIRECTORY,
     IMAGE,
     VIDEO,

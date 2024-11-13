@@ -15,4 +15,12 @@
     <string name="add_local_cloud">添加本地网络</string>
     <string name="yes">确定</string>
     <string name="no">取消</string>
+    <string name="ip">IP</string>
+    <string name="ip_input">共享设备的IP(必填)</string>
+    <string name="user">账户</string>
+    <string name="user_input">共享设备的登录账户(必填)</string>
+    <string name="pwd">密码</string>
+    <string name="pwd_input">账户未设密码可不填(选填)</string>
+    <string name="shared">共享目录</string>
+    <string name="shared_input">共享目录(必填)</string>
 </resources>

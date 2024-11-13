@@ -1,8 +1,6 @@
 package com.example.photoalbum.model
 
 import android.graphics.Bitmap
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
 import com.example.photoalbum.enums.ItemType
 
 data class MediaItem(
