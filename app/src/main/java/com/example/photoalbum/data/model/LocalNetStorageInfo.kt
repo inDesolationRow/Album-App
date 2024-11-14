@@ -13,5 +13,6 @@ data class LocalNetStorageInfo(
     val ip: String = "",
     val user: String = "",
     val password: String = "",
+    val shared: String = "",
     val usable: Boolean = false
 )

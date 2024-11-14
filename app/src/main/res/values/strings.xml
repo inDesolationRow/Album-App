@@ -23,4 +23,10 @@
     <string name="pwd_input">账户未设密码可不填(选填)</string>
     <string name="shared">共享目录</string>
     <string name="shared_input">共享目录(必填)</string>
+    <string name="connecting">尝试连接连接中</string>
+    <string name="submit">提交</string>
+    <string name="connect_success">连接成功</string>
+    <string name="connect_failed_ip_error">连接失败,请检查IP是否正确</string>
+    <string name="connect_failed_user_error">连接失败,请检查账户密码是否正确</string>
+    <string name="connect_failed_shared_error">连接失败,请检查共享目录是否正确</string>
 </resources>

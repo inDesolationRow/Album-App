@@ -1,39 +1,79 @@
 package com.example.photoalbum.smb
 
+import com.example.photoalbum.ui.action.ConnectResult
 import com.hierynomus.smbj.SMBClient
 import com.hierynomus.smbj.auth.AuthenticationContext
+import com.hierynomus.smbj.connection.Connection
+import com.hierynomus.smbj.session.Session
 import com.hierynomus.smbj.share.DiskShare
-
 
 class SmbClient {
 
-    lateinit var smbClient: SMBClient
+    private lateinit var smbClient: SMBClient
 
-    fun connect(ip: String, user: String, pwd: String?): Boolean {
+    private lateinit var connection: Connection
+
+    private lateinit var session: Session
+
+    private lateinit var diskShare: DiskShare
+
+    fun connect(ip: String, user: String, pwd: String?, shared: String): ConnectResult {
+        smbClient = SMBClient()
+        val connectionTest = connect(ip)
+        if (connectionTest is Exception) return ConnectResult.IPError(connectionTest.message!!)
+        connection = connectionTest as Connection
+
+        val sessionTest = authenticate(connection, user, pwd)
+        if (sessionTest is Exception) return ConnectResult.AuthenticateError(sessionTest.message!!)
+        session = sessionTest as Session
+
+        val diskShareTest = connectShare(session, shared)
+        if (diskShareTest is Exception) return ConnectResult.SharedError(diskShareTest.message!!)
+        diskShare = diskShareTest as DiskShare
+
+        return ConnectResult.Success
+    }
+
+    private fun connect(ip: String): Any {
+        val connection: Connection?
         try {
-            smbClient = SMBClient()
-            val connection = smbClient.connect(ip)
-            println("测试:开始验证")
-            val session = connection.authenticate(
+            connection = smbClient.connect(ip)
+        } catch (e: Exception) {
+            return e
+        }
+        return connection
+    }
+
+    private fun authenticate(connection: Connection, user: String, pwd: String?): Any {
+        val session: Session?
+        try {
+            session = connection.authenticate(
                 AuthenticationContext(
                     user,
                     pwd?.toCharArray() ?: CharArray(0),
                     null
                 )
             )
-            val shape = session.connectShare("shared") as DiskShare
-            for (f in shape.list("")) {
-                println("File : " + f.fileName)
-            }
-            println("测试:验证结束")
         } catch (e: Exception) {
-            e.stackTrace.firstOrNull()?.let { element ->
-                println("异常发生在文件: ${element.fileName}")
-                println("异常发生在类: ${element.className}")
-                println("异常发生在方法: ${element.methodName} ")
-                println("异常发生的行: ${element.lineNumber}")
-            }
+            return e
         }
-        return false
+        return session
     }
+
+    private fun connectShare(session: Session, shared: String): Any {
+        val diskShare: DiskShare
+        try {
+            diskShare = session.connectShare(shared) as DiskShare
+        } catch (e: Exception) {
+            return e
+        }
+        return diskShare
+    }
+
+    fun getCurrentList() {
+        for (f in diskShare.list("")) {
+            println("File : " + f.fileName)
+        }
+    }
+
 }

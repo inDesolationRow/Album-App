@@ -25,13 +25,12 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdsClick
 import androidx.compose.material.icons.filled.Dehaze
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -57,16 +56,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.viewModelScope
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import com.example.photoalbum.R
+import com.example.photoalbum.data.model.LocalNetStorageInfo
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.MediaListDialog
 import com.example.photoalbum.model.MediaItem
+import com.example.photoalbum.model.MediaListDialogEntity
+import com.example.photoalbum.model.Menu
+import com.example.photoalbum.ui.action.ConnectResult
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.ui.common.MessageDialog
+import com.example.photoalbum.ui.common.ProgressDialog
 import com.example.photoalbum.ui.theme.LargePadding
 import com.example.photoalbum.ui.theme.MediumPadding
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
@@ -74,7 +78,6 @@ import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-
 
 @Composable
 fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
@@ -84,22 +87,13 @@ fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Mo
         levelStack.removeLast()
         viewModel.currentDirectoryId.value = levelStack.last()
     }
-    if (viewModel.showDialog.isShow){
-        when(viewModel.showDialog.settingsDialog){
-            MediaListDialog.LOCAL_NET_IP_ERROR -> TODO()
-            MediaListDialog.LOCAL_NET_USER_ERROR -> TODO()
-            MediaListDialog.LOCAL_NET_SHARED_ERROR -> TODO()
-            MediaListDialog.LOCAL_NET_ADD_SUCCESS -> TODO()
-            MediaListDialog.LOCAL_NET_CONNECTING -> TODO()
-            MediaListDialog.NONE -> TODO()
-        }
-    }
     MediaListMainScreen(viewModel, modifier = modifier)
 }
 
 @Composable
 fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
+    val selectItem = viewModel.selectedItem.value ?: return
     ModalNavigationDrawer(
         drawerState = viewModel.drawerState,
         drawerContent = {
@@ -123,15 +117,55 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
         },
         content = {
             Scaffold(topBar = {
-                TopBar(viewModel = viewModel, modifier = Modifier.padding(start = MediumPadding))
+                TopBar(
+                    viewModel = viewModel,
+                    selectItem = selectItem,
+                    modifier = Modifier.padding(start = MediumPadding)
+                )
             }) { padding ->
                 Column(
                     modifier = Modifier
                         .padding(padding)
                         .fillMaxSize()
                 ) {
-                    val items = viewModel.flow.value.collectAsLazyPagingItems()
-                    if (viewModel.selectedItem.value.id == viewModel.menuLocalStorage) {
+                    //整个composable的弹出dialog逻辑
+                    if (viewModel.showDialog.isShow) {
+                        when (viewModel.showDialog.mediaListDialog) {
+                            MediaListDialog.LOCAL_NET_IP_ERROR -> MessageDialog(
+                                messageRes = R.string.connect_failed_ip_error,
+                                clickConfirm = { viewModel.showDialog = MediaListDialogEntity() },
+                                onDismiss = { viewModel.showDialog = MediaListDialogEntity() })
+
+                            MediaListDialog.LOCAL_NET_USER_ERROR -> MessageDialog(
+                                messageRes = R.string.connect_failed_user_error,
+                                clickConfirm = { viewModel.showDialog = MediaListDialogEntity() },
+                                onDismiss = { viewModel.showDialog = MediaListDialogEntity() })
+
+                            MediaListDialog.LOCAL_NET_SHARED_ERROR -> MessageDialog(
+                                messageRes = R.string.connect_failed_shared_error,
+                                clickConfirm = { viewModel.showDialog = MediaListDialogEntity() },
+                                onDismiss = { viewModel.showDialog = MediaListDialogEntity() })
+
+                            MediaListDialog.LOCAL_NET_ADD_SUCCESS -> MessageDialog(
+                                messageRes = R.string.connect_success,
+                                clickConfirm = {
+                                    viewModel.showDialog.onClick()
+                                    viewModel.showDialog = MediaListDialogEntity()
+                                },
+                                onDismiss = {
+                                    viewModel.showDialog.onClick()
+                                    viewModel.showDialog = MediaListDialogEntity()
+                                })
+
+                            MediaListDialog.LOCAL_NET_CONNECTING ->
+                                ProgressDialog(R.string.connecting)
+
+
+                            MediaListDialog.NONE -> {}
+                        }
+                    }
+                    if (selectItem.id == viewModel.menuLocalStorage) {
+                        val items = viewModel.mediaFileFlow.value.collectAsLazyPagingItems()
                         MediaList(
                             itemList = items,
                             nullPreviewIcon = viewModel.notPreviewIcon,
@@ -145,10 +179,55 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             },
                             modifier = Modifier.fillMaxHeight()
                         )
-                    } else if (viewModel.selectedItem.value.id == viewModel.menuAddLocalNetStorage) {
-                        AddLocalNetStorage(onClick = { ip, user, pwd ->
-                            viewModel.connectSmb(ip, user, pwd)
+                    } else if (selectItem.id == viewModel.menuAddLocalNetStorage) {
+                        AddLocalNetStorage(onClick = { ip, user, pwd, shared ->
+                            viewModel.showDialog =
+                                MediaListDialogEntity(MediaListDialog.LOCAL_NET_CONNECTING, true)
+                            viewModel.viewModelScope.launch {
+                                val result = viewModel.connectSmb(ip, user, pwd, shared)
+                                when (result) {
+                                    is ConnectResult.IPError -> viewModel.showDialog =
+                                        MediaListDialogEntity(
+                                            mediaListDialog = MediaListDialog.LOCAL_NET_IP_ERROR,
+                                            isShow = true
+                                        )
+
+                                    is ConnectResult.AuthenticateError -> viewModel.showDialog =
+                                        MediaListDialogEntity(
+                                            mediaListDialog = MediaListDialog.LOCAL_NET_USER_ERROR,
+                                            isShow = true
+                                        )
+
+
+                                    is ConnectResult.SharedError -> viewModel.showDialog =
+                                        MediaListDialogEntity(
+                                            mediaListDialog = MediaListDialog.LOCAL_NET_SHARED_ERROR,
+                                            isShow = true
+                                        )
+
+
+                                    is ConnectResult.ConnectError -> {}
+                                    is ConnectResult.Success -> {
+                                        viewModel.addLocalNetStorageInfo(
+                                            LocalNetStorageInfo(
+                                                displayName = "$user://$shared",
+                                                ip = ip,
+                                                user = user,
+                                                password = pwd ?: "",
+                                                shared = shared
+                                            )
+                                        )
+                                        viewModel.showDialog =
+                                            MediaListDialogEntity(
+                                                mediaListDialog = MediaListDialog.LOCAL_NET_ADD_SUCCESS,
+                                                isShow = true,
+                                            )
+                                    }
+                                }
+                            }
                         })
+                    } else if (selectItem.id >= 0) {
+                        //viewModel.connectSmb()
                     }
                 }
             }
@@ -158,7 +237,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
 }
 
 @Composable
-fun TopBar(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
+fun TopBar(viewModel: MediaListScreenViewModel, selectItem: Menu, modifier: Modifier = Modifier) {
     val coroutineScope = rememberCoroutineScope()
     Box(modifier = modifier) {
         Row(
@@ -177,7 +256,7 @@ fun TopBar(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
                     )
                 }
             }
-            if (viewModel.selectedItem.value.id == viewModel.menuLocalStorage) {
+            if (selectItem.id == viewModel.menuLocalStorage) {
                 IconButton(onClick = {}) {
                     Icon(
                         painter = rememberVectorPainter(Icons.Filled.Search),
@@ -191,6 +270,20 @@ fun TopBar(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
                 ) {
                     Icon(
                         painter = rememberVectorPainter(Icons.Filled.AdsClick),
+                        contentDescription = null
+                    )
+                }
+            }
+            if (selectItem.id >= 0) {
+                IconButton(onClick = {}) {
+                    Icon(
+                        painter = rememberVectorPainter(Icons.Filled.Edit),
+                        contentDescription = null
+                    )
+                }
+                IconButton(onClick = {}) {
+                    Icon(
+                        painter = rememberVectorPainter(Icons.Filled.Delete),
                         contentDescription = null
                     )
                 }
@@ -298,7 +391,10 @@ fun DisplayImage(modifier: Modifier = Modifier, bitmap: Bitmap, scale: Boolean =
 }
 
 @Composable
-fun AddLocalNetStorage(onClick: (String, String, String?) -> Unit, modifier: Modifier = Modifier) {
+fun AddLocalNetStorage(
+    onClick: (String, String, String?, String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier.fillMaxSize()
@@ -374,9 +470,9 @@ fun AddLocalNetStorage(onClick: (String, String, String?) -> Unit, modifier: Mod
                 .fillMaxWidth()
                 .padding(top = LargePadding)
         ) {
-            TextButton(onClick = { onClick(ip, user, pwd) }) {
+            TextButton(onClick = { onClick(ip.trim(), user.trim(), pwd.trim(), shared.trim()) }) {
                 Text(
-                    "提交",
+                    text = stringResource(R.string.submit),
                     style = MaterialTheme.typography.bodyLarge
                 )
             }
