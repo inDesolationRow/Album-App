@@ -14,4 +14,5 @@ data class MediaItem(
     var fileSize: Int = 0,
     var size: Int = 0,
     var mimeType: String,
+    var orientation: Int = 0
 )

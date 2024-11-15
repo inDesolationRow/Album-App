@@ -93,7 +93,7 @@ class MediaItemPagingSourceService(private val application : MediaApplication) {
             }
         }
 
-        val mediaList = application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileById(id)?.mediaFileList
+        val mediaList = application.mediaDatabase.directoryDao.querySortedMediaFilesByDirectoryId(id)
         if (mediaList.isNullOrEmpty()) return
         for (mediaFile in mediaList) {
             val item = MediaItem(
@@ -109,7 +109,8 @@ class MediaItemPagingSourceService(private val application : MediaApplication) {
                 data = mediaFile.data,
                 thumbnailPath = mediaFile.thumbnail,
                 displayName = mediaFile.displayName,
-                mimeType = mediaFile.mimeType
+                mimeType = mediaFile.mimeType,
+                orientation = mediaFile.orientation
             )
             allData.add(item)
         }
@@ -121,7 +122,7 @@ class MediaItemPagingSourceService(private val application : MediaApplication) {
                 mediaItem.data!!,
                 mediaItem.id,
                 mediaItem.displayName
-            ) ?: decodeSampledBitmapFromStream(
+            ) ?: BitmapFactory.decodeFile(
                 File(
                     thumbnailsPath,
                     mediaItem.displayName.split(".").first()

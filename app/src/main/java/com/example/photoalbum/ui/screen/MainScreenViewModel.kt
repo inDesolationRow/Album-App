@@ -9,7 +9,7 @@ import com.example.photoalbum.ui.action.UserAction
 import kotlinx.coroutines.flow.MutableStateFlow
 
 class MainScreenViewModel(
-    private val application: MediaApplication,
+    val application: MediaApplication,
     userAction: MutableStateFlow<UserAction>
 ) : BaseViewModel(application, userAction) {
 

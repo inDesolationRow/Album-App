@@ -1,18 +1,13 @@
 package com.example.photoalbum.ui.screen
 
 import android.app.Activity
-import android.graphics.Bitmap
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.enums.ScanResult
 import com.example.photoalbum.enums.UserState
@@ -23,7 +18,6 @@ import com.example.photoalbum.utils.decodeSampledBitmapFromStream
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -62,10 +56,18 @@ abstract class BaseViewModel(private val application: MediaApplication, val user
     open fun scanLocalStorage() {
         viewModelScope.launch(context = Dispatchers.IO) {
             //限制最大协程32
-            val semaphore = Semaphore(32)
+            var bigImage = 0
+            val testJobs = mutableListOf<Job>()
+            val semaphore4k = Semaphore(16)
             val jobs = mutableListOf<Job>()
             val delimiter = "[\\\\/]".toRegex()
             val mutex = Mutex()
+            val path = (application.applicationContext.getExternalFilesDir(
+                null
+            )
+                ?: application.applicationContext.filesDir).absolutePath.plus(
+                "/Thumbnail"
+            )
             if (checkPermissions()) {
                 userAction.value = UserAction.ScanAction(false)
                 val startTime = System.currentTimeMillis()
@@ -117,17 +119,12 @@ abstract class BaseViewModel(private val application: MediaApplication, val user
 
                                         //文件信息插入media_file表 文件大于5242880字节(5m 4k无损压缩图标准大小)生成缩略图
                                         if (item.size > 5242880) {
-                                            viewModelScope.launch(Dispatchers.IO) {
-                                                semaphore.acquire()
+                                            bigImage += 1
+                                            val job = viewModelScope.launch(Dispatchers.IO) {
+                                                semaphore4k.acquire()
                                                 val fileName = item.displayName.split(".").first()
                                                     .plus("_thumbnail.png")
-                                                val path =
-                                                    (application.applicationContext.getExternalFilesDir(
-                                                        null
-                                                    )
-                                                        ?: application.applicationContext.filesDir).absolutePath.plus(
-                                                        "/Thumbnail"
-                                                    )
+
                                                 val testFile = File(path, fileName)
                                                 if (!testFile.exists()) {
                                                     decodeSampledBitmapFromStream(item.data)?.let {
@@ -138,10 +135,10 @@ abstract class BaseViewModel(private val application: MediaApplication, val user
                                                         )
                                                     }
                                                 }
-                                                semaphore.release()
+                                                semaphore4k.release()
                                             }
+                                            testJobs.add(job)
                                         }
-
                                     }
                                     viewModelScope.launch(context = Dispatchers.IO) {
                                         application.mediaDatabase.directoryMediaFileCrossRefDao.insert(
@@ -154,12 +151,17 @@ abstract class BaseViewModel(private val application: MediaApplication, val user
                             jobs.forEach{
                                 it.join()
                             }
+                            testJobs.forEach{
+                                it.join()
+                            }
                             val endTime = System.currentTimeMillis()
                             val duration = endTime - startTime
-                            println("Test testSQL took $duration ms")
                             userAction.value = UserAction.ScanAction(true)
+                            println("Test testSQL took $duration ms")
+                            println("测试:大文件 $bigImage 个")
                             scanResult = ScanResult.SUCCESS
                         } catch (e: Exception) {
+                            e.printStackTrace()
                             scanResult = ScanResult.FAILED
                         }
                     }
@@ -169,6 +171,7 @@ abstract class BaseViewModel(private val application: MediaApplication, val user
         }
     }
 
+/*
     suspend fun createThumbnail(
         path: String,
         mediaFileId: Long,
@@ -194,7 +197,7 @@ abstract class BaseViewModel(private val application: MediaApplication, val user
                     return@async null
                 }
 
-                decodeSampledBitmapFromStream(path)?.let {
+                decodeSampledBitmapFromStream(path, )?.let {
                     image = it
                     saveBitmapToPrivateStorage(
                         application.applicationContext,
@@ -214,8 +217,9 @@ abstract class BaseViewModel(private val application: MediaApplication, val user
             }
         }.await()
     }
+*/
 
-    companion object {
+    /*companion object {
         inline fun <reified T : ViewModel> Factory(
             modelClass: Class<T>,
             crossinline creator: (application: MediaApplication) -> BaseViewModel
@@ -240,6 +244,6 @@ abstract class BaseViewModel(private val application: MediaApplication, val user
                 model
             }
         }
-    }
+    }*/
 
 }

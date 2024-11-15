@@ -72,7 +72,9 @@ class SmbClient {
 
     fun getCurrentList() {
         for (f in diskShare.list("")) {
-            println("File : " + f.fileName)
+//            if (diskShare.open())
+//            println("File : " + f.fileName)
+            println("File : " + f.fileId)
         }
     }
 

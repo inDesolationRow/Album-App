@@ -26,7 +26,8 @@ class ImageStoreImageRepositoryImpl(private val context: Context): MediaStoreRep
             MediaStore.Images.Media.GENERATION_ADDED,
             MediaStore.Images.Media.MIME_TYPE,
             MediaStore.Images.Media.IS_DOWNLOAD,
-            MediaStore.Images.Media.SIZE
+            MediaStore.Images.Media.SIZE,
+            MediaStore.Images.Media.ORIENTATION
         )
 
         val cursor = context.contentResolver.query(
@@ -53,6 +54,7 @@ class ImageStoreImageRepositoryImpl(private val context: Context): MediaStoreRep
                 val mimeType = it.getString(it.getColumnIndexOrThrow(MediaStore.Images.Media.MIME_TYPE))
                 val isDownload = it.getString(it.getColumnIndexOrThrow(MediaStore.Images.Media.IS_DOWNLOAD))
                 val size = it.getLong(it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE))
+                val orientation = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.ORIENTATION))
                 if(name.isNullOrEmpty()||data.isNullOrEmpty()||size == 0L){
                     continue
                 }
@@ -70,7 +72,8 @@ class ImageStoreImageRepositoryImpl(private val context: Context): MediaStoreRep
                     volumeName = volName,
                     isDownload = isDownload,
                     mimeType = mimeType,
-                    size = size)
+                    size = size,
+                    orientation=orientation)
                 )
             }
         }

@@ -68,7 +68,7 @@ class MediaListScreenViewModel(
 
     val directoryIcon = application.getDrawable(R.drawable.baseline_folder)!!.toBitmap()
 
-    var recomposeKey: MutableStateFlow<Int> = MutableStateFlow(0)
+    private var recomposeLocalStorageListKey: MutableStateFlow<Int> = MutableStateFlow(0)
 
     lateinit var mediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
 
@@ -80,6 +80,14 @@ class MediaListScreenViewModel(
     private lateinit var localNetStorageInfoListStateFlow: MutableStateFlow<MutableList<LocalNetStorageInfo>>
 
     private var newNetStorageInfoId: Int? = null
+
+    private val smbClient = SmbClient()
+
+    lateinit var localNetStorageFlow: MutableState<Flow<PagingData<MediaItem>>>
+
+    var editLocalNetStorageInfo by mutableStateOf(false)
+
+    var recomposeLocalNetStorageListKey: MutableStateFlow<Int> = MutableStateFlow(0)
 
     init {
         viewModelScope.launch(context = Dispatchers.IO) {
@@ -98,7 +106,7 @@ class MediaListScreenViewModel(
         }
 
         viewModelScope.launch {
-            recomposeKey.collect {
+            recomposeLocalStorageListKey.collect {
                 updateForUpdateKey(currentDirectoryId.value, it)
             }
         }
@@ -111,7 +119,7 @@ class MediaListScreenViewModel(
 
                     is UserAction.ScanAction -> {
                         if (action.end) {
-                            recomposeKey.value += 1
+                            recomposeLocalStorageListKey.value += 1
                         }
                     }
 
@@ -176,7 +184,7 @@ class MediaListScreenViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             mediaService.getAllDataForMediaList(directoryId)
             mediaFileFlow.value = Pager(
-                PagingConfig(pageSize = 30, initialLoadSize = 60)
+                PagingConfig(pageSize = 20, initialLoadSize = 30)
             ) {
                 MediaItemPagingSource(mediaService)
             }.flow.cachedIn(viewModelScope)
@@ -188,7 +196,7 @@ class MediaListScreenViewModel(
         return viewModelScope.async(Dispatchers.IO) {
             mediaService.getAllDataForMediaList(-1)
             val flow = Pager(
-                PagingConfig(pageSize = 10, initialLoadSize = 20)
+                PagingConfig(pageSize = 20, initialLoadSize = 30)
             ) {
                 MediaItemPagingSource(mediaService)
             }.flow.cachedIn(viewModelScope)
@@ -199,7 +207,7 @@ class MediaListScreenViewModel(
     /**
      * 强制触发更新
      *
-     * @param directoryId 当前目录的id
+     * @param directoryId 当前本地目录的id
      * @param updateKey 新的key，不得重复
      */
     private fun updateForUpdateKey(directoryId: Long, updateKey: Int) {
@@ -208,30 +216,62 @@ class MediaListScreenViewModel(
         }
     }
 
-    fun delLocalNetStorageInfo() {
+    fun delLocalNetStorageInfoInMenu(id: Int) {
         val list = localNetStorageInfoListStateFlow.value.toMutableList()
-        val del = list.filter { it.id == selectedItem.value!!.id }
+        val del = list.filter { it.id == id }
         list.remove(del.first())
         localNetStorageInfoListStateFlow.value = list
-        viewModelScope.launch(Dispatchers.IO) {
-            application.mediaDatabase.localNetStorageInfoDao.deleteById(del.first().id)
-        }
         updateSelectItem(menuAddLocalNetStorage)
     }
 
-    suspend fun addLocalNetStorageInfo(localNetStorageInfo: LocalNetStorageInfo) {
-        newNetStorageInfoId =
-            application.mediaDatabase.localNetStorageInfoDao.insert(localNetStorageInfo).toInt()
-        val update = localNetStorageInfoListStateFlow.value.toMutableList()
-        localNetStorageInfo.id = newNetStorageInfoId!!
-        update.add(localNetStorageInfo)
-        localNetStorageInfoListStateFlow.value = update
-        newNetStorageInfoId
+    fun addLocalNetStorageInfo(localNetStorageInfo: LocalNetStorageInfo) {
+        viewModelScope.launch(Dispatchers.IO) {
+            newNetStorageInfoId =
+                application.mediaDatabase.localNetStorageInfoDao.insert(localNetStorageInfo).toInt()
+            val update = localNetStorageInfoListStateFlow.value.toMutableList()
+            localNetStorageInfo.id = newNetStorageInfoId!!
+            update.add(localNetStorageInfo)
+            localNetStorageInfoListStateFlow.value = update
+        }
     }
 
     suspend fun connectSmb(ip: String, user: String, pwd: String?, shared: String): ConnectResult {
         return viewModelScope.async(Dispatchers.IO) {
-            SmbClient().connect(ip, user, pwd, shared)
+            smbClient.connect(ip, user, pwd, shared)
         }.await()
+    }
+
+    suspend fun connectSmb(id: Int): ConnectResult {
+        val localNetStorageInfo = application.mediaDatabase.localNetStorageInfoDao.getById(id)
+        return localNetStorageInfo?.let {
+            return@let connectSmb(
+                localNetStorageInfo.ip,
+                localNetStorageInfo.user,
+                localNetStorageInfo.password,
+                localNetStorageInfo.shared
+            )
+        } ?: ConnectResult.ConnectError("database_error")
+    }
+
+    fun loadLocalNetStorage() {
+        viewModelScope.launch(Dispatchers.IO) {
+            smbClient.getCurrentList()
+        }
+    }
+
+    fun delLocalNetStorageInfo(id: Int) {
+        viewModelScope.launch(Dispatchers.IO) {
+            application.mediaDatabase.localNetStorageInfoDao.deleteById(id)
+        }
+    }
+
+    suspend fun getLocalNetStorageInfo(id: Int): LocalNetStorageInfo? {
+        return application.mediaDatabase.localNetStorageInfoDao.getById(id)
+    }
+
+    fun updateLocalNetStorage(localNetStorageInfo: LocalNetStorageInfo) {
+        viewModelScope.launch {
+            application.mediaDatabase.localNetStorageInfoDao.update(localNetStorageInfo)
+        }
     }
 }

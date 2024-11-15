@@ -7,7 +7,11 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 
-fun decodeSampledBitmapFromStream(filePath: String, reqWidth: Int = 256, reqHeight: Int = 256): Bitmap? {
+fun decodeSampledBitmapFromStream(
+    filePath: String,
+    reqWidth: Int = 200,
+    reqHeight: Int = 200
+): Bitmap? {
     try {
         // 第一次加载仅获取图片的尺寸
         val options = BitmapFactory.Options().apply {
@@ -21,7 +25,8 @@ fun decodeSampledBitmapFromStream(filePath: String, reqWidth: Int = 256, reqHeig
         // 关闭 inJustDecodeBounds 并加载图像
         options.inJustDecodeBounds = false
         return BitmapFactory.decodeFile(filePath, options)
-    }catch (e: Exception){
+    } catch (e: Exception) {
+        println("测试:解析失败 ${e.printStackTrace()}")
         return null
     }
 }
@@ -39,11 +44,17 @@ fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeig
     return inSampleSize
 }
 
-fun saveBitmapToPrivateStorage(context: Context, bitmap: Bitmap, fileName: String, directory: String = "Thumbnail"): File? {
+fun saveBitmapToPrivateStorage(
+    context: Context,
+    bitmap: Bitmap,
+    fileName: String,
+    directory: String = "Thumbnail"
+): File? {
     // 获取应用的私有存储路径（内部存储）
-    val savePath = (context.getExternalFilesDir(null) ?: context.filesDir).absoluteFile.path.plus("/$directory")
+    val savePath = (context.getExternalFilesDir(null)
+        ?: context.filesDir).absoluteFile.path.plus("/$directory")
     val saveDirectory = File(savePath)
-    if (!saveDirectory.exists()){
+    if (!saveDirectory.exists()) {
         saveDirectory.mkdirs()
     }
     val file = File(savePath, fileName)

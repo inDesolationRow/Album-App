@@ -41,6 +41,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -69,6 +71,7 @@ import com.example.photoalbum.model.MediaListDialogEntity
 import com.example.photoalbum.model.Menu
 import com.example.photoalbum.ui.action.ConnectResult
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.ui.common.EditLocalNetStorageDialog
 import com.example.photoalbum.ui.common.MessageDialog
 import com.example.photoalbum.ui.common.ProgressDialog
 import com.example.photoalbum.ui.theme.LargePadding
@@ -185,7 +188,23 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                 MediaListDialogEntity(MediaListDialog.LOCAL_NET_CONNECTING, true)
                             viewModel.viewModelScope.launch {
                                 val result = viewModel.connectSmb(ip, user, pwd, shared)
-                                when (result) {
+                                result(result = result, viewModel = viewModel) {
+                                    viewModel.addLocalNetStorageInfo(
+                                        LocalNetStorageInfo(
+                                            displayName = "$user://$shared",
+                                            ip = ip,
+                                            user = user,
+                                            password = pwd ?: "",
+                                            shared = shared
+                                        )
+                                    )
+                                    viewModel.showDialog =
+                                        MediaListDialogEntity(
+                                            mediaListDialog = MediaListDialog.LOCAL_NET_ADD_SUCCESS,
+                                            isShow = true,
+                                        )
+                                }
+                                /*when (result) {
                                     is ConnectResult.IPError -> viewModel.showDialog =
                                         MediaListDialogEntity(
                                             mediaListDialog = MediaListDialog.LOCAL_NET_IP_ERROR,
@@ -208,26 +227,36 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
 
                                     is ConnectResult.ConnectError -> {}
                                     is ConnectResult.Success -> {
-                                        viewModel.addLocalNetStorageInfo(
-                                            LocalNetStorageInfo(
-                                                displayName = "$user://$shared",
-                                                ip = ip,
-                                                user = user,
-                                                password = pwd ?: "",
-                                                shared = shared
-                                            )
-                                        )
-                                        viewModel.showDialog =
-                                            MediaListDialogEntity(
-                                                mediaListDialog = MediaListDialog.LOCAL_NET_ADD_SUCCESS,
-                                                isShow = true,
-                                            )
+
                                     }
-                                }
+                                }*/
                             }
                         })
                     } else if (selectItem.id >= 0) {
-                        //viewModel.connectSmb()
+                        val recomposeLocalNetStorageListKey =
+                            viewModel.recomposeLocalNetStorageListKey.collectAsState()
+                        LaunchedEffect(selectItem.id, recomposeLocalNetStorageListKey.value) {
+                            val result = viewModel.connectSmb(selectItem.id)
+                            result(result = result, viewModel = viewModel) {
+                                viewModel.loadLocalNetStorage()
+                            }
+                        }
+                        if (viewModel.editLocalNetStorageInfo) {
+                            var info: LocalNetStorageInfo? by remember { mutableStateOf(null) }
+                            LaunchedEffect(selectItem.id) {
+                                info = viewModel.getLocalNetStorageInfo(id = selectItem.id)
+                            }
+                            info?.let {
+                                EditLocalNetStorageDialog(it) {
+                                    viewModel.viewModelScope.launch {
+                                        viewModel.updateLocalNetStorage(it)
+                                        viewModel.recomposeLocalNetStorageListKey.value += 1
+                                        viewModel.editLocalNetStorageInfo = false
+                                    }
+                                }
+                            }
+                        }
+                        //MediaList()
                     }
                 }
             }
@@ -275,13 +304,18 @@ fun TopBar(viewModel: MediaListScreenViewModel, selectItem: Menu, modifier: Modi
                 }
             }
             if (selectItem.id >= 0) {
-                IconButton(onClick = {}) {
+                IconButton(onClick = {
+                    viewModel.editLocalNetStorageInfo = true
+                }) {
                     Icon(
                         painter = rememberVectorPainter(Icons.Filled.Edit),
                         contentDescription = null
                     )
                 }
-                IconButton(onClick = {}) {
+                IconButton(onClick = {
+                    viewModel.delLocalNetStorageInfo(selectItem.id)
+                    viewModel.delLocalNetStorageInfoInMenu(selectItem.id)
+                }) {
                     Icon(
                         painter = rememberVectorPainter(Icons.Filled.Delete),
                         contentDescription = null
@@ -316,6 +350,7 @@ fun MediaList(
                     directoryIcon = directoryIcon,
                     directoryName = it.displayName,
                     fileType = it.type,
+                    orientation = it.orientation,
                     modifier = Modifier
                         .padding(end = MediumPadding, top = MediumPadding)
                         .clickable { click(it.id, it.type) }
@@ -338,6 +373,7 @@ fun MediaFilePreview(
     directoryIcon: Bitmap,
     fileType: ItemType,
     directoryName: String,
+    orientation: Int,
     modifier: Modifier = Modifier
 ) {
     println("测试:item重组")
@@ -360,7 +396,7 @@ fun MediaFilePreview(
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.padding(bottom = TinyPadding)
             ) {
-                DisplayImage(bitmap = image)
+                DisplayImage(bitmap = image, orientation = orientation)
             }
         }
         Text(
@@ -371,7 +407,12 @@ fun MediaFilePreview(
 }
 
 @Composable
-fun DisplayImage(modifier: Modifier = Modifier, bitmap: Bitmap, scale: Boolean = false) {
+fun DisplayImage(
+    modifier: Modifier = Modifier,
+    bitmap: Bitmap,
+    scale: Boolean = false,
+    orientation: Int = 0
+) {
     AsyncImage(
         model = bitmap,
         contentDescription = null,
@@ -379,7 +420,8 @@ fun DisplayImage(modifier: Modifier = Modifier, bitmap: Bitmap, scale: Boolean =
         modifier = modifier
             .fillMaxSize()
             .aspectRatio(1f)
-            .graphicsLayer {
+            .graphicsLayer() {
+                rotationZ = orientation.toFloat()
                 if (scale) {
                     scaleX = 1.0f
                     scaleY = 1.0f
@@ -477,6 +519,37 @@ fun AddLocalNetStorage(
                 )
             }
         }
+    }
+}
+
+fun result(
+    result: ConnectResult,
+    viewModel: MediaListScreenViewModel,
+    onSuccess: () -> Unit
+) {
+    when (result) {
+        is ConnectResult.IPError -> viewModel.showDialog =
+            MediaListDialogEntity(
+                mediaListDialog = MediaListDialog.LOCAL_NET_IP_ERROR,
+                isShow = true
+            )
+
+        is ConnectResult.AuthenticateError -> viewModel.showDialog =
+            MediaListDialogEntity(
+                mediaListDialog = MediaListDialog.LOCAL_NET_USER_ERROR,
+                isShow = true
+            )
+
+
+        is ConnectResult.SharedError -> viewModel.showDialog =
+            MediaListDialogEntity(
+                mediaListDialog = MediaListDialog.LOCAL_NET_SHARED_ERROR,
+                isShow = true
+            )
+
+
+        is ConnectResult.ConnectError -> {}
+        is ConnectResult.Success -> onSuccess()
     }
 }
 
