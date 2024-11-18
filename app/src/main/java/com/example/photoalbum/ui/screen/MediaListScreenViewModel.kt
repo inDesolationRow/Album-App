@@ -20,8 +20,9 @@ import androidx.paging.cachedIn
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
 import com.example.photoalbum.data.MediaItemPagingSource
-import com.example.photoalbum.data.MediaItemPagingSourceService
+import com.example.photoalbum.data.LocalStorageMediaFileService
 import com.example.photoalbum.data.model.LocalNetStorageInfo
+import com.example.photoalbum.data.model.Settings
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.model.MediaListDialogEntity
 import com.example.photoalbum.model.Menu
@@ -35,9 +36,10 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 
 class MediaListScreenViewModel(
-    private val application: MediaApplication,
-    userAction: MutableStateFlow<UserAction>
-) : BaseViewModel(application, userAction) {
+    application: MediaApplication,
+    userAction: MutableStateFlow<UserAction>,
+    settings: Settings
+) : BaseViewModel(application, userAction, settings) {
 
     var showDialog by mutableStateOf(MediaListDialogEntity())
 
@@ -72,7 +74,7 @@ class MediaListScreenViewModel(
 
     lateinit var mediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
 
-    private val mediaService = MediaItemPagingSourceService(application)
+    private val mediaService = LocalStorageMediaFileService(application)
 
     /**
      * 本地网络相关的状态
@@ -255,7 +257,7 @@ class MediaListScreenViewModel(
 
     fun loadLocalNetStorage() {
         viewModelScope.launch(Dispatchers.IO) {
-            smbClient.getCurrentList()
+            smbClient.getList("新建文件夹/lg tv/图包/Seven Graphics 合集/2022")
         }
     }
 

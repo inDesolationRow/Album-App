@@ -52,3 +52,14 @@ enum class ItemType {
     VIDEO,
     ERROR
 }
+
+enum class ThumbnailsPath(val path: String){
+    LOCAL_STORAGE("/Thumbnail/LocalStorage"),
+    LOCAL_NET_STORAGE("/Thumbnail/LocalNetStorage")
+}
+
+enum class ImageSize(val size: Int){
+    FOUR_K(5242880),
+    TWO_K(2621440),
+    ONE_K(1310720)
+}

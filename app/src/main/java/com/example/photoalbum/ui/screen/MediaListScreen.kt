@@ -64,6 +64,7 @@ import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
 import com.example.photoalbum.R
 import com.example.photoalbum.data.model.LocalNetStorageInfo
+import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.MediaListDialog
 import com.example.photoalbum.model.MediaItem
@@ -173,6 +174,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             itemList = items,
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
+                            gridColumn = viewModel.settings.gridColumnNumState.intValue,
                             click = { id, type ->
                                 if (type == ItemType.DIRECTORY) viewModel.currentDirectoryId.value =
                                     id
@@ -331,13 +333,14 @@ fun MediaList(
     itemList: LazyPagingItems<MediaItem>,
     nullPreviewIcon: Bitmap,
     directoryIcon: Bitmap,
+    gridColumn : Int,
     expand: (Boolean) -> Unit,
     click: (Long, ItemType) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val lazyState = rememberLazyGridState()
     LazyVerticalGrid(
-        columns = GridCells.Fixed(3),
+        columns = GridCells.Fixed(gridColumn),
         state = lazyState,
         modifier = modifier
             .padding(start = MediumPadding)
@@ -345,7 +348,7 @@ fun MediaList(
         items(itemList.itemCount) { index ->
             itemList[index]?.let {
                 MediaFilePreview(
-                    image = it.thumbnail,
+                    image = if (it.fileSize < ImageSize.ONE_K.size) it.thumbnail else it.thumbnailState.value,
                     nullPreviewIcon = nullPreviewIcon,
                     directoryIcon = directoryIcon,
                     directoryName = it.displayName,

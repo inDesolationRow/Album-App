@@ -5,7 +5,9 @@ import android.graphics.BitmapFactory
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.example.photoalbum.MediaApplication
+import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ItemType
+import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.utils.decodeSampledBitmapFromStream
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
@@ -16,7 +18,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import java.io.File
 
-class MediaItemPagingSource(private val apiService: MediaItemPagingSourceService) :
+class MediaItemPagingSource(private val apiService: MediaFileService) :
     PagingSource<Int, MediaItem>() {
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, MediaItem> {
         return try {
@@ -40,29 +42,55 @@ class MediaItemPagingSource(private val apiService: MediaItemPagingSourceService
     }
 }
 
-class MediaItemPagingSourceService(private val application : MediaApplication) {
+interface MediaFileService {
 
-    private val allData: MutableList<MediaItem> = mutableListOf()
+    val allData: MutableList<MediaItem>
 
-    private val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
-        ?: application.applicationContext.filesDir).absolutePath.plus("/Thumbnail")
+    val thumbnailsPath: String
 
-    suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
+    suspend fun getData(page: Int, loadSize: Int): List<MediaItem>
+
+    fun next(page: Int, loadSize: Int): Int?
+
+    suspend fun getAllDataForMediaList(id: Long)
+
+    suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap?
+
+    suspend fun createThumbnail(
+        path: String,
+        mediaFileId: Long,
+        fileName: String,
+    ): Bitmap?
+}
+
+class LocalStorageMediaFileService(private val application: MediaApplication) : MediaFileService {
+
+    override val allData: MutableList<MediaItem> = mutableListOf()
+
+    override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
+        ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
+
+    override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
         val start = (page - 1) * loadSize
         var end = page * loadSize - 1
         if (end > allData.size - 1)
-            end = allData.size -1
+            end = allData.size - 1
         val items = allData.slice(IntRange(start, end))
 
         val startDate = System.currentTimeMillis()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
-        val jobs : MutableList<Job> = mutableListOf()
-        for (item in items){
-            if (item.type == ItemType.IMAGE){
-                jobs.add(coroutineScope.launch {item.thumbnail = loadThumbnail(item) })
+        val jobs: MutableList<Job> = mutableListOf()
+        for (item in items) {
+            if (item.type == ItemType.IMAGE) {
+                //1k分辨率以下的图像生成缩略图时同步, 1k以上分辨率不再同步,使用state延时重组
+                if (item.fileSize < ImageSize.ONE_K.size) {
+                    jobs.add(coroutineScope.launch { item.thumbnail = loadThumbnail(item) })
+                } else {
+                    coroutineScope.launch { item.thumbnailState.value = loadThumbnail(item) }
+                }
             }
         }
-        jobs.forEach{
+        jobs.forEach {
             it.join()
         }
         val endDate = System.currentTimeMillis()
@@ -71,16 +99,17 @@ class MediaItemPagingSourceService(private val application : MediaApplication) {
         return items
     }
 
-    fun next(page: Int, loadSize: Int): Int?{
+    override fun next(page: Int, loadSize: Int): Int? {
         val start = page * loadSize
         if (start > allData.size) return null
         val result = page + 1
         return result
     }
 
-    suspend fun getAllDataForMediaList(id: Long) {
+    override suspend fun getAllDataForMediaList(id: Long) {
         allData.clear()
-        val directory = application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileByParentId(id)
+        val directory =
+            application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileByParentId(id)
         if (!directory.isNullOrEmpty()) {
             for (dir in directory) {
                 val item = MediaItem(
@@ -93,7 +122,8 @@ class MediaItemPagingSourceService(private val application : MediaApplication) {
             }
         }
 
-        val mediaList = application.mediaDatabase.directoryDao.querySortedMediaFilesByDirectoryId(id)
+        val mediaList =
+            application.mediaDatabase.directoryDao.querySortedMediaFilesByDirectoryId(id)
         if (mediaList.isNullOrEmpty()) return
         for (mediaFile in mediaList) {
             val item = MediaItem(
@@ -101,22 +131,31 @@ class MediaItemPagingSourceService(private val application : MediaApplication) {
                 type = mediaFile.mimeType.let {
                     val test = it.lowercase()
                     return@let when {
-                        test.contains("image") -> { ItemType.IMAGE }
-                        test.contains("video") -> { ItemType.VIDEO }
-                        else -> { ItemType.ERROR }
+                        test.contains("image") -> {
+                            ItemType.IMAGE
+                        }
+
+                        test.contains("video") -> {
+                            ItemType.VIDEO
+                        }
+
+                        else -> {
+                            ItemType.ERROR
+                        }
                     }
                 },
                 data = mediaFile.data,
                 thumbnailPath = mediaFile.thumbnail,
                 displayName = mediaFile.displayName,
                 mimeType = mediaFile.mimeType,
-                orientation = mediaFile.orientation
+                orientation = mediaFile.orientation,
+                fileSize = mediaFile.size
             )
             allData.add(item)
         }
     }
 
-    private suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
+    override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
         val thumbnail = if (mediaItem.thumbnailPath.isNullOrEmpty()) {
             createThumbnail(
                 mediaItem.data!!,
@@ -133,7 +172,7 @@ class MediaItemPagingSourceService(private val application : MediaApplication) {
         return thumbnail
     }
 
-    private suspend fun createThumbnail(
+    override suspend fun createThumbnail(
         path: String,
         mediaFileId: Long,
         fileName: String,
@@ -147,7 +186,7 @@ class MediaItemPagingSourceService(private val application : MediaApplication) {
                 val thumbnailName = fileName.split(".").first().plus("_thumbnail.png")
                 val thumbnailPath =
                     (application.applicationContext.getExternalFilesDir(null)
-                        ?: application.applicationContext.filesDir).absolutePath.plus("/Thumbnail")
+                        ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
                 val testFile = File(thumbnailPath, thumbnailName)
 
                 if (testFile.exists()) {
@@ -178,3 +217,9 @@ class MediaItemPagingSourceService(private val application : MediaApplication) {
         }.await()
     }
 }
+
+/*
+class LocalNetStorageMediaFileService() {
+
+}
+*/

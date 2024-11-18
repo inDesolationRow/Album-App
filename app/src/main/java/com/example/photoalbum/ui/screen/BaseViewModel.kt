@@ -13,6 +13,8 @@ import com.example.photoalbum.enums.ScanResult
 import com.example.photoalbum.enums.UserState
 import com.example.photoalbum.data.model.Directory
 import com.example.photoalbum.data.model.DirectoryMediaFileCrossRef
+import com.example.photoalbum.data.model.Settings
+import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.utils.decodeSampledBitmapFromStream
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
@@ -27,7 +29,11 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import java.io.File
 
-abstract class BaseViewModel(private val application: MediaApplication, val userAction: MutableStateFlow<UserAction>) : ViewModel() {
+abstract class BaseViewModel(
+    val application: MediaApplication,
+    val userAction: MutableStateFlow<UserAction>,
+    var settings: Settings
+) : ViewModel() {
 
     var scanResult by mutableStateOf(ScanResult.NONE)
 
@@ -66,7 +72,7 @@ abstract class BaseViewModel(private val application: MediaApplication, val user
                 null
             )
                 ?: application.applicationContext.filesDir).absolutePath.plus(
-                "/Thumbnail"
+                ThumbnailsPath.LOCAL_STORAGE.path
             )
             if (checkPermissions()) {
                 userAction.value = UserAction.ScanAction(false)
@@ -148,10 +154,10 @@ abstract class BaseViewModel(private val application: MediaApplication, val user
                                 }
                                 jobs.add(job)
                             }
-                            jobs.forEach{
+                            jobs.forEach {
                                 it.join()
                             }
-                            testJobs.forEach{
+                            testJobs.forEach {
                                 it.join()
                             }
                             val endTime = System.currentTimeMillis()
@@ -171,53 +177,53 @@ abstract class BaseViewModel(private val application: MediaApplication, val user
         }
     }
 
-/*
-    suspend fun createThumbnail(
-        path: String,
-        mediaFileId: Long,
-        fileName: String,
-    ): Bitmap? {
-        val file = File(path)
-        if (!file.exists()) return null
+    /*
+        suspend fun createThumbnail(
+            path: String,
+            mediaFileId: Long,
+            fileName: String,
+        ): Bitmap? {
+            val file = File(path)
+            if (!file.exists()) return null
 
-        return viewModelScope.async(context = Dispatchers.IO) {
-            var image: Bitmap? = null
-            try {
-                val thumbnailName = fileName.split(".").first().plus("_thumbnail.png")
-                val thumbnailPath =
-                    (application.applicationContext.getExternalFilesDir(null)
-                        ?: application.applicationContext.filesDir).absolutePath.plus("/Thumbnail")
-                val testFile = File(thumbnailPath, thumbnailName)
+            return viewModelScope.async(context = Dispatchers.IO) {
+                var image: Bitmap? = null
+                try {
+                    val thumbnailName = fileName.split(".").first().plus("_thumbnail.png")
+                    val thumbnailPath =
+                        (application.applicationContext.getExternalFilesDir(null)
+                            ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
+                    val testFile = File(thumbnailPath, thumbnailName)
 
-                if (testFile.exists()) {
-                    application.mediaDatabase.mediaFileDao.updateThumbnail(
-                        mediaFileId,
-                        testFile.absolutePath
-                    )
-                    return@async null
-                }
-
-                decodeSampledBitmapFromStream(path, )?.let {
-                    image = it
-                    saveBitmapToPrivateStorage(
-                        application.applicationContext,
-                        it,
-                        thumbnailName
-                    )?.let { file ->
+                    if (testFile.exists()) {
                         application.mediaDatabase.mediaFileDao.updateThumbnail(
                             mediaFileId,
-                            file.absolutePath
+                            testFile.absolutePath
                         )
+                        return@async null
                     }
+
+                    decodeSampledBitmapFromStream(path, )?.let {
+                        image = it
+                        saveBitmapToPrivateStorage(
+                            application.applicationContext,
+                            it,
+                            thumbnailName
+                        )?.let { file ->
+                            application.mediaDatabase.mediaFileDao.updateThumbnail(
+                                mediaFileId,
+                                file.absolutePath
+                            )
+                        }
+                    }
+                    image
+                } catch (e: Exception) {
+                    println("打印报错信息${e.message}")
+                    return@async null
                 }
-                image
-            } catch (e: Exception) {
-                println("打印报错信息${e.message}")
-                return@async null
-            }
-        }.await()
-    }
-*/
+            }.await()
+        }
+    */
 
     /*companion object {
         inline fun <reified T : ViewModel> Factory(

@@ -10,20 +10,27 @@ import com.example.photoalbum.data.dao.DirectoryMediaFileCrossRefDao
 import com.example.photoalbum.data.dao.LocalNetStorageInfoDao
 import com.example.photoalbum.data.dao.MediaFileDao
 import com.example.photoalbum.data.dao.PhotoDao
+import com.example.photoalbum.data.dao.SettingsDao
 import com.example.photoalbum.data.model.Album
 import com.example.photoalbum.data.model.Directory
 import com.example.photoalbum.data.model.DirectoryMediaFileCrossRef
+import com.example.photoalbum.data.model.LocalNetStorageDirectory
 import com.example.photoalbum.data.model.LocalNetStorageInfo
 import com.example.photoalbum.data.model.MediaFile
 import com.example.photoalbum.data.model.PhotoInfo
+import com.example.photoalbum.data.model.Settings
 
-@Database(entities = [Album::class,
-    PhotoInfo::class,
-    MediaFile::class,
-    Directory::class,
-    DirectoryMediaFileCrossRef::class,
-    LocalNetStorageInfo::class], version = 1, exportSchema = false)
-abstract class MediaDatabase: RoomDatabase() {
+@Database(
+    entities = [Album::class,
+        PhotoInfo::class,
+        MediaFile::class,
+        Directory::class,
+        DirectoryMediaFileCrossRef::class,
+        LocalNetStorageInfo::class,
+        LocalNetStorageDirectory::class,
+        Settings::class], version = 1, exportSchema = false
+)
+abstract class MediaDatabase : RoomDatabase() {
 
     abstract val albumDao: AlbumDao
 
@@ -36,6 +43,8 @@ abstract class MediaDatabase: RoomDatabase() {
     abstract val directoryMediaFileCrossRefDao: DirectoryMediaFileCrossRefDao
 
     abstract val localNetStorageInfoDao: LocalNetStorageInfoDao
+
+    abstract val settingsDao: SettingsDao
 
     companion object {
 
