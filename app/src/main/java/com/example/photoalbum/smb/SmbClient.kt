@@ -82,15 +82,18 @@ class SmbClient {
     }
 
     fun back(): String {
-        if (pathStack.size <= 1) return ""
+        if (pathStack.size == 1) return ""
         pathStack.removeLast()
         return pathStack.joinToString("/")
     }
 
-    fun getList(path: String?): List<MediaItem> {
-        val testPtah = path ?: ""
+    fun getList(path: String?): MutableList<MediaItem> {
+        val testPtah = path?:""
+        pathStack.add(testPtah)
+
         val directoryList: MutableList<MediaItem> = mutableListOf()
         val fileList: MutableList<MediaItem> = mutableListOf()
+
         val all = diskShare.openDirectory(
             testPtah,
             setOf(AccessMask.FILE_LIST_DIRECTORY, AccessMask.GENERIC_READ),

@@ -2,13 +2,16 @@ package com.example.photoalbum.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.core.graphics.drawable.toBitmap
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.example.photoalbum.MediaApplication
+import com.example.photoalbum.R
 import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.model.MediaItem
+import com.example.photoalbum.smb.SmbClient
 import com.example.photoalbum.utils.decodeSampledBitmapFromStream
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.CoroutineScope
@@ -18,7 +21,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import java.io.File
 
-class MediaItemPagingSource(private val apiService: MediaFileService) :
+class MediaItemPagingSource(private val apiService: MediaFileService<*>) :
     PagingSource<Int, MediaItem>() {
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, MediaItem> {
         return try {
@@ -42,7 +45,7 @@ class MediaItemPagingSource(private val apiService: MediaFileService) :
     }
 }
 
-interface MediaFileService {
+interface MediaFileService<T> {
 
     val allData: MutableList<MediaItem>
 
@@ -52,7 +55,7 @@ interface MediaFileService {
 
     fun next(page: Int, loadSize: Int): Int?
 
-    suspend fun getAllDataForMediaList(id: Long)
+    suspend fun getAllDataForMediaList(param: T)
 
     suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap?
 
@@ -63,7 +66,7 @@ interface MediaFileService {
     ): Bitmap?
 }
 
-class LocalStorageMediaFileService(private val application: MediaApplication) : MediaFileService {
+class LocalStorageMediaFileService(private val application: MediaApplication) : MediaFileService<Long> {
 
     override val allData: MutableList<MediaItem> = mutableListOf()
 
@@ -84,9 +87,13 @@ class LocalStorageMediaFileService(private val application: MediaApplication) : 
             if (item.type == ItemType.IMAGE) {
                 //1k分辨率以下的图像生成缩略图时同步, 1k以上分辨率不再同步,使用state延时重组
                 if (item.fileSize < ImageSize.ONE_K.size) {
-                    jobs.add(coroutineScope.launch { item.thumbnail = loadThumbnail(item) })
+                    jobs.add(coroutineScope.launch(Dispatchers.IO) {
+                        item.thumbnail = loadThumbnail(item)
+                    })
                 } else {
-                    coroutineScope.launch { item.thumbnailState.value = loadThumbnail(item) }
+                    coroutineScope.launch(Dispatchers.IO) {
+                        item.thumbnailState.value = loadThumbnail(item)
+                    }
                 }
             }
         }
@@ -106,10 +113,10 @@ class LocalStorageMediaFileService(private val application: MediaApplication) : 
         return result
     }
 
-    override suspend fun getAllDataForMediaList(id: Long) {
+    override suspend fun getAllDataForMediaList(param: Long) {
         allData.clear()
         val directory =
-            application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileByParentId(id)
+            application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileByParentId(param)
         if (!directory.isNullOrEmpty()) {
             for (dir in directory) {
                 val item = MediaItem(
@@ -123,7 +130,7 @@ class LocalStorageMediaFileService(private val application: MediaApplication) : 
         }
 
         val mediaList =
-            application.mediaDatabase.directoryDao.querySortedMediaFilesByDirectoryId(id)
+            application.mediaDatabase.directoryDao.querySortedMediaFilesByDirectoryId(param)
         if (mediaList.isNullOrEmpty()) return
         for (mediaFile in mediaList) {
             val item = MediaItem(
@@ -218,8 +225,68 @@ class LocalStorageMediaFileService(private val application: MediaApplication) : 
     }
 }
 
-/*
-class LocalNetStorageMediaFileService() {
+class LocalNetStorageMediaFileService(val application: MediaApplication, private val smbClient: SmbClient) : MediaFileService<String> {
+
+    override val allData: MutableList<MediaItem> = mutableListOf()
+
+    override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
+        ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_NET_STORAGE.path)
+
+    override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
+        val start = (page - 1) * loadSize
+        var end = page * loadSize - 1
+        if (end > allData.size - 1)
+            end = allData.size - 1
+        val items = allData.slice(IntRange(start, end))
+
+        val startDate = System.currentTimeMillis()
+        val coroutineScope = CoroutineScope(Dispatchers.IO)
+        val jobs: MutableList<Job> = mutableListOf()
+        for (item in items) {
+            if (item.type == ItemType.IMAGE) {
+                //1k分辨率以下的图像生成缩略图时同步, 1k以上分辨率不再同步,使用state延时重组
+                if (item.fileSize < ImageSize.ONE_K.size) {
+                    jobs.add(coroutineScope.launch(Dispatchers.IO) {
+                        item.thumbnail = loadThumbnail(item)
+                    })
+                } else {
+                    coroutineScope.launch(Dispatchers.IO) {
+                        item.thumbnailState.value = loadThumbnail(item)
+                    }
+                }
+            }
+        }
+        jobs.forEach {
+            it.join()
+        }
+        val endDate = System.currentTimeMillis()
+        val re = endDate - startDate
+        println("测试:加载bitmap用时$re")
+        return items
+    }
+
+    override fun next(page: Int, loadSize: Int): Int? {
+        val start = page * loadSize
+        if (start > allData.size) return null
+        val result = page + 1
+        return result
+    }
+
+    override suspend fun getAllDataForMediaList(param: String) {
+        allData.clear()
+        allData.addAll(smbClient.getList(param))
+    }
+
+    override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
+        return application.getDrawable(R.drawable.hide)!!.toBitmap()
+    }
+
+    override suspend fun createThumbnail(
+        path: String,
+        mediaFileId: Long,
+        fileName: String
+    ): Bitmap? {
+        TODO("Not yet implemented")
+    }
 
 }
-*/

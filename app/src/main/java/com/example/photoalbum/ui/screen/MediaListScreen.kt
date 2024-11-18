@@ -175,7 +175,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
                             gridColumn = viewModel.settings.gridColumnNumState.intValue,
-                            click = { id, type ->
+                            clickId = { id, type ->
                                 if (type == ItemType.DIRECTORY) viewModel.currentDirectoryId.value =
                                     id
                             },
@@ -258,7 +258,21 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                 }
                             }
                         }
-                        //MediaList()
+                        val items = viewModel.localNetStorageFlow.value.collectAsLazyPagingItems()
+                        MediaList(
+                            itemList = items,
+                            nullPreviewIcon = viewModel.notPreviewIcon,
+                            directoryIcon = viewModel.directoryIcon,
+                            gridColumn = viewModel.settings.gridColumnNumState.intValue,
+                            expand = {
+                                viewModel.userAction.value = UserAction.ExpandStatusBarAction(it)
+                            },
+                            clickString = { name, type ->
+                                if (type == ItemType.DIRECTORY) viewModel.currentDirectoryName.value =
+                                    name
+                            },
+                            modifier = Modifier.fillMaxHeight()
+                        )
                     }
                 }
             }
@@ -333,10 +347,11 @@ fun MediaList(
     itemList: LazyPagingItems<MediaItem>,
     nullPreviewIcon: Bitmap,
     directoryIcon: Bitmap,
-    gridColumn : Int,
+    gridColumn: Int,
     expand: (Boolean) -> Unit,
-    click: (Long, ItemType) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    clickId: ((Long, ItemType) -> Unit)? = null,
+    clickString: ((String, ItemType) -> Unit)? = null,
 ) {
     val lazyState = rememberLazyGridState()
     LazyVerticalGrid(
@@ -356,7 +371,15 @@ fun MediaList(
                     orientation = it.orientation,
                     modifier = Modifier
                         .padding(end = MediumPadding, top = MediumPadding)
-                        .clickable { click(it.id, it.type) }
+                        .clickable {
+                            if (clickId != null) clickId(
+                                it.id,
+                                it.type
+                            ) else if (clickString != null) clickString(
+                                it.displayName,
+                                it.type
+                            )
+                        }
                 )
             }
         }

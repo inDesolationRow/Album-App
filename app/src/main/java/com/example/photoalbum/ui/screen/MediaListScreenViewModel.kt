@@ -91,14 +91,16 @@ class MediaListScreenViewModel(
 
     var recomposeLocalNetStorageListKey: MutableStateFlow<Int> = MutableStateFlow(0)
 
+    var currentDirectoryName: MutableStateFlow<String> = MutableStateFlow("")
+
     init {
         viewModelScope.launch(context = Dispatchers.IO) {
             currentDirectoryId.collect {
                 if (!::mediaFileFlow.isInitialized) {
-                    mediaFileFlow = mutableStateOf(initPaging())
+                    mediaFileFlow = mutableStateOf(initLocalMediaFilePaging())
                     levelStack.add(-1L)
                 } else {
-                    initPaging(it)
+                    initLocalMediaFilePaging(it)
                     if (levelStack.last() != it) {
                         level += 1
                         levelStack.add(it)
@@ -182,7 +184,7 @@ class MediaListScreenViewModel(
         return menuList
     }
 
-    private fun initPaging(directoryId: Long) {
+    private fun initLocalMediaFilePaging(directoryId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             mediaService.getAllDataForMediaList(directoryId)
             mediaFileFlow.value = Pager(
@@ -194,7 +196,7 @@ class MediaListScreenViewModel(
 
     }
 
-    private suspend fun initPaging(): Flow<PagingData<MediaItem>> {
+    private suspend fun initLocalMediaFilePaging(): Flow<PagingData<MediaItem>> {
         return viewModelScope.async(Dispatchers.IO) {
             mediaService.getAllDataForMediaList(-1)
             val flow = Pager(
@@ -214,7 +216,7 @@ class MediaListScreenViewModel(
      */
     private fun updateForUpdateKey(directoryId: Long, updateKey: Int) {
         updateKey.let {
-            if (updateKey != 0) initPaging(directoryId)
+            if (updateKey != 0) initLocalMediaFilePaging(directoryId)
         }
     }
 
