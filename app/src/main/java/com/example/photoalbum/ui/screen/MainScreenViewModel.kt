@@ -1,6 +1,5 @@
 package com.example.photoalbum.ui.screen
 
-import android.app.Activity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -22,7 +21,7 @@ class MainScreenViewModel(
     var selectPage by mutableStateOf(NavType.MEDIA_LIST)
 
     var mediaListScreenViewModel: MediaListScreenViewModel = ViewModelProvider.create(
-        owner = activity, factory = Companion.MyViewModelFactory(
+        owner = activity, factory = Companion.Factory(
             application,
             userAction,
             settings
@@ -30,7 +29,7 @@ class MainScreenViewModel(
     )[MediaListScreenViewModel::class.java]
 
     var favoriteScreenViewModel: FavoriteScreenViewModel = ViewModelProvider.create(
-        owner = activity, Companion.MyViewModelFactory(
+        owner = activity, Companion.Factory(
             application,
             userAction,
             settings

@@ -17,11 +17,14 @@ import com.example.photoalbum.data.model.Directory
 import com.example.photoalbum.data.model.DirectoryMediaFileCrossRef
 import com.example.photoalbum.data.model.Settings
 import com.example.photoalbum.enums.ThumbnailsPath
+import com.example.photoalbum.smb.SmbClient
+import com.example.photoalbum.ui.action.ConnectResult
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.utils.decodeSampledBitmapFromStream
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -59,6 +62,32 @@ abstract class BaseViewModel(
         application.dataStore.edit {
             it[booleanPreferencesKey(UserState.FIRST_RUN_APP.name)] = false
         }
+    }
+
+    suspend fun connectSmb(
+        ip: String,
+        user: String,
+        pwd: String?,
+        shared: String,
+        smbClient: SmbClient? = null
+    ): ConnectResult {
+        val client = smbClient?: SmbClient()
+        return viewModelScope.async(Dispatchers.IO) {
+            client.connect(ip, user, pwd, shared)
+        }.await()
+    }
+
+    suspend fun connectSmb(id: Int, smbClient: SmbClient? = null): ConnectResult {
+        val localNetStorageInfo = application.mediaDatabase.localNetStorageInfoDao.getById(id)
+        return localNetStorageInfo?.let {
+            return@let connectSmb(
+                localNetStorageInfo.ip,
+                localNetStorageInfo.user,
+                localNetStorageInfo.password,
+                localNetStorageInfo.shared,
+                smbClient
+            )
+        } ?: ConnectResult.ConnectError("database_error")
     }
 
     open fun scanLocalStorage() {
@@ -228,7 +257,7 @@ abstract class BaseViewModel(
     */
 
     companion object {
-        class MyViewModelFactory(
+        class Factory(
             private val application: MediaApplication,
             private val userAction: MutableStateFlow<UserAction>,
             private val settings: Settings,
@@ -251,6 +280,14 @@ abstract class BaseViewModel(
 
                     modelClass.isAssignableFrom(SettingsScreenViewModel::class.java) -> {
                         SettingsScreenViewModel(application, userAction, settings) as T
+                    }
+
+                    modelClass.isAssignableFrom(LocalMediaFileScreenViewModel::class.java) -> {
+                        LocalMediaFileScreenViewModel(application, userAction, settings) as T
+                    }
+
+                    modelClass.isAssignableFrom(LocalNetMediaFileScreenViewModel::class.java) -> {
+                        LocalNetMediaFileScreenViewModel(application, userAction, settings) as T
                     }
 
                     else -> throw IllegalArgumentException("Unknown ViewModel class")

@@ -11,13 +11,11 @@ import com.example.photoalbum.ui.action.UserAction
 @Composable
 fun FavoriteScreen(viewModel: FavoriteScreenViewModel, modifier: Modifier = Modifier) {
     val userAction = viewModel.userAction.collectAsState()
-    when (val action = userAction.value) {
-        is UserAction.ExpandStatusBarAction -> {
-            viewModel.expand = action.expand
-        }
-        is UserAction.ScanAction -> {}
-        UserAction.NoneAction -> {}
+    val action = userAction.value
+    if (action is UserAction.ExpandStatusBarAction){
+        viewModel.expand = action.expand
     }
+
     Column(modifier = modifier) {
         Text(text = "favorite")
         Button(onClick = {

@@ -46,11 +46,9 @@ fun MainScreen(viewModel: MainScreenViewModel) {
     val density = LocalDensity.current
     val navHost = rememberNavController()
     val userAction = viewModel.userAction.collectAsState()
-    when(val action = userAction.value){
-        is UserAction.ExpandStatusBarAction ->{viewModel.expand = action.expand}
-        is UserAction.ScanAction -> {
-        }
-        is UserAction.NoneAction -> {}
+    val action = userAction.value
+    if (action is UserAction.ExpandStatusBarAction){
+        viewModel.expand = action.expand
     }
     val bottomBarAnimateDp: State<Dp>? = if(getNavHostHeight){
         animateDpAsState(targetValue = if (viewModel.expand) hostHeight else 0.dp,
@@ -106,7 +104,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
             composable(route = NavType.MEDIA_LIST.name){ MediaListScreen(viewModel = viewModel.mediaListScreenViewModel, modifier = Modifier.padding(innerPadding)) }
             composable(route = NavType.FAVORITE.name){ FavoriteScreen(viewModel = viewModel.favoriteScreenViewModel, modifier = Modifier.padding(innerPadding)) }
             composable(route = NavType.SETTINGS.name){
-                val settingsViewModel = ViewModelProvider.create(it, factory = BaseViewModel.Companion.MyViewModelFactory(
+                val settingsViewModel = ViewModelProvider.create(it, factory = BaseViewModel.Companion.Factory(
                     application = viewModel.application,
                     userAction = viewModel.userAction,
                     settings = viewModel.settings))[SettingsScreenViewModel::class.java]

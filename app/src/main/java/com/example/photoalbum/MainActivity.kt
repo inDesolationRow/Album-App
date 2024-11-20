@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val myapplication = application as MediaApplication
-        val factory = BaseViewModel.Companion.MyViewModelFactory(
+        val factory = BaseViewModel.Companion.Factory(
             application = myapplication,
             userAction = MutableStateFlow(UserAction.NoneAction),
             settings = Settings(),
@@ -33,29 +33,25 @@ class MainActivity : ComponentActivity() {
         val myActivity = this
         CoroutineScope(context = Dispatchers.IO).launch {
             viewModel.userAction.collect(){
-                when(it){
-                    is UserAction.ExpandStatusBarAction -> {
-                        CoroutineScope(context = Dispatchers.Main).launch {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                                val controller = window.insetsController
-                                if (it.expand) {
-                                    controller?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                                } else {
-                                    controller?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
-                                }
+                if (it is UserAction.ExpandStatusBarAction) {
+                    CoroutineScope(context = Dispatchers.Main).launch {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                            val controller = window.insetsController
+                            if (it.expand) {
+                                controller?.show(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
                             } else {
-                                if (it.expand) {
-                                    window.decorView.systemUiVisibility =
-                                        View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-                                } else {
-                                    window.decorView.systemUiVisibility =
-                                        View.SYSTEM_UI_FLAG_VISIBLE or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                                }
+                                controller?.hide(WindowInsets.Type.statusBars() or WindowInsets.Type.navigationBars())
+                            }
+                        } else {
+                            if (it.expand) {
+                                window.decorView.systemUiVisibility =
+                                    View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            } else {
+                                window.decorView.systemUiVisibility =
+                                    View.SYSTEM_UI_FLAG_VISIBLE or View.SYSTEM_UI_FLAG_LAYOUT_STABLE
                             }
                         }
                     }
-                    is UserAction.ScanAction ->{}
-                    UserAction.NoneAction -> {}
                 }
             }
         }
