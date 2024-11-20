@@ -1,8 +1,11 @@
 package com.example.photoalbum.ui.screen
 
+import android.app.Activity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.ViewModelProvider
+import com.example.photoalbum.MainActivity
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.data.model.Settings
 import com.example.photoalbum.enums.NavType
@@ -12,26 +15,26 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class MainScreenViewModel(
     application: MediaApplication,
     userAction: MutableStateFlow<UserAction>,
-    settings: Settings
+    settings: Settings,
+    activity: MainActivity
 ) : BaseViewModel(application, userAction, settings) {
 
     var selectPage by mutableStateOf(NavType.MEDIA_LIST)
 
-    val mediaListScreenViewModel: MediaListScreenViewModel = MediaListScreenViewModel(
-        application,
-        userAction,
-        settings
-    )
+    var mediaListScreenViewModel: MediaListScreenViewModel = ViewModelProvider.create(
+        owner = activity, factory = Companion.MyViewModelFactory(
+            application,
+            userAction,
+            settings
+        )
+    )[MediaListScreenViewModel::class.java]
 
-    val favoriteScreenViewModel: FavoriteScreenViewModel = FavoriteScreenViewModel(
-        application,
-        userAction,
-        settings
-    )
+    var favoriteScreenViewModel: FavoriteScreenViewModel = ViewModelProvider.create(
+        owner = activity, Companion.MyViewModelFactory(
+            application,
+            userAction,
+            settings
+        )
+    )[FavoriteScreenViewModel::class.java]
 
-    val settingsScreenViewModel: SettingsScreenViewModel = SettingsScreenViewModel(
-        application,
-        userAction,
-        settings
-    )
 }

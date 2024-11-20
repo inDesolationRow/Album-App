@@ -35,12 +35,12 @@ import androidx.navigation.compose.rememberNavController
 import com.example.photoalbum.enums.NavType
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.ViewModelProvider
 import com.example.photoalbum.R
 import com.example.photoalbum.ui.action.UserAction
 
 @Composable
 fun MainScreen(viewModel: MainScreenViewModel) {
-    println("测试:重组mainScreen")
     var getNavHostHeight by rememberSaveable { mutableStateOf(false) }
     var hostHeight by rememberSaveable(saver = dpSaver) { mutableStateOf(0.dp) }
     val density = LocalDensity.current
@@ -105,7 +105,13 @@ fun MainScreen(viewModel: MainScreenViewModel) {
         NavHost(navController = navHost, startDestination = NavType.MEDIA_LIST.name) {
             composable(route = NavType.MEDIA_LIST.name){ MediaListScreen(viewModel = viewModel.mediaListScreenViewModel, modifier = Modifier.padding(innerPadding)) }
             composable(route = NavType.FAVORITE.name){ FavoriteScreen(viewModel = viewModel.favoriteScreenViewModel, modifier = Modifier.padding(innerPadding)) }
-            composable(route = NavType.SETTINGS.name){ SettingsScreen(viewModel = viewModel.settingsScreenViewModel, modifier = Modifier.padding(innerPadding)) }
+            composable(route = NavType.SETTINGS.name){
+                val settingsViewModel = ViewModelProvider.create(it, factory = BaseViewModel.Companion.MyViewModelFactory(
+                    application = viewModel.application,
+                    userAction = viewModel.userAction,
+                    settings = viewModel.settings))[SettingsScreenViewModel::class.java]
+                SettingsScreen(viewModel = settingsViewModel, modifier = Modifier.padding(innerPadding))
+            }
         }
     }
 }

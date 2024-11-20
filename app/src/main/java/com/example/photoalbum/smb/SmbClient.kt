@@ -1,5 +1,7 @@
 package com.example.photoalbum.smb
 
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.test.services.storage.file.HostedFile.FileType
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.model.MediaItem
@@ -25,7 +27,9 @@ class SmbClient {
 
     private lateinit var diskShare: DiskShare
 
-    private val pathStack: MutableList<String> = mutableListOf()
+    private val pathStack: SnapshotStateList<String> = mutableStateListOf()
+
+    private var tempPath: String? = null
 
     fun connect(ip: String, user: String, pwd: String?, shared: String): ConnectResult {
         pathStack.clear()
@@ -81,21 +85,45 @@ class SmbClient {
         return diskShare
     }
 
-    fun back(): String {
-        if (pathStack.size == 1) return ""
-        pathStack.removeLast()
-        return pathStack.joinToString("/")
+    fun pathStackSize(): Int {
+        return pathStack.size
     }
 
-    fun getList(path: String?): MutableList<MediaItem> {
-        val testPtah = path?:""
-        pathStack.add(testPtah)
+    fun back(): String {
+        if (pathStack.size == 1) return ""
+        tempPath = pathStack.removeLast()
+        return pathStack.last()
+    }
 
+    private fun getPath(): String {
+        return pathStack.joinToString(separator = "") {
+            if (it.isNotEmpty()) {
+                "$it/"
+            } else {
+                ""
+            }
+        }
+    }
+
+    fun rollback() {
+        tempPath?.let {
+            pathStack.add(it)
+            tempPath = null
+        }
+    }
+
+    fun getList(path: String): MutableList<MediaItem> {
         val directoryList: MutableList<MediaItem> = mutableListOf()
         val fileList: MutableList<MediaItem> = mutableListOf()
-
+        val testPath = getPath().plus(path)
+        if (!diskShare.folderExists(testPath)) {
+            println("错误:目录不存在$testPath")
+            return directoryList
+        }
+        tempPath = null
+        pathStack.add(path)
         val all = diskShare.openDirectory(
-            testPtah,
+            testPath,
             setOf(AccessMask.FILE_LIST_DIRECTORY, AccessMask.GENERIC_READ),
             null,
             setOf(SMB2ShareAccess.FILE_SHARE_READ),
@@ -104,7 +132,7 @@ class SmbClient {
         )
         val allList = all.filterNot { it.fileName in listOf(".", "..") }
         for (temp in allList) {
-            val isFile = diskShare.fileExists("$testPtah/${temp.fileName}")
+            val isFile = diskShare.fileExists("$testPath/${temp.fileName}")
             if (!isFile) {
                 directoryList.add(
                     MediaItem(
@@ -116,14 +144,16 @@ class SmbClient {
                     )
                 )
             } else {
-                if (checkFileFormat(temp.fileName) == ItemType.IMAGE){
-                    fileList.add(MediaItem(
-                        id = temp.fileId,
-                        displayName = temp.fileName,
-                        data = "$path/${temp.fileName}",
-                        type = ItemType.IMAGE,
-                        mimeType = "image/*"
-                    ))
+                if (checkFileFormat(temp.fileName) == ItemType.IMAGE) {
+                    fileList.add(
+                        MediaItem(
+                            id = temp.fileId,
+                            displayName = temp.fileName,
+                            data = "$path/${temp.fileName}",
+                            type = ItemType.IMAGE,
+                            mimeType = "image/*"
+                        )
+                    )
                 }
             }
         }
@@ -145,6 +175,9 @@ class SmbClient {
         }
     }
 
+    fun isConnect(): Boolean {
+        return connection.isConnected
+    }
     //endOfFile: 13679182731 实际大小（byte）
     //allocationSize: 13679190016 占用硬盘空间（byte）
     /*val testFolder = diskShare.openDirectory(

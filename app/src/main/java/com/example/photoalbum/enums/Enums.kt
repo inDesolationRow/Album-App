@@ -27,6 +27,7 @@ enum class MediaListDialog {
     LOCAL_NET_SHARED_ERROR,
     LOCAL_NET_ADD_SUCCESS,
     LOCAL_NET_CONNECTING,
+    LOCAL_NET_OFFLINE,
     NONE
 }
 

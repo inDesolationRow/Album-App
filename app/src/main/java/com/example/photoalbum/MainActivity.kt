@@ -7,8 +7,10 @@ import android.view.WindowInsets
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.lifecycle.ViewModelProvider
 import com.example.photoalbum.data.model.Settings
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.ui.screen.BaseViewModel
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.screen.MainScreen
 import com.example.photoalbum.ui.screen.MainScreenViewModel
@@ -21,7 +23,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val myapplication = application as MediaApplication
-        val viewModel = MainScreenViewModel(myapplication, MutableStateFlow(UserAction.NoneAction), Settings())
+        val factory = BaseViewModel.Companion.MyViewModelFactory(
+            application = myapplication,
+            userAction = MutableStateFlow(UserAction.NoneAction),
+            settings = Settings(),
+            activity = this
+        )
+        val viewModel = ViewModelProvider.create(this, factory = factory)[MainScreenViewModel::class.java]
         val myActivity = this
         CoroutineScope(context = Dispatchers.IO).launch {
             viewModel.userAction.collect(){

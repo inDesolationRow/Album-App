@@ -85,12 +85,24 @@ import kotlinx.coroutines.launch
 
 @Composable
 fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
-    BackHandler(viewModel.level >= 2) {
-        viewModel.level -= 1
-        val levelStack = viewModel.levelStack
-        levelStack.removeLast()
-        viewModel.currentDirectoryId.value = levelStack.last()
+    viewModel.selectedItem.value?.let {
+        BackHandler(it.id == viewModel.menuLocalStorage && viewModel.levelStack.size >= 2) {
+            viewModel.localMediaFileStackBack()
+        }
+        BackHandler(it.id >= viewModel.menuLocalNetMinimumId && viewModel.smbClient.pathStackSize() >= 2) {
+            val path = viewModel.smbClient.back()
+            if (viewModel.smbClient.isConnect()) {
+                viewModel.initLocalNetMediaFilePaging(path)
+            } else {
+                viewModel.smbClient.rollback()
+                viewModel.showDialog = MediaListDialogEntity(
+                    mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
+                    isShow = true
+                )
+            }
+        }
     }
+
     MediaListMainScreen(viewModel, modifier = modifier)
 }
 
@@ -164,12 +176,16 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             MediaListDialog.LOCAL_NET_CONNECTING ->
                                 ProgressDialog(R.string.connecting)
 
+                            MediaListDialog.LOCAL_NET_OFFLINE -> MessageDialog(
+                                messageRes = R.string.local_net_offline,
+                                clickConfirm = { viewModel.showDialog = MediaListDialogEntity() },
+                                onDismiss = { viewModel.showDialog = MediaListDialogEntity() })
 
                             MediaListDialog.NONE -> {}
                         }
                     }
                     if (selectItem.id == viewModel.menuLocalStorage) {
-                        val items = viewModel.mediaFileFlow.value.collectAsLazyPagingItems()
+                        val items = viewModel.localMediaFileFlow.value.collectAsLazyPagingItems()
                         MediaList(
                             itemList = items,
                             nullPreviewIcon = viewModel.notPreviewIcon,
@@ -234,13 +250,13 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                 }*/
                             }
                         })
-                    } else if (selectItem.id >= 0) {
+                    } else if (selectItem.id >= viewModel.menuLocalNetMinimumId) {
                         val recomposeLocalNetStorageListKey =
                             viewModel.recomposeLocalNetStorageListKey.collectAsState()
                         LaunchedEffect(selectItem.id, recomposeLocalNetStorageListKey.value) {
                             val result = viewModel.connectSmb(selectItem.id)
                             result(result = result, viewModel = viewModel) {
-                                viewModel.loadLocalNetStorage()
+                                viewModel.initLocalNetMediaFilePaging()
                             }
                         }
                         if (viewModel.editLocalNetStorageInfo) {
@@ -258,7 +274,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                 }
                             }
                         }
-                        val items = viewModel.localNetStorageFlow.value.collectAsLazyPagingItems()
+                        val items = viewModel.localNetMediaFileFlow.value.collectAsLazyPagingItems()
                         MediaList(
                             itemList = items,
                             nullPreviewIcon = viewModel.notPreviewIcon,
@@ -268,8 +284,14 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                 viewModel.userAction.value = UserAction.ExpandStatusBarAction(it)
                             },
                             clickString = { name, type ->
-                                if (type == ItemType.DIRECTORY) viewModel.currentDirectoryName.value =
-                                    name
+                                if (viewModel.isConnect()) {
+                                    if (type == ItemType.DIRECTORY) viewModel.initLocalNetMediaFilePaging(name)
+                                } else {
+                                    viewModel.showDialog = MediaListDialogEntity(
+                                        mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
+                                        isShow = true
+                                    )
+                                }
                             },
                             modifier = Modifier.fillMaxHeight()
                         )
@@ -319,7 +341,7 @@ fun TopBar(viewModel: MediaListScreenViewModel, selectItem: Menu, modifier: Modi
                     )
                 }
             }
-            if (selectItem.id >= 0) {
+            if (selectItem.id >= viewModel.menuLocalNetMinimumId) {
                 IconButton(onClick = {
                     viewModel.editLocalNetStorageInfo = true
                 }) {

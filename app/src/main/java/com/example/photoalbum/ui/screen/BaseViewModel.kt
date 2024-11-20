@@ -7,7 +7,9 @@ import androidx.compose.runtime.setValue
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.example.photoalbum.MainActivity
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.enums.ScanResult
 import com.example.photoalbum.enums.UserState
@@ -225,31 +227,36 @@ abstract class BaseViewModel(
         }
     */
 
-    /*companion object {
-        inline fun <reified T : ViewModel> Factory(
-            modelClass: Class<T>,
-            crossinline creator: (application: MediaApplication) -> BaseViewModel
-        ): ViewModelProvider.Factory = viewModelFactory {
-            initializer {
-                val mediaApplication = this[APPLICATION_KEY] as MediaApplication
-                val model = when {
+    companion object {
+        class MyViewModelFactory(
+            private val application: MediaApplication,
+            private val userAction: MutableStateFlow<UserAction>,
+            private val settings: Settings,
+            private val activity: MainActivity? = null
+        ) : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                @Suppress("UNCHECKED_CAST")
+                return when {
+                    modelClass.isAssignableFrom(MainScreenViewModel::class.java) -> {
+                        MainScreenViewModel(application, userAction, settings, activity!!) as T
+                    }
+
                     modelClass.isAssignableFrom(MediaListScreenViewModel::class.java) -> {
-                        creator(mediaApplication) as T
+                        MediaListScreenViewModel(application, userAction, settings) as T
                     }
 
                     modelClass.isAssignableFrom(FavoriteScreenViewModel::class.java) -> {
-                        creator(mediaApplication) as T
+                        FavoriteScreenViewModel(application, userAction, settings) as T
                     }
 
                     modelClass.isAssignableFrom(SettingsScreenViewModel::class.java) -> {
-                        creator(mediaApplication) as T
+                        SettingsScreenViewModel(application, userAction, settings) as T
                     }
 
                     else -> throw IllegalArgumentException("Unknown ViewModel class")
                 }
-                model
             }
         }
-    }*/
+    }
 
 }

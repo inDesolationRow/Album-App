@@ -8,9 +8,10 @@ import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
@@ -19,6 +20,7 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
+import com.example.photoalbum.data.LocalNetStorageMediaFileService
 import com.example.photoalbum.data.MediaItemPagingSource
 import com.example.photoalbum.data.LocalStorageMediaFileService
 import com.example.photoalbum.data.model.LocalNetStorageInfo
@@ -33,6 +35,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 
 class MediaListScreenViewModel(
@@ -50,6 +53,8 @@ class MediaListScreenViewModel(
 
     val menuAddLocalNetStorage = -2
 
+    val menuLocalNetMinimumId = 1
+
     var drawerState by mutableStateOf(DrawerState(DrawerValue.Closed))
 
     var menu: MutableState<List<Menu>> = mutableStateOf(listOf())
@@ -62,9 +67,7 @@ class MediaListScreenViewModel(
      */
     var currentDirectoryId: MutableStateFlow<Long> = MutableStateFlow(-1)
 
-    val levelStack: MutableList<Long> = mutableListOf()
-
-    var level by mutableIntStateOf(1)
+    val levelStack: SnapshotStateList<Long> = mutableStateListOf()
 
     val notPreviewIcon = application.getDrawable(R.drawable.hide)!!.toBitmap()
 
@@ -72,9 +75,9 @@ class MediaListScreenViewModel(
 
     private var recomposeLocalStorageListKey: MutableStateFlow<Int> = MutableStateFlow(0)
 
-    lateinit var mediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
+    lateinit var localMediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
 
-    private val mediaService = LocalStorageMediaFileService(application)
+    private val localMediaFileService = LocalStorageMediaFileService(application)
 
     /**
      * 本地网络相关的状态
@@ -83,9 +86,9 @@ class MediaListScreenViewModel(
 
     private var newNetStorageInfoId: Int? = null
 
-    private val smbClient = SmbClient()
+    val smbClient = SmbClient()
 
-    lateinit var localNetStorageFlow: MutableState<Flow<PagingData<MediaItem>>>
+    var localNetMediaFileFlow: MutableState<Flow<PagingData<MediaItem>>> = mutableStateOf(flowOf())
 
     var editLocalNetStorageInfo by mutableStateOf(false)
 
@@ -93,16 +96,17 @@ class MediaListScreenViewModel(
 
     var currentDirectoryName: MutableStateFlow<String> = MutableStateFlow("")
 
+    private val localNetMediaFileService = LocalNetStorageMediaFileService(application, smbClient)
+
     init {
         viewModelScope.launch(context = Dispatchers.IO) {
             currentDirectoryId.collect {
-                if (!::mediaFileFlow.isInitialized) {
-                    mediaFileFlow = mutableStateOf(initLocalMediaFilePaging())
+                if (!::localMediaFileFlow.isInitialized) {
+                    localMediaFileFlow = mutableStateOf(initLocalMediaFilePaging())
                     levelStack.add(-1L)
                 } else {
                     initLocalMediaFilePaging(it)
                     if (levelStack.last() != it) {
-                        level += 1
                         levelStack.add(it)
                     }
                 }
@@ -131,6 +135,18 @@ class MediaListScreenViewModel(
                 }
             }
         }
+
+/*        viewModelScope.launch {
+            currentDirectoryName.collect { name ->
+                selectedItem.value?.let { menu ->
+                    if (menu.id >= menuLocalNetMinimumId) {
+                        if (smbClient.isConnect()) {
+                            initLocalNetMediaFilePaging(name)
+                        }
+                    }
+                }
+            }
+        }*/
 
         //初始化拖拽抽屉所需的数据
         viewModelScope.launch(context = Dispatchers.IO) {
@@ -186,26 +202,31 @@ class MediaListScreenViewModel(
 
     private fun initLocalMediaFilePaging(directoryId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            mediaService.getAllDataForMediaList(directoryId)
-            mediaFileFlow.value = Pager(
+            localMediaFileService.getAllDataForMediaList(directoryId)
+            localMediaFileFlow.value = Pager(
                 PagingConfig(pageSize = 20, initialLoadSize = 30)
             ) {
-                MediaItemPagingSource(mediaService)
+                MediaItemPagingSource(localMediaFileService)
             }.flow.cachedIn(viewModelScope)
         }
-
     }
 
     private suspend fun initLocalMediaFilePaging(): Flow<PagingData<MediaItem>> {
         return viewModelScope.async(Dispatchers.IO) {
-            mediaService.getAllDataForMediaList(-1)
+            localMediaFileService.getAllDataForMediaList(-1)
             val flow = Pager(
                 PagingConfig(pageSize = 20, initialLoadSize = 30)
             ) {
-                MediaItemPagingSource(mediaService)
+                MediaItemPagingSource(localMediaFileService)
             }.flow.cachedIn(viewModelScope)
             flow
         }.await()
+    }
+
+    fun localMediaFileStackBack() {
+        val levelStack = levelStack
+        levelStack.removeLast()
+        currentDirectoryId.value = levelStack.last()
     }
 
     /**
@@ -239,6 +260,10 @@ class MediaListScreenViewModel(
         }
     }
 
+    fun isConnect(): Boolean {
+        return smbClient.isConnect()
+    }
+
     suspend fun connectSmb(ip: String, user: String, pwd: String?, shared: String): ConnectResult {
         return viewModelScope.async(Dispatchers.IO) {
             smbClient.connect(ip, user, pwd, shared)
@@ -257,12 +282,6 @@ class MediaListScreenViewModel(
         } ?: ConnectResult.ConnectError("database_error")
     }
 
-    fun loadLocalNetStorage() {
-        viewModelScope.launch(Dispatchers.IO) {
-            smbClient.getList("新建文件夹/lg tv/图包/Seven Graphics 合集/2022")
-        }
-    }
-
     fun delLocalNetStorageInfo(id: Int) {
         viewModelScope.launch(Dispatchers.IO) {
             application.mediaDatabase.localNetStorageInfoDao.deleteById(id)
@@ -278,4 +297,19 @@ class MediaListScreenViewModel(
             application.mediaDatabase.localNetStorageInfoDao.update(localNetStorageInfo)
         }
     }
+
+    fun initLocalNetMediaFilePaging(path: String? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val test = path ?: ""
+            localNetMediaFileService.getAllDataForMediaList(test)
+            localNetMediaFileFlow.value = Pager(
+                PagingConfig(pageSize = 20, initialLoadSize = 30)
+            ) {
+                MediaItemPagingSource(
+                    localNetMediaFileService
+                )
+            }.flow.cachedIn(viewModelScope)
+        }
+    }
+
 }

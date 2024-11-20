@@ -30,4 +30,5 @@
     <string name="connect_failed_user_error">连接失败,请检查账户密码是否正确</string>
     <string name="connect_failed_shared_error">连接失败,请检查共享目录是否正确</string>
     <string name="database_error">连接数据损坏请重新添加</string>
+    <string name="local_net_offline">本地网络离线，请检查网络环境</string>
 </resources>

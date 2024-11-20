@@ -66,7 +66,8 @@ interface MediaFileService<T> {
     ): Bitmap?
 }
 
-class LocalStorageMediaFileService(private val application: MediaApplication) : MediaFileService<Long> {
+class LocalStorageMediaFileService(private val application: MediaApplication) :
+    MediaFileService<Long> {
 
     override val allData: MutableList<MediaItem> = mutableListOf()
 
@@ -225,7 +226,10 @@ class LocalStorageMediaFileService(private val application: MediaApplication) : 
     }
 }
 
-class LocalNetStorageMediaFileService(val application: MediaApplication, private val smbClient: SmbClient) : MediaFileService<String> {
+class LocalNetStorageMediaFileService(
+    val application: MediaApplication,
+    private val smbClient: SmbClient
+) : MediaFileService<String> {
 
     override val allData: MutableList<MediaItem> = mutableListOf()
 
@@ -277,7 +281,7 @@ class LocalNetStorageMediaFileService(val application: MediaApplication, private
         allData.addAll(smbClient.getList(param))
     }
 
-    override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
+    override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap {
         return application.getDrawable(R.drawable.hide)!!.toBitmap()
     }
 
