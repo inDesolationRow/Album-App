@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 
 fun decodeSampledBitmapFromStream(
     filePath: String,
@@ -31,6 +32,30 @@ fun decodeSampledBitmapFromStream(
     }
 }
 
+fun decodeSampledBitmapFromStream(
+    inputStream: InputStream,
+    reqWidth: Int = 200,
+    reqHeight: Int = 200
+): Bitmap? {
+    try {
+        // 第一次加载仅获取图片的尺寸
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true
+        }
+        BitmapFactory.decodeStream(inputStream, null, options)
+
+        // 计算 inSampleSize 值
+        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
+
+        // 关闭 inJustDecodeBounds 并加载图像
+        options.inJustDecodeBounds = false
+        return BitmapFactory.decodeStream(inputStream, null, options)
+    } catch (e: Exception) {
+        println("测试:解析失败 ${e.printStackTrace()}")
+        return null
+    }
+}
+
 fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
     val (height: Int, width: Int) = options.outHeight to options.outWidth
     var inSampleSize = 1
@@ -45,19 +70,15 @@ fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeig
 }
 
 fun saveBitmapToPrivateStorage(
-    context: Context,
     bitmap: Bitmap,
     fileName: String,
-    directory: String = "Thumbnail"
+    directory: String
 ): File? {
-    // 获取应用的私有存储路径（内部存储）
-    val savePath = (context.getExternalFilesDir(null)
-        ?: context.filesDir).absoluteFile.path.plus("/$directory")
-    val saveDirectory = File(savePath)
+    val saveDirectory = File(directory)
     if (!saveDirectory.exists()) {
         saveDirectory.mkdirs()
     }
-    val file = File(savePath, fileName)
+    val file = File(directory, fileName)
 
     // 使用 FileOutputStream 写入文件
     try {

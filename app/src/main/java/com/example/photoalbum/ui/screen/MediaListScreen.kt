@@ -28,7 +28,6 @@ import androidx.compose.material.icons.filled.Dehaze
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.Card
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -86,19 +85,31 @@ import kotlinx.coroutines.launch
 @Composable
 fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
     viewModel.selectedItem.value?.let {
+        //本地文件列表的后退逻辑
         BackHandler(it.id == viewModel.menuLocalStorage && viewModel.levelStack.size >= 2) {
             viewModel.localMediaFileStackBack()
         }
+        //本地网络文件列表的后退逻辑
         BackHandler(it.id >= viewModel.menuLocalNetMinimumId && viewModel.smbClient.pathStackSize() >= 2) {
             val path = viewModel.smbClient.back()
+            //每次操作时判断连接是否有效
             if (viewModel.smbClient.isConnect()) {
                 viewModel.initLocalNetMediaFilePaging(path)
             } else {
+                //如果连接失效弹窗提示,并尝试重连
                 viewModel.smbClient.rollback()
                 viewModel.showDialog = MediaListDialogEntity(
                     mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
                     isShow = true
                 )
+                viewModel.selectedItem.value?.let {
+                    viewModel.viewModelScope.launch(Dispatchers.IO) {
+                        viewModel.connectSmb(
+                            id = it.id,
+                            reconnection = true
+                        )
+                    }
+                }
             }
         }
     }
@@ -222,32 +233,6 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                             isShow = true,
                                         )
                                 }
-                                /*when (result) {
-                                    is ConnectResult.IPError -> viewModel.showDialog =
-                                        MediaListDialogEntity(
-                                            mediaListDialog = MediaListDialog.LOCAL_NET_IP_ERROR,
-                                            isShow = true
-                                        )
-
-                                    is ConnectResult.AuthenticateError -> viewModel.showDialog =
-                                        MediaListDialogEntity(
-                                            mediaListDialog = MediaListDialog.LOCAL_NET_USER_ERROR,
-                                            isShow = true
-                                        )
-
-
-                                    is ConnectResult.SharedError -> viewModel.showDialog =
-                                        MediaListDialogEntity(
-                                            mediaListDialog = MediaListDialog.LOCAL_NET_SHARED_ERROR,
-                                            isShow = true
-                                        )
-
-
-                                    is ConnectResult.ConnectError -> {}
-                                    is ConnectResult.Success -> {
-
-                                    }
-                                }*/
                             }
                         })
                     } else if (selectItem.id >= viewModel.menuLocalNetMinimumId) {
@@ -284,13 +269,23 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                 viewModel.userAction.value = UserAction.ExpandStatusBarAction(it)
                             },
                             clickString = { name, type ->
+                                //每次操作时判断连接是否有效
                                 if (viewModel.isConnect()) {
-                                    if (type == ItemType.DIRECTORY) viewModel.initLocalNetMediaFilePaging(name)
+                                    if (type == ItemType.DIRECTORY) viewModel.initLocalNetMediaFilePaging(
+                                        name
+                                    )
                                 } else {
+                                    //如果连接失效弹窗提示,并尝试重连
                                     viewModel.showDialog = MediaListDialogEntity(
                                         mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
                                         isShow = true
                                     )
+                                    viewModel.viewModelScope.launch(Dispatchers.IO) {
+                                        viewModel.connectSmb(
+                                            id = selectItem.id,
+                                            reconnection = true
+                                        )
+                                    }
                                 }
                             },
                             modifier = Modifier.fillMaxHeight()
@@ -380,7 +375,7 @@ fun MediaList(
         columns = GridCells.Fixed(gridColumn),
         state = lazyState,
         modifier = modifier
-            .padding(start = MediumPadding)
+            .padding(start = TinyPadding)
     ) {
         items(itemList.itemCount) { index ->
             itemList[index]?.let {
@@ -392,7 +387,7 @@ fun MediaList(
                     fileType = it.type,
                     orientation = it.orientation,
                     modifier = Modifier
-                        .padding(end = MediumPadding, top = MediumPadding)
+                        .padding(end = TinyPadding, top = TinyPadding)
                         .clickable {
                             if (clickId != null) clickId(
                                 it.id,
@@ -440,17 +435,20 @@ fun MediaFilePreview(
                 ItemType.ERROR -> {}
             }
         } else {
-            Card(
+/*            Card(
                 shape = MaterialTheme.shapes.large,
                 modifier = Modifier.padding(bottom = TinyPadding)
             ) {
-                DisplayImage(bitmap = image, orientation = orientation)
-            }
+                DisplayImage(bitmap = image, orientation = orientation, modifier = Modifier.padding(bottom = TinyPadding))
+            }*/
+            DisplayImage(bitmap = image, orientation = orientation)
         }
-        Text(
-            text = directoryName,
-            style = MaterialTheme.typography.labelMedium
-        )
+        if (fileType == ItemType.DIRECTORY){
+            Text(
+                text = directoryName,
+                style = MaterialTheme.typography.labelMedium
+            )
+        }
     }
 }
 
@@ -468,7 +466,7 @@ fun DisplayImage(
         modifier = modifier
             .fillMaxSize()
             .aspectRatio(1f)
-            .graphicsLayer() {
+            .graphicsLayer {
                 rotationZ = orientation.toFloat()
                 if (scale) {
                     scaleX = 1.0f

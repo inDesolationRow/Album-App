@@ -44,6 +44,9 @@ class MediaListScreenViewModel(
     settings: Settings
 ) : BaseViewModel(application, userAction, settings) {
 
+    /**
+     * 弹出窗的状态
+     */
     var showDialog by mutableStateOf(MediaListDialogEntity())
 
     /**
@@ -61,6 +64,7 @@ class MediaListScreenViewModel(
 
     var selectedItem: MutableState<Menu?> = mutableStateOf(null)
 
+    private lateinit var localNetStorageInfoListStateFlow: MutableStateFlow<MutableList<LocalNetStorageInfo>>
     /**
      * 本地媒体列表相关的状态
      * -1代表所有根目录
@@ -82,8 +86,6 @@ class MediaListScreenViewModel(
     /**
      * 本地网络相关的状态
      */
-    private lateinit var localNetStorageInfoListStateFlow: MutableStateFlow<MutableList<LocalNetStorageInfo>>
-
     private var newNetStorageInfoId: Int? = null
 
     val smbClient = SmbClient()
@@ -93,8 +95,6 @@ class MediaListScreenViewModel(
     var editLocalNetStorageInfo by mutableStateOf(false)
 
     var recomposeLocalNetStorageListKey: MutableStateFlow<Int> = MutableStateFlow(0)
-
-    var currentDirectoryName: MutableStateFlow<String> = MutableStateFlow("")
 
     private val localNetMediaFileService = LocalNetStorageMediaFileService(application, smbClient)
 
@@ -135,18 +135,6 @@ class MediaListScreenViewModel(
                 }
             }
         }
-
-/*        viewModelScope.launch {
-            currentDirectoryName.collect { name ->
-                selectedItem.value?.let { menu ->
-                    if (menu.id >= menuLocalNetMinimumId) {
-                        if (smbClient.isConnect()) {
-                            initLocalNetMediaFilePaging(name)
-                        }
-                    }
-                }
-            }
-        }*/
 
         //初始化拖拽抽屉所需的数据
         viewModelScope.launch(context = Dispatchers.IO) {
@@ -264,20 +252,21 @@ class MediaListScreenViewModel(
         return smbClient.isConnect()
     }
 
-    suspend fun connectSmb(ip: String, user: String, pwd: String?, shared: String): ConnectResult {
+    suspend fun connectSmb(ip: String, user: String, pwd: String?, shared: String, reconnection: Boolean = false): ConnectResult {
         return viewModelScope.async(Dispatchers.IO) {
-            smbClient.connect(ip, user, pwd, shared)
+            smbClient.connect(ip, user, pwd, shared, reconnection)
         }.await()
     }
 
-    suspend fun connectSmb(id: Int): ConnectResult {
+    suspend fun connectSmb(id: Int, reconnection: Boolean = false): ConnectResult {
         val localNetStorageInfo = application.mediaDatabase.localNetStorageInfoDao.getById(id)
         return localNetStorageInfo?.let {
             return@let connectSmb(
                 localNetStorageInfo.ip,
                 localNetStorageInfo.user,
                 localNetStorageInfo.password,
-                localNetStorageInfo.shared
+                localNetStorageInfo.shared,
+                reconnection = reconnection
             )
         } ?: ConnectResult.ConnectError("database_error")
     }

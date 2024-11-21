@@ -49,13 +49,12 @@ interface DirectoryDao {
            ORDER BY media_file_table.date_taken DESC""")
     suspend fun querySortedMediaFilesByDirectoryId(directoryId: Long): List<MediaFile>?
 
+    @Query(value = "SELECT * FROM directory_table WHERE parent_id = :parentId ORDER BY display_name ASC")
+    suspend fun querySortedByNameForDirectory(parentId: Long): List<Directory>?
+
     @Transaction
     @Query(value = "SELECT * FROM directory_table WHERE parent_id = :parentId")
     suspend fun queryDirectoryWithMediaFileByParentId(parentId: Long):  List<DirectoryWithMediaFile>?
-
-    @Transaction
-    @Query(value = "SELECT * FROM directory_table")
-    suspend fun queryDirectoryWithMediaFile(): List<DirectoryWithMediaFile>?
 
     @Query(value = "DELETE FROM directory_table")
     suspend fun clearTable()

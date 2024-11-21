@@ -64,3 +64,12 @@ enum class ImageSize(val size: Int){
     TWO_K(2621440),
     ONE_K(1310720)
 }
+
+enum class SystemFolder(val displayName: String){
+    DCIM("dcim"),
+    CAMERA("camera"),
+    PICTURES("picture"),
+    SCREENSHOTS("screenshot"),
+    DOCUMENT("document"),
+    DOWNLOAD("download"),
+}

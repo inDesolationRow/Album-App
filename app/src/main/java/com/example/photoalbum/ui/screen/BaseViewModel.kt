@@ -19,6 +19,7 @@ import com.example.photoalbum.data.model.Settings
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.utils.decodeSampledBitmapFromStream
+import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -72,8 +73,7 @@ abstract class BaseViewModel(
             val mutex = Mutex()
             val path = (application.applicationContext.getExternalFilesDir(
                 null
-            )
-                ?: application.applicationContext.filesDir).absolutePath.plus(
+            ) ?: application.applicationContext.filesDir).absolutePath.plus(
                 ThumbnailsPath.LOCAL_STORAGE.path
             )
             if (checkPermissions()) {
@@ -130,16 +130,14 @@ abstract class BaseViewModel(
                                             bigImage += 1
                                             val job = viewModelScope.launch(Dispatchers.IO) {
                                                 semaphore4k.acquire()
-                                                val fileName = item.displayName.split(".").first()
-                                                    .plus("_thumbnail.png")
-
+                                                val fileName = getThumbnailName(item.displayName)
                                                 val testFile = File(path, fileName)
                                                 if (!testFile.exists()) {
                                                     decodeSampledBitmapFromStream(item.data)?.let {
                                                         saveBitmapToPrivateStorage(
-                                                            application.applicationContext,
                                                             it,
-                                                            fileName
+                                                            fileName,
+                                                            path
                                                         )
                                                     }
                                                 }

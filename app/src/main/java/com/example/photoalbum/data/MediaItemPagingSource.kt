@@ -9,10 +9,12 @@ import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
 import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ItemType
+import com.example.photoalbum.enums.SystemFolder
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.smb.SmbClient
 import com.example.photoalbum.utils.decodeSampledBitmapFromStream
+import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -116,18 +118,33 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
 
     override suspend fun getAllDataForMediaList(param: Long) {
         allData.clear()
-        val directory =
-            application.mediaDatabase.directoryDao.queryDirectoryWithMediaFileByParentId(param)
-        if (!directory.isNullOrEmpty()) {
-            for (dir in directory) {
+        val directories =
+            application.mediaDatabase.directoryDao.querySortedByNameForDirectory(param)
+        val order1: MutableList<MediaItem> = mutableListOf()
+        val order2: MutableList<MediaItem> = mutableListOf()
+        val order3: MutableList<MediaItem> = mutableListOf()
+        if (!directories.isNullOrEmpty()) {
+            for (dir in directories) {
                 val item = MediaItem(
-                    id = dir.directory.directoryId,
+                    id = dir.directoryId,
                     type = ItemType.DIRECTORY,
-                    displayName = dir.directory.displayName,
+                    displayName = dir.displayName,
                     mimeType = "",
                 )
-                allData.add(item)
+                val name = dir.displayName.lowercase()
+                when{
+                    name.contains(SystemFolder.DCIM.displayName) -> {order1.add(item)}
+                    name.contains(SystemFolder.CAMERA.displayName) -> {order1.add(item)}
+                    name.contains(SystemFolder.DOCUMENT.displayName) -> {order2.add(item)}
+                    name.contains(SystemFolder.DOWNLOAD.displayName) -> {order2.add(item)}
+                    name.contains(SystemFolder.PICTURES.displayName) -> {order2.add(item)}
+                    name.contains(SystemFolder.SCREENSHOTS.displayName) -> {order2.add(item)}
+                    else -> {order3.add(item)}
+                }
             }
+            allData.addAll(order1)
+            allData.addAll(order2)
+            allData.addAll(order3)
         }
 
         val mediaList =
@@ -172,8 +189,7 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
             ) ?: BitmapFactory.decodeFile(
                 File(
                     thumbnailsPath,
-                    mediaItem.displayName.split(".").first()
-                        .plus("_thumbnail.png")
+                    getThumbnailName(mediaItem.displayName)
                 ).absolutePath
             )
         } else BitmapFactory.decodeFile(mediaItem.thumbnailPath)
@@ -191,7 +207,7 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
         return coroutineScope.async(context = Dispatchers.IO) {
             var image: Bitmap? = null
             try {
-                val thumbnailName = fileName.split(".").first().plus("_thumbnail.png")
+                val thumbnailName = getThumbnailName(fileName)
                 val thumbnailPath =
                     (application.applicationContext.getExternalFilesDir(null)
                         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
@@ -208,9 +224,9 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
                 decodeSampledBitmapFromStream(path)?.let {
                     image = it
                     saveBitmapToPrivateStorage(
-                        application.applicationContext,
-                        it,
-                        thumbnailName
+                        bitmap = it,
+                        fileName = thumbnailName,
+                        directory = thumbnailPath
                     )?.let { file ->
                         application.mediaDatabase.mediaFileDao.updateThumbnail(
                             mediaFileId,
@@ -226,10 +242,8 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
     }
 }
 
-class LocalNetStorageMediaFileService(
-    val application: MediaApplication,
-    private val smbClient: SmbClient
-) : MediaFileService<String> {
+class LocalNetStorageMediaFileService(val application: MediaApplication, private val smbClient: SmbClient) :
+    MediaFileService<String> {
 
     override val allData: MutableList<MediaItem> = mutableListOf()
 
@@ -282,7 +296,17 @@ class LocalNetStorageMediaFileService(
     }
 
     override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap {
-        return application.getDrawable(R.drawable.hide)!!.toBitmap()
+        val thumbnail = createThumbnail(
+            mediaItem.data!!,
+            mediaItem.id,
+            mediaItem.displayName
+        ) ?: BitmapFactory.decodeFile(
+            File(
+                thumbnailsPath,
+                getThumbnailName(mediaItem.displayName)
+            ).absolutePath
+        )
+        return thumbnail
     }
 
     override suspend fun createThumbnail(
@@ -290,7 +314,30 @@ class LocalNetStorageMediaFileService(
         mediaFileId: Long,
         fileName: String
     ): Bitmap? {
-        TODO("Not yet implemented")
+        val coroutineScope = CoroutineScope(Dispatchers.IO)
+        return coroutineScope.async(context = Dispatchers.IO) {
+            var image: Bitmap? = null
+            try {
+                val thumbnailName = getThumbnailName(fileName)
+                val thumbnailPath =
+                    (application.applicationContext.getExternalFilesDir(null)
+                        ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_NET_STORAGE.path)
+                val testFile = File(thumbnailPath, thumbnailName)
+
+                if (testFile.exists()) return@async null
+                smbClient.getImageThumbnail(path)?.let {
+                    image = it
+                    saveBitmapToPrivateStorage(
+                        bitmap = it,
+                        fileName = thumbnailName,
+                        directory = thumbnailPath
+                    )
+                }
+                image
+            } catch (e: Exception) {
+                return@async null
+            }
+        }.await()
     }
 
 }

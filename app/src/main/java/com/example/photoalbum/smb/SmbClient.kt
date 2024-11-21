@@ -1,11 +1,15 @@
 package com.example.photoalbum.smb
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.test.services.storage.file.HostedFile.FileType
 import com.example.photoalbum.enums.ItemType
+import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.ui.action.ConnectResult
+import com.example.photoalbum.utils.decodeSampledBitmapFromStream
+import com.example.photoalbum.utils.getThumbnailName
 import com.hierynomus.msdtyp.AccessMask
 import com.hierynomus.mssmb2.SMB2CreateDisposition
 import com.hierynomus.mssmb2.SMB2CreateOptions
@@ -15,7 +19,6 @@ import com.hierynomus.smbj.auth.AuthenticationContext
 import com.hierynomus.smbj.connection.Connection
 import com.hierynomus.smbj.session.Session
 import com.hierynomus.smbj.share.DiskShare
-import java.io.InputStream
 
 class SmbClient {
 
@@ -29,10 +32,19 @@ class SmbClient {
 
     private val pathStack: SnapshotStateList<String> = mutableStateListOf()
 
-    private var tempPath: String? = null
+    private var popPath: String? = null
 
-    fun connect(ip: String, user: String, pwd: String?, shared: String): ConnectResult {
-        pathStack.clear()
+    fun connect(
+        ip: String,
+        user: String,
+        pwd: String?,
+        shared: String,
+        reconnection: Boolean = false
+    ): ConnectResult {
+        if (!reconnection) {
+            pathStack.clear()
+            popPath = null
+        }
         smbClient = SMBClient()
         val connectionTest = connect(ip)
         if (connectionTest is Exception) return ConnectResult.IPError(connectionTest.message!!)
@@ -91,7 +103,7 @@ class SmbClient {
 
     fun back(): String {
         if (pathStack.size == 1) return ""
-        tempPath = pathStack.removeLast()
+        popPath = pathStack.removeLast()
         return pathStack.last()
     }
 
@@ -106,22 +118,29 @@ class SmbClient {
     }
 
     fun rollback() {
-        tempPath?.let {
+        popPath?.let {
             pathStack.add(it)
-            tempPath = null
+            popPath = null
         }
     }
 
     fun getList(path: String): MutableList<MediaItem> {
         val directoryList: MutableList<MediaItem> = mutableListOf()
         val fileList: MutableList<MediaItem> = mutableListOf()
-        val testPath = getPath().plus(path)
+
+        //popPath是null代表前进路径入栈,非空代表后退
+        if (popPath == null) {
+            pathStack.add(path)
+        } else {
+            popPath = null
+        }
+
+        val testPath = getPath()
         if (!diskShare.folderExists(testPath)) {
             println("错误:目录不存在$testPath")
             return directoryList
         }
-        tempPath = null
-        pathStack.add(path)
+
         val all = diskShare.openDirectory(
             testPath,
             setOf(AccessMask.FILE_LIST_DIRECTORY, AccessMask.GENERIC_READ),
@@ -150,8 +169,12 @@ class SmbClient {
                             id = temp.fileId,
                             displayName = temp.fileName,
                             data = "$path/${temp.fileName}",
+                            thumbnailPath = "${ThumbnailsPath.LOCAL_NET_STORAGE.path}/${
+                                getThumbnailName(temp.fileName)
+                            }",
                             type = ItemType.IMAGE,
-                            mimeType = "image/*"
+                            mimeType = "image/*",
+                            fileSize = temp.allocationSize
                         )
                     )
                 }
@@ -159,6 +182,32 @@ class SmbClient {
         }
         directoryList.addAll(fileList)
         return directoryList
+    }
+
+    fun getImageThumbnail(name: String): Bitmap? {
+        var thumbnail: Bitmap? = null
+        val path = getPath().plus(name)
+        if (diskShare.fileExists(path)) {
+            val file = diskShare.openFile(
+                path,
+                setOf(AccessMask.FILE_READ_DATA),
+                null,
+                setOf(SMB2ShareAccess.FILE_SHARE_READ),
+                SMB2CreateDisposition.FILE_OPEN,
+                setOf(SMB2CreateOptions.FILE_SEQUENTIAL_ONLY)
+            )
+            file.use {
+                it.inputStream.use { inputStream ->
+                    thumbnail = decodeSampledBitmapFromStream(inputStream)
+                    if (thumbnail != null) {
+                        println("Bitmap decoded successfully")
+                    } else {
+                        println("Failed to decode bitmap")
+                    }
+                }
+            }
+        }
+        return thumbnail
     }
 
     private fun checkFileFormat(name: String): ItemType {
