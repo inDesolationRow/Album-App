@@ -1,6 +1,5 @@
 package com.example.photoalbum.utils
 
-import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import java.io.File
@@ -38,18 +37,19 @@ fun decodeSampledBitmapFromStream(
     reqHeight: Int = 200
 ): Bitmap? {
     try {
-        // 第一次加载仅获取图片的尺寸
+        val byteArray = inputStream.readBytes()
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true
         }
-        BitmapFactory.decodeStream(inputStream, null, options)
+        BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size, options)
 
         // 计算 inSampleSize 值
         options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
 
         // 关闭 inJustDecodeBounds 并加载图像
         options.inJustDecodeBounds = false
-        return BitmapFactory.decodeStream(inputStream, null, options)
+        val bitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size, options)
+        return bitmap
     } catch (e: Exception) {
         println("测试:解析失败 ${e.printStackTrace()}")
         return null

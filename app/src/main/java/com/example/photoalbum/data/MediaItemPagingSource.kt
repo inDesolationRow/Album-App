@@ -181,7 +181,7 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
     }
 
     override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
-        val thumbnail = if (mediaItem.thumbnailPath.isNullOrEmpty()) {
+        return if (mediaItem.thumbnailPath.isNullOrEmpty()) {
             createThumbnail(
                 mediaItem.data!!,
                 mediaItem.id,
@@ -193,7 +193,6 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
                 ).absolutePath
             )
         } else BitmapFactory.decodeFile(mediaItem.thumbnailPath)
-        return thumbnail
     }
 
     override suspend fun createThumbnail(
@@ -295,18 +294,21 @@ class LocalNetStorageMediaFileService(val application: MediaApplication, private
         allData.addAll(smbClient.getList(param))
     }
 
-    override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap {
-        val thumbnail = createThumbnail(
-            mediaItem.data!!,
-            mediaItem.id,
-            mediaItem.displayName
-        ) ?: BitmapFactory.decodeFile(
-            File(
-                thumbnailsPath,
-                getThumbnailName(mediaItem.displayName)
-            ).absolutePath
-        )
-        return thumbnail
+    override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
+        return try {
+            createThumbnail(
+                path = mediaItem.data!!,
+                mediaFileId = mediaItem.id,
+                fileName = mediaItem.displayName
+            ) ?: BitmapFactory.decodeFile(
+                File(
+                    thumbnailsPath,
+                    getThumbnailName(mediaItem.displayName)
+                ).absolutePath
+            )
+        }catch (e: Exception){
+            null
+        }
     }
 
     override suspend fun createThumbnail(
@@ -318,14 +320,14 @@ class LocalNetStorageMediaFileService(val application: MediaApplication, private
         return coroutineScope.async(context = Dispatchers.IO) {
             var image: Bitmap? = null
             try {
-                val thumbnailName = getThumbnailName(fileName)
+                val thumbnailName = getThumbnailName(name = fileName, otherStr = mediaFileId.toString())
                 val thumbnailPath =
                     (application.applicationContext.getExternalFilesDir(null)
                         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_NET_STORAGE.path)
                 val testFile = File(thumbnailPath, thumbnailName)
 
                 if (testFile.exists()) return@async null
-                smbClient.getImageThumbnail(path)?.let {
+                smbClient.getImageThumbnail(name = fileName)?.let {
                     image = it
                     saveBitmapToPrivateStorage(
                         bitmap = it,

@@ -1,7 +1,6 @@
 package com.example.photoalbum.smb
 
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import com.example.photoalbum.enums.ItemType
@@ -117,6 +116,10 @@ class SmbClient {
         }
     }
 
+    private fun getFilePath(name: String): String{
+        return getPath().plus(name)
+    }
+
     fun rollback() {
         popPath?.let {
             pathStack.add(it)
@@ -186,26 +189,25 @@ class SmbClient {
 
     fun getImageThumbnail(name: String): Bitmap? {
         var thumbnail: Bitmap? = null
-        val path = getPath().plus(name)
-        if (diskShare.fileExists(path)) {
-            val file = diskShare.openFile(
-                path,
-                setOf(AccessMask.FILE_READ_DATA),
-                null,
-                setOf(SMB2ShareAccess.FILE_SHARE_READ),
-                SMB2CreateDisposition.FILE_OPEN,
-                setOf(SMB2CreateOptions.FILE_SEQUENTIAL_ONLY)
-            )
-            file.use {
-                it.inputStream.use { inputStream ->
-                    thumbnail = decodeSampledBitmapFromStream(inputStream)
-                    if (thumbnail != null) {
-                        println("Bitmap decoded successfully")
-                    } else {
-                        println("Failed to decode bitmap")
+        val path = getFilePath(name)
+        try {
+            if (diskShare.fileExists(path)){
+                val file = diskShare.openFile(
+                    path,
+                    setOf(AccessMask.FILE_READ_DATA),
+                    null,
+                    setOf(SMB2ShareAccess.FILE_SHARE_READ),
+                    SMB2CreateDisposition.FILE_OPEN,
+                    setOf(SMB2CreateOptions.FILE_SEQUENTIAL_ONLY)
+                )
+                file.use {
+                    it.inputStream.use { inputStream ->
+                        thumbnail = decodeSampledBitmapFromStream(inputStream)
                     }
                 }
             }
+        }catch (e: Exception){
+            println(e)
         }
         return thumbnail
     }
