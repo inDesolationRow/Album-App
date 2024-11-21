@@ -303,7 +303,7 @@ class LocalNetStorageMediaFileService(val application: MediaApplication, private
             ) ?: BitmapFactory.decodeFile(
                 File(
                     thumbnailsPath,
-                    getThumbnailName(mediaItem.displayName)
+                    getThumbnailName(mediaItem.displayName, otherStr = mediaItem.id.toString())
                 ).absolutePath
             )
         }catch (e: Exception){
