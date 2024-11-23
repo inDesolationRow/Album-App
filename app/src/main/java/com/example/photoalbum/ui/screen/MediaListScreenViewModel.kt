@@ -121,17 +121,10 @@ class MediaListScreenViewModel(
 
         viewModelScope.launch {
             super.userAction.collect {
-                when (val action = it) {
-                    is UserAction.ExpandStatusBarAction -> {
+                if(it is UserAction.ScanAction ){
+                    if (it.end) {
+                        recomposeLocalStorageListKey.value += 1
                     }
-
-                    is UserAction.ScanAction -> {
-                        if (action.end) {
-                            recomposeLocalStorageListKey.value += 1
-                        }
-                    }
-
-                    UserAction.NoneAction -> {}
                 }
             }
         }
@@ -192,7 +185,7 @@ class MediaListScreenViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             localMediaFileService.getAllDataForMediaList(directoryId)
             localMediaFileFlow.value = Pager(
-                PagingConfig(pageSize = 20, initialLoadSize = 30)
+                PagingConfig(pageSize = 20, initialLoadSize = 40)
             ) {
                 MediaItemPagingSource(localMediaFileService)
             }.flow.cachedIn(viewModelScope)
@@ -203,7 +196,7 @@ class MediaListScreenViewModel(
         return viewModelScope.async(Dispatchers.IO) {
             localMediaFileService.getAllDataForMediaList(-1)
             val flow = Pager(
-                PagingConfig(pageSize = 20, initialLoadSize = 30)
+                PagingConfig(pageSize = 5, initialLoadSize = 10)
             ) {
                 MediaItemPagingSource(localMediaFileService)
             }.flow.cachedIn(viewModelScope)
@@ -292,7 +285,7 @@ class MediaListScreenViewModel(
             val test = path ?: ""
             localNetMediaFileService.getAllDataForMediaList(test)
             localNetMediaFileFlow.value = Pager(
-                PagingConfig(pageSize = 20, initialLoadSize = 30)
+                PagingConfig(pageSize = 5, initialLoadSize = 10)
             ) {
                 MediaItemPagingSource(
                     localNetMediaFileService

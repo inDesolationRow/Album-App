@@ -26,5 +26,7 @@ data class MediaItem(
 
     var mimeType: String,
 
-    var orientation: Int = 0
+    var orientation: Int = 0,
+
+    var local: Boolean = true
 )

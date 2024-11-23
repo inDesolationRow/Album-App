@@ -2,11 +2,9 @@ package com.example.photoalbum.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import androidx.core.graphics.drawable.toBitmap
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.example.photoalbum.MediaApplication
-import com.example.photoalbum.R
 import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.SystemFolder
@@ -111,9 +109,8 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
 
     override fun next(page: Int, loadSize: Int): Int? {
         val start = page * loadSize
-        if (start > allData.size) return null
-        val result = page + 1
-        return result
+        if (start > allData.size - 1) return null
+        return page + 1
     }
 
     override suspend fun getAllDataForMediaList(param: Long) {

@@ -205,6 +205,10 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             clickId = { id, type ->
                                 if (type == ItemType.DIRECTORY) viewModel.currentDirectoryId.value =
                                     id
+                                else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
+                                    viewModel.userAction.value =
+                                        UserAction.OpenImage(viewModel.currentDirectoryId.value, id)
+                                }
                             },
                             expand = {
                                 viewModel.userAction.value = UserAction.ExpandStatusBarAction(it)
@@ -268,12 +272,15 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             expand = {
                                 viewModel.userAction.value = UserAction.ExpandStatusBarAction(it)
                             },
-                            clickString = { name, type ->
+                            clickString = { id, name, type, data ->
                                 //每次操作时判断连接是否有效
                                 if (viewModel.isConnect()) {
                                     if (type == ItemType.DIRECTORY) viewModel.initLocalNetMediaFilePaging(
                                         name
-                                    )
+                                    ) else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
+                                        viewModel.userAction.value =
+                                            UserAction.OpenImage(data.dropLast(name.length + 1), id)
+                                    }
                                 } else {
                                     //如果连接失效弹窗提示,并尝试重连
                                     viewModel.showDialog = MediaListDialogEntity(
@@ -368,7 +375,7 @@ fun MediaList(
     expand: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     clickId: ((Long, ItemType) -> Unit)? = null,
-    clickString: ((String, ItemType) -> Unit)? = null,
+    clickString: ((Long, String, ItemType, String) -> Unit)? = null,
 ) {
     val lazyState = rememberLazyGridState()
     LazyVerticalGrid(
@@ -393,8 +400,10 @@ fun MediaList(
                                 it.id,
                                 it.type
                             ) else if (clickString != null) clickString(
+                                it.id,
                                 it.displayName,
-                                it.type
+                                it.type,
+                                it.data!!
                             )
                         }
                 )
@@ -435,15 +444,15 @@ fun MediaFilePreview(
                 ItemType.ERROR -> {}
             }
         } else {
-/*            Card(
-                shape = MaterialTheme.shapes.large,
-                modifier = Modifier.padding(bottom = TinyPadding)
-            ) {
-                DisplayImage(bitmap = image, orientation = orientation, modifier = Modifier.padding(bottom = TinyPadding))
-            }*/
+            /*            Card(
+                            shape = MaterialTheme.shapes.large,
+                            modifier = Modifier.padding(bottom = TinyPadding)
+                        ) {
+                            DisplayImage(bitmap = image, orientation = orientation, modifier = Modifier.padding(bottom = TinyPadding))
+                        }*/
             DisplayImage(bitmap = image, orientation = orientation)
         }
-        if (fileType == ItemType.DIRECTORY){
+        if (fileType == ItemType.DIRECTORY) {
             Text(
                 text = directoryName,
                 style = MaterialTheme.typography.labelMedium

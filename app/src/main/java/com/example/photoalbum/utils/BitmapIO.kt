@@ -32,12 +32,11 @@ fun decodeSampledBitmapFromStream(
 }
 
 fun decodeSampledBitmapFromStream(
-    inputStream: InputStream,
+    byteArray: ByteArray,
     reqWidth: Int = 200,
     reqHeight: Int = 200
 ): Bitmap? {
     try {
-        val byteArray = inputStream.readBytes()
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true
         }

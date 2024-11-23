@@ -162,7 +162,8 @@ class SmbClient {
                         displayName = temp.fileName,
                         data = "$path/${temp.fileName}",
                         type = ItemType.DIRECTORY,
-                        mimeType = ""
+                        mimeType = "",
+                        local = false
                     )
                 )
             } else {
@@ -177,7 +178,8 @@ class SmbClient {
                             }",
                             type = ItemType.IMAGE,
                             mimeType = "image/*",
-                            fileSize = temp.allocationSize
+                            fileSize = temp.allocationSize,
+                            local = false
                         )
                     )
                 }
@@ -200,15 +202,21 @@ class SmbClient {
                     SMB2CreateDisposition.FILE_OPEN,
                     setOf(SMB2CreateOptions.FILE_SEQUENTIAL_ONLY)
                 )
+                var byteArray : ByteArray?
                 file.use {
                     it.inputStream.use { inputStream ->
-                        thumbnail = decodeSampledBitmapFromStream(inputStream)
+                        byteArray = inputStream.readBytes()
                     }
+                }
+                System.gc()
+                byteArray?.let {
+                    thumbnail = decodeSampledBitmapFromStream(it)
                 }
             }
         }catch (e: Exception){
             println(e)
         }
+        System.gc()
         return thumbnail
     }
 
