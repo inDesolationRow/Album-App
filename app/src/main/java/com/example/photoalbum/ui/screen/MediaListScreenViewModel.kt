@@ -185,7 +185,7 @@ class MediaListScreenViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             localMediaFileService.getAllDataForMediaList(directoryId)
             localMediaFileFlow.value = Pager(
-                PagingConfig(pageSize = 20, initialLoadSize = 40)
+                PagingConfig(pageSize = 10, initialLoadSize = 20)
             ) {
                 MediaItemPagingSource(localMediaFileService)
             }.flow.cachedIn(viewModelScope)
@@ -196,7 +196,7 @@ class MediaListScreenViewModel(
         return viewModelScope.async(Dispatchers.IO) {
             localMediaFileService.getAllDataForMediaList(-1)
             val flow = Pager(
-                PagingConfig(pageSize = 5, initialLoadSize = 10)
+                PagingConfig(pageSize = 10, initialLoadSize = 20)
             ) {
                 MediaItemPagingSource(localMediaFileService)
             }.flow.cachedIn(viewModelScope)

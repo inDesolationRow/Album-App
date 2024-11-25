@@ -82,15 +82,13 @@ fun MainScreen(viewModel: MainScreenViewModel) {
     }
     Scaffold(
         bottomBar = {
-            NavigationBar(modifier = Modifier
-                .then(
+            NavigationBar(modifier = Modifier.then(
                     if (getNavHostHeight) {
                         Modifier.height(bottomBarAnimateDp!!.value)
                     } else {
                         Modifier
                     }
-                )
-                .onGloballyPositioned { layout ->
+                ).onGloballyPositioned { layout ->
                     with(density) {
                         if (!getNavHostHeight) {
                             hostHeight = layout.size.height.toDp()
