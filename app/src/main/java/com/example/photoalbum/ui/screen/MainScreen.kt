@@ -1,7 +1,6 @@
 package com.example.photoalbum.ui.screen
 
 import android.os.Bundle
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.fillMaxSize
@@ -66,6 +65,10 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                 else -> throw IllegalArgumentException("转跳ViewImage参数异常")
             }
             navHost.navigate("ViewImage?directory=$directory&id=${action.imageId}&local=$local")
+        }
+
+        UserAction.Back -> {
+            navHost.popBackStack()
         }
 
         is UserAction.ScanAction -> {}
@@ -186,7 +189,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                     val directoryPath = it.arguments?.getString("directory")!!
                     viewImageViewModel.initData(directoryPath, id!!, false)
                 }
-                ViewImage(viewModel = viewImageViewModel, modifier = Modifier.padding(innerPadding))
+                ViewMediaFile(viewModel = viewImageViewModel)
             }
         }
     }

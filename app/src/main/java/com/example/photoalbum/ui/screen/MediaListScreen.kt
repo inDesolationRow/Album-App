@@ -320,7 +320,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                         name
                                     ) else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
                                         viewModel.userAction.value =
-                                            UserAction.OpenImage(data.dropLast(name.length + 1), id)
+                                            UserAction.OpenImage(data.dropLast(name.length + 1), id, selectItem.id)
                                     }
                                 } else {
                                     //如果连接失效弹窗提示,并尝试重连
@@ -347,7 +347,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
 }
 
 @Composable
-fun TopBar(viewModel: MediaListScreenViewModel, selectItem: Menu, modifier: Modifier = Modifier) {
+private fun TopBar(viewModel: MediaListScreenViewModel, selectItem: Menu, modifier: Modifier = Modifier) {
     val coroutineScope = rememberCoroutineScope()
     Box(modifier = modifier) {
         Row(
@@ -504,10 +504,11 @@ fun MediaFilePreview(
 
 @Composable
 fun DisplayImage(
-    modifier: Modifier = Modifier,
     bitmap: Bitmap,
+    modifier: Modifier = Modifier,
     scale: Boolean = false,
-    orientation: Int = 0
+    orientation: Int = 0,
+    aspectRatio: Float = 1f
 ) {
     AsyncImage(
         model = bitmap,
@@ -515,7 +516,7 @@ fun DisplayImage(
         contentScale = ContentScale.Crop,
         modifier = modifier
             .fillMaxSize()
-            .aspectRatio(1f)
+            .aspectRatio(aspectRatio)
             .graphicsLayer {
                 rotationZ = orientation.toFloat()
                 if (scale) {

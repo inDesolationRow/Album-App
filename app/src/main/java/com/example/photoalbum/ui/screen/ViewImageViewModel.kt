@@ -1,13 +1,17 @@
 package com.example.photoalbum.ui.screen
 
 import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.example.photoalbum.MediaApplication
+import com.example.photoalbum.R
 import com.example.photoalbum.data.LocalNetStorageMediaFileService
 import com.example.photoalbum.data.LocalStorageMediaFileService
 import com.example.photoalbum.data.MediaItemPagingSource
@@ -34,6 +38,10 @@ class ViewImageViewModel(
     var nextDirectory : String? = null
 
     var previousDirectory : String? = null
+
+    var expandMyBar : Boolean by mutableStateOf(false)
+
+    val notPreviewIcon = application.getDrawable(R.drawable.hide)!!.toBitmap()
 
     val smbClient by lazy{
         SmbClient()
@@ -72,7 +80,7 @@ class ViewImageViewModel(
         }
     }
 
-    fun expandBar(expand: Boolean){
-        userAction.value =  UserAction.ExpandStatusBarAction(expand)
+    fun expandBar(expand: Boolean, recomposeKey: Int = 0){
+        userAction.value =  UserAction.ExpandStatusBarAction(expand, recomposeKey)
     }
 }
