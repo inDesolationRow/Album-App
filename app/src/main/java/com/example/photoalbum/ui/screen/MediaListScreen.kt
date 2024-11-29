@@ -317,7 +317,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             expand = {
                                 viewModel.userAction.value = UserAction.ExpandStatusBarAction(it)
                             },
-                            clickString = { id, name, type, data ->
+                            clickString = { id, name, type ->
                                 //每次操作时判断连接是否有效
                                 if (viewModel.isConnect()) {
                                     if (type == ItemType.DIRECTORY) viewModel.initLocalNetMediaFilePaging(
@@ -429,7 +429,7 @@ fun MediaList(
     expand: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
     clickId: ((Long, ItemType) -> Unit)? = null,
-    clickString: ((Long, String, ItemType, String) -> Unit)? = null,
+    clickString: ((Long, String, ItemType) -> Unit)? = null,
 ) {
     val lazyState = rememberLazyGridState()
     LazyVerticalGrid(
@@ -456,8 +456,7 @@ fun MediaList(
                             ) else if (clickString != null) clickString(
                                 it.id,
                                 it.displayName,
-                                it.type,
-                                it.data!!
+                                it.type
                             )
                         }
                 )
