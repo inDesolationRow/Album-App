@@ -8,6 +8,7 @@ import androidx.compose.material3.DrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -65,6 +66,7 @@ class MediaListScreenViewModel(
     var selectedItem: MutableState<Menu?> = mutableStateOf(null)
 
     private lateinit var localNetStorageInfoListStateFlow: MutableStateFlow<MutableList<LocalNetStorageInfo>>
+
     /**
      * 本地媒体列表相关的状态
      * -1代表所有根目录
@@ -94,9 +96,11 @@ class MediaListScreenViewModel(
 
     var editLocalNetStorageInfo by mutableStateOf(false)
 
-    var recomposeLocalNetStorageListKey: MutableStateFlow<Int> = MutableStateFlow(0)
+    var recomposeLocalNetStorageListKey by mutableIntStateOf(0)
 
     private val localNetMediaFileService = LocalNetStorageMediaFileService(application, smbClient)
+
+    var jumpToView: Boolean = false
 
     init {
         viewModelScope.launch(context = Dispatchers.IO) {
@@ -121,7 +125,7 @@ class MediaListScreenViewModel(
 
         viewModelScope.launch {
             super.userAction.collect {
-                if(it is UserAction.ScanAction ){
+                if (it is UserAction.ScanAction) {
                     if (it.end) {
                         recomposeLocalStorageListKey.value += 1
                     }
@@ -245,22 +249,37 @@ class MediaListScreenViewModel(
         return smbClient.isConnect()
     }
 
-    suspend fun connectSmb(ip: String, user: String, pwd: String?, shared: String, reconnection: Boolean = false): ConnectResult {
+    suspend fun connectSmb(
+        ip: String,
+        user: String,
+        pwd: String?,
+        shared: String,
+        reconnection: Boolean = false
+    ): ConnectResult {
         return viewModelScope.async(Dispatchers.IO) {
-            smbClient.connect(ip, user, pwd, shared, reconnection)
+            val result = smbClient.connect(ip, user, pwd, shared, reconnection)
+            application.localNetStorageInfo = LocalNetStorageInfo(
+                ip = ip,
+                user = user,
+                password = pwd ?: "",
+                shared = shared
+            )
+            result
         }.await()
     }
 
     suspend fun connectSmb(id: Int, reconnection: Boolean = false): ConnectResult {
         val localNetStorageInfo = application.mediaDatabase.localNetStorageInfoDao.getById(id)
         return localNetStorageInfo?.let {
-            return@let connectSmb(
+            val result = connectSmb(
                 localNetStorageInfo.ip,
                 localNetStorageInfo.user,
                 localNetStorageInfo.password,
                 localNetStorageInfo.shared,
                 reconnection = reconnection
             )
+            application.localNetStorageInfo = localNetStorageInfo
+            result
         } ?: ConnectResult.ConnectError("database_error")
     }
 

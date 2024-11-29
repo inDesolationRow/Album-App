@@ -281,12 +281,16 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             }
                         })
                     } else if (selectItem.id >= viewModel.menuLocalNetMinimumId) {
-                        val recomposeLocalNetStorageListKey =
-                            viewModel.recomposeLocalNetStorageListKey.collectAsState()
-                        LaunchedEffect(selectItem.id, recomposeLocalNetStorageListKey.value) {
-                            val result = viewModel.connectSmb(selectItem.id)
-                            result(result = result, viewModel = viewModel) {
-                                viewModel.initLocalNetMediaFilePaging()
+                        if (!viewModel.jumpToView) {
+                            viewModel.jumpToView = false
+                            LaunchedEffect(
+                                selectItem.id,
+                                viewModel.recomposeLocalNetStorageListKey
+                            ) {
+                                val result = viewModel.connectSmb(selectItem.id)
+                                result(result = result, viewModel = viewModel) {
+                                    viewModel.initLocalNetMediaFilePaging()
+                                }
                             }
                         }
                         if (viewModel.editLocalNetStorageInfo) {
@@ -298,7 +302,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                 EditLocalNetStorageDialog(it) {
                                     viewModel.viewModelScope.launch {
                                         viewModel.updateLocalNetStorage(it)
-                                        viewModel.recomposeLocalNetStorageListKey.value += 1
+                                        viewModel.recomposeLocalNetStorageListKey += 1
                                         viewModel.editLocalNetStorageInfo = false
                                     }
                                 }
@@ -320,7 +324,12 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                         name
                                     ) else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
                                         viewModel.userAction.value =
-                                            UserAction.OpenImage(data.dropLast(name.length + 1), id, selectItem.id)
+                                            UserAction.OpenImage(
+                                                viewModel.smbClient.getPath().dropLast(1),
+                                                id,
+                                                selectItem.id
+                                            )
+                                        viewModel.jumpToView = true
                                     }
                                 } else {
                                     //如果连接失效弹窗提示,并尝试重连
@@ -347,7 +356,11 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
 }
 
 @Composable
-private fun TopBar(viewModel: MediaListScreenViewModel, selectItem: Menu, modifier: Modifier = Modifier) {
+private fun TopBar(
+    viewModel: MediaListScreenViewModel,
+    selectItem: Menu,
+    modifier: Modifier = Modifier
+) {
     val coroutineScope = rememberCoroutineScope()
     Box(modifier = modifier) {
         Row(

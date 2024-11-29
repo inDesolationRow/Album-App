@@ -106,7 +106,7 @@ class SmbClient {
         return pathStack.last()
     }
 
-    private fun getPath(): String {
+    fun getPath(): String {
         return pathStack.joinToString(separator = "") {
             if (it.isNotEmpty()) {
                 "$it/"

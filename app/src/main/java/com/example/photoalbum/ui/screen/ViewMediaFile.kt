@@ -39,10 +39,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
+import com.example.photoalbum.R
 import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ItemType
+import com.example.photoalbum.enums.MediaListDialog
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.ui.common.MessageDialog
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
@@ -59,6 +62,14 @@ fun ViewMediaFile(viewModel: ViewImageViewModel) {
     val screenHeightDp = configuration.screenHeightDp.dp
     var topPaddingValues = PaddingValues()
     val flow = viewModel.thumbnailFlow.value.collectAsLazyPagingItems()
+    if (viewModel.showDialog.isShow) {
+        if (viewModel.showDialog.mediaListDialog == MediaListDialog.LOCAL_NET_OFFLINE) {
+            MessageDialog(
+                messageRes = R.string.local_net_offline,
+                clickConfirm = viewModel.showDialog.onClick
+            ) { viewModel.showDialog.onClick }
+        }
+    }
     Scaffold(
         topBar = {
             if (viewModel.expandMyBar) TopBar(

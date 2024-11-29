@@ -16,8 +16,11 @@ import com.example.photoalbum.data.LocalNetStorageMediaFileService
 import com.example.photoalbum.data.LocalStorageMediaFileService
 import com.example.photoalbum.data.MediaItemPagingSource
 import com.example.photoalbum.data.model.Settings
+import com.example.photoalbum.enums.MediaListDialog
 import com.example.photoalbum.model.MediaItem
+import com.example.photoalbum.model.MediaListDialogEntity
 import com.example.photoalbum.smb.SmbClient
+import com.example.photoalbum.ui.action.ConnectResult
 import com.example.photoalbum.ui.action.UserAction
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -31,33 +34,43 @@ class ViewImageViewModel(
     settings: Settings
 ) : BaseViewModel(application, userAction, settings) {
 
+    var showDialog by mutableStateOf(MediaListDialogEntity())
+
     var local: Boolean = true
 
     var thumbnailFlow: MutableState<Flow<PagingData<MediaItem>>> = mutableStateOf(flowOf())
 
-    var nextDirectory : String? = null
+    var nextDirectory: String? = null
 
-    var previousDirectory : String? = null
+    var previousDirectory: String? = null
 
-    var expandMyBar : Boolean by mutableStateOf(false)
+    var expandMyBar: Boolean by mutableStateOf(false)
 
     val notPreviewIcon = application.getDrawable(R.drawable.hide)!!.toBitmap()
 
-    val smbClient by lazy{
-        SmbClient()
+    private val smbClient by lazy {
+        val client = SmbClient()
+        application.localNetStorageInfo?.let {
+            val result =
+                client.connect(ip = it.ip, user = it.user, pwd = it.password, shared = it.shared)
+            if (result is ConnectResult.ConnectError) {
+                showDialog = MediaListDialogEntity(MediaListDialog.LOCAL_NET_OFFLINE, true)
+            }
+        }
+        return@lazy client
     }
 
-    val service by lazy{
+    private val service by lazy {
         if (local) {
             return@lazy LocalStorageMediaFileService(application)
-        }else{
+        } else {
             return@lazy LocalNetStorageMediaFileService(application, smbClient)
         }
     }
 
     fun initData(directory: Any, imageId: Long, local: Boolean) {
         this.local = local
-        if (local){
+        if (local) {
             viewModelScope.launch(Dispatchers.IO) {
                 val service = service as LocalStorageMediaFileService
                 service.getAllDataForMediaList(directory as Long)
@@ -67,8 +80,15 @@ class ViewImageViewModel(
                     MediaItemPagingSource(service)
                 }.flow.cachedIn(viewModelScope)
             }
-        }else{
+        } else {
             viewModelScope.launch(Dispatchers.IO) {
+                if (!smbClient.isConnect()) {
+                    showDialog =
+                        MediaListDialogEntity(MediaListDialog.LOCAL_NET_OFFLINE, true, onClick = {
+                            userAction.value = UserAction.Back
+                        })
+                    return@launch
+                }
                 val service = service as LocalNetStorageMediaFileService
                 service.getAllDataForMediaList(directory as String)
                 thumbnailFlow.value = Pager(
@@ -80,7 +100,7 @@ class ViewImageViewModel(
         }
     }
 
-    fun expandBar(expand: Boolean, recomposeKey: Int = 0){
-        userAction.value =  UserAction.ExpandStatusBarAction(expand, recomposeKey)
+    fun expandBar(expand: Boolean, recomposeKey: Int = 0) {
+        userAction.value = UserAction.ExpandStatusBarAction(expand, recomposeKey)
     }
 }

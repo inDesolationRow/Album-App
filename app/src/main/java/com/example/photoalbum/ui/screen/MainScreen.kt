@@ -16,6 +16,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
@@ -179,15 +180,17 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                         settings = viewModel.settings
                     )
                 )[ViewImageViewModel::class.java]
-
                 val local = it.arguments?.getString("local")?.toBoolean() ?: false
                 val id = it.arguments?.getString("id")?.toLongOrNull()
-                if (local){
-                    val directoryId = it.arguments?.getString("directory")!!.toLong()
-                    viewImageViewModel.initData(directoryId, id!!, true)
-                }else{
-                    val directoryPath = it.arguments?.getString("directory")!!
-                    viewImageViewModel.initData(directoryPath, id!!, false)
+                LaunchedEffect(local, id) {
+                    if (local){
+                        val directoryId = it.arguments?.getString("directory")!!.toLong()
+                        viewImageViewModel.initData(directoryId, id!!, true)
+                    }else{
+                        val directoryPath = it.arguments?.getString("directory")!!
+                        viewImageViewModel.initData(directoryPath, id!!, false)
+                    }
+                    println("测试:路由")
                 }
                 ViewMediaFile(viewModel = viewImageViewModel)
             }
