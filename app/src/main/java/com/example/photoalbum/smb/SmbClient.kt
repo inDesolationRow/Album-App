@@ -38,9 +38,9 @@ class SmbClient {
         user: String,
         pwd: String?,
         shared: String,
-        reconnection: Boolean = false
+        reconnect: Boolean = false
     ): ConnectResult {
-        if (!reconnection) {
+        if (!reconnect) {
             pathStack.clear()
             popPath = null
         }
@@ -127,7 +127,7 @@ class SmbClient {
         }
     }
 
-    fun getList(path: String): MutableList<MediaItem> {
+    fun getList(path: String, onlyMediaFile: Boolean = false): MutableList<MediaItem> {
         val directoryList: MutableList<MediaItem> = mutableListOf()
         val fileList: MutableList<MediaItem> = mutableListOf()
 
@@ -155,7 +155,7 @@ class SmbClient {
         val allList = all.filterNot { it.fileName in listOf(".", "..") }
         for (temp in allList) {
             val isFile = diskShare.fileExists("$testPath/${temp.fileName}")
-            if (!isFile) {
+            if (!onlyMediaFile && !isFile) {
                 directoryList.add(
                     MediaItem(
                         id = temp.fileId,

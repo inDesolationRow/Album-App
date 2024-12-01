@@ -515,7 +515,7 @@ fun MediaFilePreview(
 }
 
 @Composable
-fun DisplayImage(
+private fun DisplayImage(
     bitmap: Bitmap,
     modifier: Modifier = Modifier,
     scale: Boolean = false,

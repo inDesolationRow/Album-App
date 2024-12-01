@@ -251,8 +251,8 @@ abstract class BaseViewModel(
                         SettingsScreenViewModel(application, userAction, settings) as T
                     }
 
-                    modelClass.isAssignableFrom(ViewImageViewModel::class.java) -> {
-                        ViewImageViewModel(application, userAction, settings) as T
+                    modelClass.isAssignableFrom(ViewMediaFileViewModel::class.java) -> {
+                        ViewMediaFileViewModel(application, userAction, settings) as T
                     }
 
                     else -> throw IllegalArgumentException("Unknown ViewModel class")

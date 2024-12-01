@@ -51,11 +51,15 @@ interface MediaFileService<T> {
 
     val thumbnailsPath: String
 
+    var initialLoadSize: Int
+
     suspend fun getData(page: Int, loadSize: Int): List<MediaItem>
 
     fun next(page: Int, loadSize: Int): Int?
 
-    suspend fun getAllDataForMediaList(param: T)
+    suspend fun getAllData(param: T, onlyMediaFile: Boolean = false, selectItemId: Long = -1): Int
+
+    fun getItemIndex(id: Long): Int
 
     suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap?
 
@@ -74,9 +78,17 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
     override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
 
+    override var initialLoadSize: Int = 0
+
     override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
-        val start = (page - 1) * loadSize
-        var end = page * loadSize - 1
+        if (page == 1) initialLoadSize = loadSize
+        val start = (page - 1) * page.let {
+            return@let if (it == 2) initialLoadSize else loadSize
+        }
+        var end = page.let {
+            return@let if (page == 2) start + loadSize else page * loadSize
+        } - 1
+
         if (end > allData.size - 1)
             end = allData.size - 1
         val items = allData.slice(IntRange(start, end))
@@ -113,40 +125,68 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
         return page + 1
     }
 
-    override suspend fun getAllDataForMediaList(param: Long) {
+    override fun getItemIndex(id: Long): Int {
+        return allData.indexOfFirst { id == it.id }
+    }
+
+    override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Int {
         allData.clear()
-        val directories =
-            application.mediaDatabase.directoryDao.querySortedByNameForDirectory(param)
-        val order1: MutableList<MediaItem> = mutableListOf()
-        val order2: MutableList<MediaItem> = mutableListOf()
-        val order3: MutableList<MediaItem> = mutableListOf()
-        if (!directories.isNullOrEmpty()) {
-            for (dir in directories) {
-                val item = MediaItem(
-                    id = dir.directoryId,
-                    type = ItemType.DIRECTORY,
-                    displayName = dir.displayName,
-                    mimeType = "",
-                )
-                val name = dir.displayName.lowercase()
-                when{
-                    name.contains(SystemFolder.DCIM.displayName) -> {order1.add(item)}
-                    name.contains(SystemFolder.CAMERA.displayName) -> {order1.add(item)}
-                    name.contains(SystemFolder.DOCUMENT.displayName) -> {order2.add(item)}
-                    name.contains(SystemFolder.DOWNLOAD.displayName) -> {order2.add(item)}
-                    name.contains(SystemFolder.PICTURES.displayName) -> {order2.add(item)}
-                    name.contains(SystemFolder.SCREENSHOTS.displayName) -> {order2.add(item)}
-                    else -> {order3.add(item)}
+        var index = -1
+        if (!onlyMediaFile) {
+            val directories =
+                application.mediaDatabase.directoryDao.querySortedByNameForDirectory(param)
+            val order1: MutableList<MediaItem> = mutableListOf()
+            val order2: MutableList<MediaItem> = mutableListOf()
+            val order3: MutableList<MediaItem> = mutableListOf()
+            if (!directories.isNullOrEmpty()) {
+                for (dir in directories) {
+                    val item = MediaItem(
+                        id = dir.directoryId,
+                        type = ItemType.DIRECTORY,
+                        displayName = dir.displayName,
+                        mimeType = "",
+                    )
+                    val name = dir.displayName.lowercase()
+                    when {
+                        name.contains(SystemFolder.DCIM.displayName) -> {
+                            order1.add(item)
+                        }
+
+                        name.contains(SystemFolder.CAMERA.displayName) -> {
+                            order1.add(item)
+                        }
+
+                        name.contains(SystemFolder.DOCUMENT.displayName) -> {
+                            order2.add(item)
+                        }
+
+                        name.contains(SystemFolder.DOWNLOAD.displayName) -> {
+                            order2.add(item)
+                        }
+
+                        name.contains(SystemFolder.PICTURES.displayName) -> {
+                            order2.add(item)
+                        }
+
+                        name.contains(SystemFolder.SCREENSHOTS.displayName) -> {
+                            order2.add(item)
+                        }
+
+                        else -> {
+                            order3.add(item)
+                        }
+                    }
                 }
+                allData.addAll(order1)
+                allData.addAll(order2)
+                allData.addAll(order3)
             }
-            allData.addAll(order1)
-            allData.addAll(order2)
-            allData.addAll(order3)
+
         }
 
         val mediaList =
             application.mediaDatabase.directoryDao.querySortedMediaFilesByDirectoryId(param)
-        if (mediaList.isNullOrEmpty()) return
+        if (mediaList.isNullOrEmpty()) return index
         for (mediaFile in mediaList) {
             val item = MediaItem(
                 id = mediaFile.mediaFileId,
@@ -173,8 +213,10 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
                 orientation = mediaFile.orientation,
                 fileSize = mediaFile.size
             )
+            if (mediaFile.mediaFileId == selectItemId) index = allData.size
             allData.add(item)
         }
+        return index
     }
 
     override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
@@ -238,7 +280,10 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
     }
 }
 
-class LocalNetStorageMediaFileService(val application: MediaApplication, private val smbClient: SmbClient) :
+class LocalNetStorageMediaFileService(
+    val application: MediaApplication,
+    private val smbClient: SmbClient
+) :
     MediaFileService<String> {
 
     override val allData: MutableList<MediaItem> = mutableListOf()
@@ -246,9 +291,16 @@ class LocalNetStorageMediaFileService(val application: MediaApplication, private
     override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_NET_STORAGE.path)
 
+    override var initialLoadSize: Int = 0
+
     override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
-        val start = (page - 1) * loadSize
-        var end = page * loadSize - 1
+        if (page == 1) initialLoadSize = loadSize
+        val start = (page - 1) * page.let {
+            return@let if (it == 2) initialLoadSize else loadSize
+        }
+        var end = page.let {
+            return@let if (page == 2) start + loadSize else page * loadSize
+        } - 1
         if (end > allData.size - 1)
             end = allData.size - 1
         val items = allData.slice(IntRange(start, end))
@@ -286,9 +338,14 @@ class LocalNetStorageMediaFileService(val application: MediaApplication, private
         return result
     }
 
-    override suspend fun getAllDataForMediaList(param: String) {
+    override fun getItemIndex(id: Long): Int {
+        return allData.indexOfFirst { id == it.id }
+    }
+
+    override suspend fun getAllData(param: String, onlyMediaFile: Boolean, selectItemId: Long): Int {
         allData.clear()
-        allData.addAll(smbClient.getList(param))
+        allData.addAll(smbClient.getList(param, onlyMediaFile))
+        return getItemIndex(selectItemId)
     }
 
     override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
@@ -303,7 +360,7 @@ class LocalNetStorageMediaFileService(val application: MediaApplication, private
                     getThumbnailName(mediaItem.displayName, otherStr = mediaItem.id.toString())
                 ).absolutePath
             )
-        }catch (e: Exception){
+        } catch (e: Exception) {
             null
         }
     }
@@ -317,7 +374,8 @@ class LocalNetStorageMediaFileService(val application: MediaApplication, private
         return coroutineScope.async(context = Dispatchers.IO) {
             var image: Bitmap? = null
             try {
-                val thumbnailName = getThumbnailName(name = fileName, otherStr = mediaFileId.toString())
+                val thumbnailName =
+                    getThumbnailName(name = fileName, otherStr = mediaFileId.toString())
                 val thumbnailPath =
                     (application.applicationContext.getExternalFilesDir(null)
                         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_NET_STORAGE.path)

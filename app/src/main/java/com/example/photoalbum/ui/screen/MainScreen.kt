@@ -173,26 +173,26 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                 )
             }
             composable(route = "ViewImage?directory={directory}&id={id}&local={local}") {
-                val viewImageViewModel = ViewModelProvider.create(
+                val viewMediaFileViewModel = ViewModelProvider.create(
                     it, factory = BaseViewModel.Companion.MyViewModelFactory(
                         application = viewModel.application,
                         userAction = viewModel.userAction,
                         settings = viewModel.settings
                     )
-                )[ViewImageViewModel::class.java]
+                )[ViewMediaFileViewModel::class.java]
                 val local = it.arguments?.getString("local")?.toBoolean() ?: false
                 val id = it.arguments?.getString("id")?.toLongOrNull()
                 LaunchedEffect(local, id) {
                     if (local){
                         val directoryId = it.arguments?.getString("directory")!!.toLong()
-                        viewImageViewModel.initData(directoryId, id!!, true)
+                        viewMediaFileViewModel.initData(directoryId, id!!, true)
                     }else{
                         val directoryPath = it.arguments?.getString("directory")!!
-                        viewImageViewModel.initData(directoryPath, id!!, false)
+                        viewMediaFileViewModel.initData(directoryPath, id!!, false)
                     }
                     println("测试:路由")
                 }
-                ViewMediaFile(viewModel = viewImageViewModel)
+                ViewMediaFile(viewModel = viewMediaFileViewModel)
             }
         }
     }

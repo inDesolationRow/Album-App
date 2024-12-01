@@ -187,7 +187,7 @@ class MediaListScreenViewModel(
 
     private fun initLocalMediaFilePaging(directoryId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            localMediaFileService.getAllDataForMediaList(directoryId)
+            localMediaFileService.getAllData(directoryId)
             localMediaFileFlow.value = Pager(
                 PagingConfig(pageSize = 10, initialLoadSize = 20)
             ) {
@@ -198,7 +198,7 @@ class MediaListScreenViewModel(
 
     private suspend fun initLocalMediaFilePaging(): Flow<PagingData<MediaItem>> {
         return viewModelScope.async(Dispatchers.IO) {
-            localMediaFileService.getAllDataForMediaList(-1)
+            localMediaFileService.getAllData(-1)
             val flow = Pager(
                 PagingConfig(pageSize = 10, initialLoadSize = 20)
             ) {
@@ -302,7 +302,7 @@ class MediaListScreenViewModel(
     fun initLocalNetMediaFilePaging(path: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val test = path ?: ""
-            localNetMediaFileService.getAllDataForMediaList(test)
+            localNetMediaFileService.getAllData(test)
             localNetMediaFileFlow.value = Pager(
                 PagingConfig(pageSize = 5, initialLoadSize = 10)
             ) {

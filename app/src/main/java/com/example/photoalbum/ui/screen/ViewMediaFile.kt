@@ -1,14 +1,14 @@
 package com.example.photoalbum.ui.screen
 
 import android.graphics.Bitmap
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -16,8 +16,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIosNew
 import androidx.compose.material.icons.filled.ScreenRotation
@@ -25,20 +23,28 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.times
 import androidx.compose.ui.zIndex
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
+import coil.compose.AsyncImage
 import com.example.photoalbum.R
 import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ItemType
@@ -49,12 +55,11 @@ import com.example.photoalbum.ui.common.MessageDialog
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
 @Composable
-fun ViewMediaFile(viewModel: ViewImageViewModel) {
+fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
     viewModel.expandBar(false)
     val statusBarHeight = WindowInsets.systemBars.getTop(LocalDensity.current)
     val statusBarHeightDp = with(LocalDensity.current) { statusBarHeight.toDp() }
@@ -82,12 +87,14 @@ fun ViewMediaFile(viewModel: ViewImageViewModel) {
             )
         },
         bottomBar = {
-            val listState = rememberLazyListState()
+            val listState = viewModel.thumbnailScrollState
             if (viewModel.expandMyBar) BottomBar(
                 state = listState,
-                height = screenHeightDp * 0.12f,
-                notPreview = viewModel.notPreviewIcon,
                 items = flow,
+                height = screenHeightDp * 0.12f,
+                screenWidth = configuration.screenWidthDp.dp,
+                notPreview = viewModel.notPreviewIcon,
+                selectItemIndex = viewModel.itemIndex,
                 modifier = Modifier
                     .zIndex(1f)
                     .background(Color.White.copy(alpha = 0.8f))
@@ -112,7 +119,7 @@ fun ViewMediaFile(viewModel: ViewImageViewModel) {
 }
 
 @Composable
-private fun TopBar(viewModel: ViewImageViewModel, modifier: Modifier = Modifier) {
+private fun TopBar(viewModel: ViewMediaFileViewModel, modifier: Modifier = Modifier) {
     Row(
         verticalAlignment = Alignment.Bottom,
         modifier = modifier
@@ -146,18 +153,54 @@ private fun BottomBar(
     items: LazyPagingItems<MediaItem>,
     notPreview: Bitmap,
     height: Dp,
+    screenWidth: Dp,
     state: LazyListState,
+    selectItemIndex: MutableIntState,
     modifier: Modifier = Modifier
 ) {
-    val padding = height * 0.15f
+    val density = LocalDensity.current
+    val padding = height * 0.2f
+    val itemWidth = ((height - padding * 2) * 0.75f)
+    val estimateItemNumber: Int = screenWidth.value.toInt() / itemWidth.value.toInt()
+    val startPadding = (estimateItemNumber / 2) * itemWidth
+    var previousScrollOffset = remember { 0.dp }
+    var offset = remember { 0.dp }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) {
+        state.scrollToItem(selectItemIndex.intValue)
+    }
+    LaunchedEffect(state) {
+        snapshotFlow { state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset }
+            .collect { (index, scroll) ->
+                val scrollDp = with(density) { scroll.toDp() }
+                val scrollDifference = scrollDp - previousScrollOffset
+                offset += scrollDifference
+                //println("before index ${selectItemIndex.intValue} ,scrollDiff $scrollDifference , scrollDp $scroll, 累计$offset, $itemWidth")
+                if (scrollDifference > 0.dp && offset > itemWidth / 3) {
+                    if (index + 1 <= items.itemCount - 1) selectItemIndex.intValue = index + 1
+                    //println("加 ${selectItemIndex.intValue}")
+                } else if (scrollDifference < 0.dp && offset > itemWidth / 3) {
+                    selectItemIndex.intValue = index
+                    //println("减 ${selectItemIndex.intValue}")
+                }
+
+                previousScrollOffset = scrollDp
+                //println("after index ${selectItemIndex.intValue} ,scrollDiff $scrollDifference , scrollDp $scroll, 累计$offset")
+            }
+    }
+
     Box(
         modifier = modifier
             .padding(top = padding, bottom = padding)
             .fillMaxWidth()
     ) {
-        LazyRow(state = state) {
+        LazyRow(
+            state = state,
+            contentPadding = PaddingValues(start = startPadding, end = startPadding)
+        ) {
             items(count = items.itemCount) {
                 items[it]?.let { item ->
+                    val select = it == selectItemIndex.intValue
                     if (item.type == ItemType.IMAGE) {
                         DisplayImage(
                             bitmap = if (item.fileSize < ImageSize.ONE_K.size) item.thumbnail
@@ -165,13 +208,58 @@ private fun BottomBar(
                                 ?: notPreview,
                             orientation = item.orientation,
                             aspectRatio = 0.75f,
-                            modifier = Modifier.padding(end = TinyPadding)
+                            modifier = Modifier
+                                .padding(
+                                    start = if (select) TinyPadding else 0.dp,
+                                    end = if (select) TinyPadding * 2 else TinyPadding
+                                )
+                                .graphicsLayer(
+                                    scaleX = if (select) 1.2f else 1f,
+                                    scaleY = if (select) 1.2f else 1f,
+                                )
+                                .clickable {
+                                    scope.launch {
+                                        state.animateScrollToItem(it)
+                                    }
+                                    selectItemIndex.intValue = it
+                                }
                         )
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun DisplayImage(
+    bitmap: Bitmap,
+    modifier: Modifier = Modifier,
+    scale: Boolean = false,
+    orientation: Int = 0,
+    aspectRatio: Float = 1f
+) {
+    AsyncImage(
+        model = bitmap,
+        contentDescription = null,
+        contentScale = ContentScale.Crop,
+        modifier = modifier
+            .aspectRatio(aspectRatio)
+            .graphicsLayer {
+                rotationZ = orientation.toFloat()
+                if (scale) {
+                    scaleX = 1.0f
+                    scaleY = 1.0f
+                    translationX = -20f
+                    translationY = -20f
+                }
+            }
+    )
+}
+
+@Composable
+fun ZoomViewImage(){
+
 }
 
 @Composable
