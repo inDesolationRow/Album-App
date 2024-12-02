@@ -12,6 +12,8 @@ data class MediaItem(
 
     val data: String? = null,
 
+    val dataBitmap: MutableState<Bitmap?> = mutableStateOf(null),
+
     val thumbnailPath: String? = null,
 
     var thumbnail: Bitmap? = null,

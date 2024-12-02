@@ -133,7 +133,10 @@ abstract class BaseViewModel(
                                                 val fileName = getThumbnailName(item.displayName)
                                                 val testFile = File(path, fileName)
                                                 if (!testFile.exists()) {
-                                                    decodeSampledBitmapFromStream(item.data)?.let {
+                                                    decodeSampledBitmapFromStream(
+                                                        filePath = item.data,
+                                                        orientation = item.orientation.toFloat()
+                                                    )?.let {
                                                         saveBitmapToPrivateStorage(
                                                             it,
                                                             fileName,

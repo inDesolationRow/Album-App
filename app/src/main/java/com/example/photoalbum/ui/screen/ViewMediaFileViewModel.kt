@@ -14,8 +14,8 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
-import com.example.photoalbum.data.LocalNetStorageMediaFileService
-import com.example.photoalbum.data.LocalStorageMediaFileService
+import com.example.photoalbum.data.LocalNetStorageThumbnailService
+import com.example.photoalbum.data.LocalStorageThumbnailService
 import com.example.photoalbum.data.MediaItemPagingSource
 import com.example.photoalbum.data.model.Settings
 import com.example.photoalbum.enums.MediaListDialog
@@ -62,9 +62,9 @@ class ViewMediaFileViewModel(
 
     private val service by lazy {
         if (local) {
-            return@lazy LocalStorageMediaFileService(application)
+            return@lazy LocalStorageThumbnailService(application)
         } else {
-            return@lazy LocalNetStorageMediaFileService(application, smbClient)
+            return@lazy LocalNetStorageThumbnailService(application, smbClient)
         }
     }
 
@@ -72,7 +72,7 @@ class ViewMediaFileViewModel(
         this.local = local
         if (local) {
             viewModelScope.launch(Dispatchers.IO) {
-                val service = service as LocalStorageMediaFileService
+                val service = service as LocalStorageThumbnailService
                 itemIndex.intValue = service.getAllData(param = directory as Long, onlyMediaFile = true, imageId)
                 thumbnailFlow.value = Pager(
                     PagingConfig(pageSize = 10, initialLoadSize = 20)
@@ -89,7 +89,7 @@ class ViewMediaFileViewModel(
                         })
                     return@launch
                 }
-                val service = service as LocalNetStorageMediaFileService
+                val service = service as LocalNetStorageThumbnailService
                 itemIndex.intValue = service.getAllData(param = directory as String, onlyMediaFile = true, imageId)
                 thumbnailFlow.value = Pager(
                     PagingConfig(pageSize = 10, initialLoadSize = 20)

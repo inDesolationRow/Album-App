@@ -1,16 +1,43 @@
+@file:Suppress("DEPRECATION")
+
 package com.example.photoalbum.utils
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.renderscript.Allocation
+import android.renderscript.Element
+import android.renderscript.RenderScript
+import android.renderscript.ScriptIntrinsicBlur
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.io.InputStream
+
+fun decodeBitmapFromStream(filePath: String): Bitmap? {
+    try {
+        val before = System.currentTimeMillis()
+        BitmapFactory.decodeFile(filePath)
+        val after = System.currentTimeMillis()
+        println("测试:原图加载时间 ${after - before}")
+
+        val before2 = System.currentTimeMillis()
+        //decodeSampledBitmapFromStream(filePath, 800, 800)
+        val after2 = System.currentTimeMillis()
+        println("测试:模糊图加载时间 ${after2 - before2}")
+
+        return BitmapFactory.decodeFile(filePath)
+    } catch (e: Exception) {
+        println("测试:解析失败 ${e.printStackTrace()}")
+        return null
+    }
+}
 
 fun decodeSampledBitmapFromStream(
     filePath: String,
-    reqWidth: Int = 200,
-    reqHeight: Int = 200
+    orientation: Float,
+    reqWidth: Int = 300,
+    reqHeight: Int = 300
 ): Bitmap? {
     try {
         // 第一次加载仅获取图片的尺寸
@@ -24,7 +51,7 @@ fun decodeSampledBitmapFromStream(
 
         // 关闭 inJustDecodeBounds 并加载图像
         options.inJustDecodeBounds = false
-        return BitmapFactory.decodeFile(filePath, options)
+        return rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation)
     } catch (e: Exception) {
         println("测试:解析失败 ${e.printStackTrace()}")
         return null
@@ -33,8 +60,8 @@ fun decodeSampledBitmapFromStream(
 
 fun decodeSampledBitmapFromStream(
     byteArray: ByteArray,
-    reqWidth: Int = 200,
-    reqHeight: Int = 200
+    reqWidth: Int = 300,
+    reqHeight: Int = 300
 ): Bitmap? {
     try {
         val options = BitmapFactory.Options().apply {
@@ -93,3 +120,26 @@ fun saveBitmapToPrivateStorage(
         return null // 如果发生错误，返回 null
     }
 }
+
+fun rotateBitmap(bitmap: Bitmap, orientation: Float): Bitmap {
+    val matrix = Matrix()
+    matrix.postRotate(orientation)
+    return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+}
+
+fun blurBitmap(context: Context, bitmap: Bitmap, radius: Float): Bitmap {
+
+    val renderScript = RenderScript.create(context)
+    val input = Allocation.createFromBitmap(renderScript, bitmap)
+    val output = Allocation.createTyped(renderScript, input.type)
+    val script = ScriptIntrinsicBlur.create(renderScript, Element.U8_4(renderScript))
+
+    script.setRadius(radius) // 设置模糊半径
+    script.setInput(input)
+    script.forEach(output)
+
+    output.copyTo(bitmap) // 将处理后的图像输出回Bitmap
+    renderScript.destroy()
+    return bitmap
+}
+

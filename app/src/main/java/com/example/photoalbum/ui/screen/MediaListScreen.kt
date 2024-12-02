@@ -54,20 +54,16 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewModelScope
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
-import coil.compose.AsyncImage
 import com.example.photoalbum.R
 import com.example.photoalbum.data.model.LocalNetStorageInfo
 import com.example.photoalbum.enums.ImageSize
@@ -78,12 +74,12 @@ import com.example.photoalbum.model.MediaListDialogEntity
 import com.example.photoalbum.model.Menu
 import com.example.photoalbum.ui.action.ConnectResult
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.ui.common.DisplayImage
 import com.example.photoalbum.ui.common.EditLocalNetStorageDialog
 import com.example.photoalbum.ui.common.MessageDialog
 import com.example.photoalbum.ui.common.ProgressDialog
 import com.example.photoalbum.ui.theme.LargePadding
 import com.example.photoalbum.ui.theme.MediumPadding
-import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.Dispatchers
@@ -446,7 +442,6 @@ fun MediaList(
                     directoryIcon = directoryIcon,
                     directoryName = it.displayName,
                     fileType = it.type,
-                    orientation = it.orientation,
                     modifier = Modifier
                         .padding(end = TinyPadding, top = TinyPadding)
                         .clickable {
@@ -478,7 +473,6 @@ fun MediaFilePreview(
     directoryIcon: Bitmap,
     fileType: ItemType,
     directoryName: String,
-    orientation: Int,
     modifier: Modifier = Modifier
 ) {
     println("测试:item重组")
@@ -486,11 +480,17 @@ fun MediaFilePreview(
         if (image == null) {
             when (fileType) {
                 ItemType.DIRECTORY -> {
-                    DisplayImage(bitmap = directoryIcon, scale = true)
+                    DisplayImage(
+                        bitmap = directoryIcon,
+                        modifier = Modifier.aspectRatio(1f)
+                    )
                 }
 
                 ItemType.IMAGE -> {
-                    DisplayImage(bitmap = nullPreviewIcon, scale = true)
+                    DisplayImage(
+                        bitmap = nullPreviewIcon,
+                        modifier = Modifier.aspectRatio(1f)
+                    )
                 }
 
                 ItemType.VIDEO -> {}
@@ -503,42 +503,19 @@ fun MediaFilePreview(
                         ) {
                             DisplayImage(bitmap = image, orientation = orientation, modifier = Modifier.padding(bottom = TinyPadding))
                         }*/
-            DisplayImage(bitmap = image, orientation = orientation)
+            DisplayImage(
+                bitmap = image,
+                modifier = Modifier.aspectRatio(1f)
+            )
         }
         if (fileType == ItemType.DIRECTORY) {
             Text(
                 text = directoryName,
-                style = MaterialTheme.typography.labelMedium
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(start = SmallPadding)
             )
         }
     }
-}
-
-@Composable
-private fun DisplayImage(
-    bitmap: Bitmap,
-    modifier: Modifier = Modifier,
-    scale: Boolean = false,
-    orientation: Int = 0,
-    aspectRatio: Float = 1f
-) {
-    AsyncImage(
-        model = bitmap,
-        contentDescription = null,
-        contentScale = ContentScale.Crop,
-        modifier = modifier
-            .fillMaxSize()
-            .aspectRatio(aspectRatio)
-            .graphicsLayer {
-                rotationZ = orientation.toFloat()
-                if (scale) {
-                    scaleX = 1.0f
-                    scaleY = 1.0f
-                    translationX = -20f
-                    translationY = -20f
-                }
-            }
-    )
 }
 
 @Composable
@@ -659,13 +636,5 @@ fun result(
 
         is ConnectResult.ConnectError -> {}
         is ConnectResult.Success -> onSuccess()
-    }
-}
-
-@Preview
-@Composable
-fun ScreenPreview() {
-    PhotoAlbumTheme {
-        //AddLocalNetStorage()
     }
 }

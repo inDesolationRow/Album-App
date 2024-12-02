@@ -21,9 +21,9 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
-import com.example.photoalbum.data.LocalNetStorageMediaFileService
+import com.example.photoalbum.data.LocalNetStorageThumbnailService
 import com.example.photoalbum.data.MediaItemPagingSource
-import com.example.photoalbum.data.LocalStorageMediaFileService
+import com.example.photoalbum.data.LocalStorageThumbnailService
 import com.example.photoalbum.data.model.LocalNetStorageInfo
 import com.example.photoalbum.data.model.Settings
 import com.example.photoalbum.model.MediaItem
@@ -83,7 +83,7 @@ class MediaListScreenViewModel(
 
     lateinit var localMediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
 
-    private val localMediaFileService = LocalStorageMediaFileService(application)
+    private val localMediaFileService = LocalStorageThumbnailService(application)
 
     /**
      * 本地网络相关的状态
@@ -98,7 +98,7 @@ class MediaListScreenViewModel(
 
     var recomposeLocalNetStorageListKey by mutableIntStateOf(0)
 
-    private val localNetMediaFileService = LocalNetStorageMediaFileService(application, smbClient)
+    private val localNetMediaFileService = LocalNetStorageThumbnailService(application, smbClient)
 
     var jumpToView: Boolean = false
 
@@ -189,7 +189,7 @@ class MediaListScreenViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             localMediaFileService.getAllData(directoryId)
             localMediaFileFlow.value = Pager(
-                PagingConfig(pageSize = 10, initialLoadSize = 20)
+                PagingConfig(pageSize = 20, initialLoadSize = 30)
             ) {
                 MediaItemPagingSource(localMediaFileService)
             }.flow.cachedIn(viewModelScope)
@@ -200,7 +200,7 @@ class MediaListScreenViewModel(
         return viewModelScope.async(Dispatchers.IO) {
             localMediaFileService.getAllData(-1)
             val flow = Pager(
-                PagingConfig(pageSize = 10, initialLoadSize = 20)
+                PagingConfig(pageSize = 20, initialLoadSize = 30)
             ) {
                 MediaItemPagingSource(localMediaFileService)
             }.flow.cachedIn(viewModelScope)
@@ -304,7 +304,7 @@ class MediaListScreenViewModel(
             val test = path ?: ""
             localNetMediaFileService.getAllData(test)
             localNetMediaFileFlow.value = Pager(
-                PagingConfig(pageSize = 5, initialLoadSize = 10)
+                PagingConfig(pageSize = 20, initialLoadSize = 30)
             ) {
                 MediaItemPagingSource(
                     localNetMediaFileService

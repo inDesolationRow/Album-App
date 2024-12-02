@@ -1,5 +1,6 @@
 package com.example.photoalbum.ui.screen
 
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.material.icons.Icons
@@ -25,6 +27,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
@@ -51,10 +55,12 @@ import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.MediaListDialog
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.ui.common.DisplayImage
 import com.example.photoalbum.ui.common.MessageDialog
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
+import com.example.photoalbum.utils.blurBitmap
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
@@ -67,6 +73,7 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
     val screenHeightDp = configuration.screenHeightDp.dp
     var topPaddingValues = PaddingValues()
     val flow = viewModel.thumbnailFlow.value.collectAsLazyPagingItems()
+
     if (viewModel.showDialog.isShow) {
         if (viewModel.showDialog.mediaListDialog == MediaListDialog.LOCAL_NET_OFFLINE) {
             MessageDialog(
@@ -105,16 +112,28 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
         it.let {
             topPaddingValues = PaddingValues(top = statusBarHeightDp)
         }
-        View(modifier = Modifier
-            .zIndex(0f)
-            .fillMaxSize()
-            .padding(topPaddingValues)
-            .pointerInput(Unit) {
-                detectTapGestures(onTap = {
-                    viewModel.expandMyBar = !viewModel.expandMyBar
-                    viewModel.expandBar(false, recomposeKey = Random.nextInt())
+        val bitmap: MutableState<Bitmap?> = remember { mutableStateOf(null) }
+        LaunchedEffect(flow.itemCount) {
+            /*if (flow.itemCount != 0 && bitmap.value == null)
+                bitmap.value = flow[viewModel.itemIndex.intValue]?.let { item ->
+                    if (item.thumbnail != null)
+                        return@let item.thumbnail
+                    else
+                        return@let item.thumbnailState.value
+                }*/
+        }
+        View(bitmap = bitmap,
+            notPreview = viewModel.notPreviewIcon,
+            context = viewModel.application,
+            modifier = Modifier
+                .zIndex(0f)
+                .fillMaxSize()
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = {
+                        viewModel.expandMyBar = !viewModel.expandMyBar
+                        viewModel.expandBar(false, recomposeKey = Random.nextInt())
+                    })
                 })
-            })
     }
 }
 
@@ -160,7 +179,8 @@ private fun BottomBar(
 ) {
     val density = LocalDensity.current
     val padding = height * 0.2f
-    val itemWidth = ((height - padding * 2) * 0.75f)
+    val itemHeight = height - padding * 2
+    val itemWidth = (itemHeight * 0.75f)
     val estimateItemNumber: Int = screenWidth.value.toInt() / itemWidth.value.toInt()
     val startPadding = (estimateItemNumber / 2) * itemWidth
     var previousScrollOffset = remember { 0.dp }
@@ -183,7 +203,6 @@ private fun BottomBar(
                     selectItemIndex.intValue = index
                     //println("减 ${selectItemIndex.intValue}")
                 }
-
                 previousScrollOffset = scrollDp
                 //println("after index ${selectItemIndex.intValue} ,scrollDiff $scrollDifference , scrollDp $scroll, 累计$offset")
             }
@@ -202,17 +221,14 @@ private fun BottomBar(
                 items[it]?.let { item ->
                     val select = it == selectItemIndex.intValue
                     if (item.type == ItemType.IMAGE) {
-                        DisplayImage(
-                            bitmap = if (item.fileSize < ImageSize.ONE_K.size) item.thumbnail
-                                ?: notPreview else item.thumbnailState.value
-                                ?: notPreview,
-                            orientation = item.orientation,
-                            aspectRatio = 0.75f,
+                        Box(
                             modifier = Modifier
                                 .padding(
                                     start = if (select) TinyPadding else 0.dp,
                                     end = if (select) TinyPadding * 2 else TinyPadding
                                 )
+                                .height(itemHeight)
+                                .width(itemWidth)
                                 .graphicsLayer(
                                     scaleX = if (select) 1.2f else 1f,
                                     scaleY = if (select) 1.2f else 1f,
@@ -223,7 +239,14 @@ private fun BottomBar(
                                     }
                                     selectItemIndex.intValue = it
                                 }
-                        )
+                        ){
+                            DisplayImage(
+                                bitmap = if (item.fileSize < ImageSize.ONE_K.size) item.thumbnail
+                                    ?: notPreview else item.thumbnailState.value
+                                    ?: notPreview,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                     }
                 }
             }
@@ -232,17 +255,19 @@ private fun BottomBar(
 }
 
 @Composable
-private fun DisplayImage(
+private fun DisplayImageTest(
     bitmap: Bitmap,
     modifier: Modifier = Modifier,
     scale: Boolean = false,
     orientation: Int = 0,
-    aspectRatio: Float = 1f
+    aspectRatio: Float = 1f,
+    notPreview: Bitmap,
+    context: Context
 ) {
     AsyncImage(
-        model = bitmap,
+        model = blurBitmap(context, bitmap, 5f),
         contentDescription = null,
-        contentScale = ContentScale.Crop,
+        contentScale = ContentScale.FillWidth,
         modifier = modifier
             .aspectRatio(aspectRatio)
             .graphicsLayer {
@@ -258,13 +283,24 @@ private fun DisplayImage(
 }
 
 @Composable
-fun ZoomViewImage(){
+fun ZoomViewImage() {
 
 }
 
 @Composable
-fun View(modifier: Modifier = Modifier) {
-    Box(modifier = modifier.background(Color.Black))
+fun View(
+    modifier: Modifier = Modifier,
+    bitmap: MutableState<Bitmap?>,
+    notPreview: Bitmap,
+    context: Context
+) {
+    Box(contentAlignment = Alignment.Center, modifier = modifier.background(Color.Black)) {
+        DisplayImageTest(
+            bitmap = bitmap.value ?: notPreview,
+            notPreview = notPreview,
+            context = context
+        )
+    }
 }
 
 @Preview
