@@ -18,7 +18,7 @@ import com.example.photoalbum.data.model.DirectoryMediaFileCrossRef
 import com.example.photoalbum.data.model.Settings
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.ui.action.UserAction
-import com.example.photoalbum.utils.decodeSampledBitmapFromStream
+import com.example.photoalbum.utils.decodeSampledBitmap
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.Dispatchers
@@ -133,7 +133,7 @@ abstract class BaseViewModel(
                                                 val fileName = getThumbnailName(item.displayName)
                                                 val testFile = File(path, fileName)
                                                 if (!testFile.exists()) {
-                                                    decodeSampledBitmapFromStream(
+                                                    decodeSampledBitmap(
                                                         filePath = item.data,
                                                         orientation = item.orientation.toFloat()
                                                     )?.let {

@@ -437,7 +437,7 @@ fun MediaList(
         items(itemList.itemCount) { index ->
             itemList[index]?.let {
                 MediaFilePreview(
-                    image = if (it.fileSize < ImageSize.ONE_K.size) it.thumbnail else it.thumbnailState.value,
+                    image = if (it.fileSize < ImageSize.M_1.size) it.thumbnail else it.thumbnailState.value,
                     nullPreviewIcon = nullPreviewIcon,
                     directoryIcon = directoryIcon,
                     directoryName = it.displayName,

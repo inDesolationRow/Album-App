@@ -2,6 +2,7 @@ package com.example.photoalbum.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.runtime.MutableState
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.example.photoalbum.MediaApplication
@@ -11,7 +12,9 @@ import com.example.photoalbum.enums.SystemFolder
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.smb.SmbClient
-import com.example.photoalbum.utils.decodeSampledBitmapFromStream
+import com.example.photoalbum.utils.blurBitmap
+import com.example.photoalbum.utils.decodeBitmap
+import com.example.photoalbum.utils.decodeSampledBitmap
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.CoroutineScope
@@ -47,13 +50,15 @@ class MediaItemPagingSource(private val apiService: MediaFileService<*>) :
 
 interface MediaFileService<T> {
 
-    val allData: MutableList<MediaItem>
+    var allData: MutableList<MediaItem>
 
     val thumbnailsPath: String
 
     var initialLoadSize: Int
 
     suspend fun getAllData(param: T, onlyMediaFile: Boolean = false, selectItemId: Long = -1): Int
+
+    fun sharedAllData(allData: MutableList<MediaItem>)
 
     suspend fun getData(page: Int, loadSize: Int): List<MediaItem>
 
@@ -65,12 +70,16 @@ interface MediaFileService<T> {
 class LocalStorageThumbnailService(private val application: MediaApplication) :
     MediaFileService<Long> {
 
-    override val allData: MutableList<MediaItem> = mutableListOf()
+    override var allData: MutableList<MediaItem> = mutableListOf()
 
     override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
 
     override var initialLoadSize: Int = 0
+
+    override fun sharedAllData(allData: MutableList<MediaItem>) {
+        this.allData = allData
+    }
 
     override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Int {
         allData.clear()
@@ -181,7 +190,7 @@ class LocalStorageThumbnailService(private val application: MediaApplication) :
         for (item in items) {
             if (item.type == ItemType.IMAGE) {
                 //1k分辨率以下的图像生成缩略图时同步, 1k以上分辨率不再同步,使用state延时重组
-                if (item.fileSize < ImageSize.ONE_K.size) {
+                if (item.fileSize < ImageSize.M_1.size) {
                     jobs.add(coroutineScope.launch(Dispatchers.IO) {
                         item.thumbnail = loadThumbnail(item)
                     })
@@ -240,10 +249,7 @@ class LocalStorageThumbnailService(private val application: MediaApplication) :
             var image: Bitmap? = null
             try {
                 val thumbnailName = getThumbnailName(fileName)
-                val thumbnailPath =
-                    (application.applicationContext.getExternalFilesDir(null)
-                        ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
-                val testFile = File(thumbnailPath, thumbnailName)
+                val testFile = File(thumbnailsPath, thumbnailName)
 
                 if (testFile.exists()) {
                     application.mediaDatabase.mediaFileDao.updateThumbnail(
@@ -253,12 +259,12 @@ class LocalStorageThumbnailService(private val application: MediaApplication) :
                     return@async null
                 }
 
-                decodeSampledBitmapFromStream(filePath = path, orientation = orientation)?.let {
+                decodeSampledBitmap(filePath = path, orientation = orientation)?.let {
                     image = it
                     saveBitmapToPrivateStorage(
                         bitmap = it,
                         fileName = thumbnailName,
-                        directory = thumbnailPath
+                        directory = thumbnailsPath
                     )?.let { file ->
                         application.mediaDatabase.mediaFileDao.updateThumbnail(
                             mediaFileId,
@@ -277,12 +283,16 @@ class LocalStorageThumbnailService(private val application: MediaApplication) :
 class LocalStorageMediaFileService(private val application: MediaApplication) :
     MediaFileService<Long> {
 
-    override val allData: MutableList<MediaItem> = mutableListOf()
+    override var allData: MutableList<MediaItem> = mutableListOf()
 
     override val thumbnailsPath: String = (application.applicationContext.getExternalFilesDir(null)
         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
 
     override var initialLoadSize: Int = 0
+
+    override fun sharedAllData(allData: MutableList<MediaItem>) {
+        this.allData = allData
+    }
 
     override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Int {
         allData.clear()
@@ -340,8 +350,9 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
         val jobs: MutableList<Job> = mutableListOf()
         for (item in items) {
             if (item.type == ItemType.IMAGE) {
+                item.thumbnail = loadThumbnail(mediaItem = item)
                 coroutineScope.launch(Dispatchers.IO) {
-                    item.dataBitmap.value = loadData(item.data)
+                    loadData(item.data!!, item.dataBitmap)
                 }
             }
         }
@@ -364,11 +375,138 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
         return allData.indexOfFirst { id == it.id }
     }
 
-    private suspend fun loadData(path: String?): Bitmap? {
-        val bitmap: Bitmap
-        //decodeSampledBitmapFromStream()
-        TODO()
+    private fun loadData(path: String, state: MutableState<Bitmap?>) {
+        val coroutineScope = CoroutineScope(Dispatchers.IO)
+        coroutineScope.launch {
+            state.value = decodeBitmap(path)
+        }
     }
+
+    private fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
+        return BitmapFactory.decodeFile(
+            mediaItem.thumbnailPath ?: File(
+                thumbnailsPath,
+                getThumbnailName(mediaItem.displayName)
+            ).absolutePath
+        )?.let {
+            return@let blurBitmap(
+                bitmap = it,
+                context = application.applicationContext,
+                radius = 5f
+            )
+        }
+    }
+
+}
+
+class LocalNetStorageMediaFileService(
+    val application: MediaApplication,
+    private val smbClient: SmbClient
+) :
+    MediaFileService<String> {
+
+    override var allData: MutableList<MediaItem> = mutableListOf()
+
+    override val thumbnailsPath: String = (application.applicationContext.getExternalFilesDir(null)
+        ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
+
+    override var initialLoadSize: Int = 0
+
+    override fun sharedAllData(allData: MutableList<MediaItem>) {
+        this.allData = allData
+    }
+
+    override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
+        if (page == 1) initialLoadSize = loadSize
+        val start = (page - 1) * page.let {
+            return@let if (it == 2) initialLoadSize else loadSize
+        }
+        var end = page.let {
+            return@let if (page == 2) start + loadSize else page * loadSize
+        } - 1
+        if (end > allData.size - 1)
+            end = allData.size - 1
+        val items = allData.slice(IntRange(start, end))
+
+        val startDate = System.currentTimeMillis()
+        val coroutineScope = CoroutineScope(Dispatchers.IO)
+        val jobs: MutableList<Job> = mutableListOf()
+        for (item in items) {
+            if (item.type == ItemType.IMAGE) {
+                loadThumbnail(item)?.let {
+                    item.thumbnail = blurBitmap(
+                        context = application.applicationContext,
+                        bitmap = it,
+                        radius = 5f
+                    )
+                }
+                coroutineScope.launch {
+                    loadData(
+                        mediaItem = item,
+                        smbClient = smbClient,
+                        mutableState = item.dataBitmap
+                    )
+                }
+            }
+        }
+        jobs.forEach {
+            it.join()
+        }
+        val endDate = System.currentTimeMillis()
+        val re = endDate - startDate
+        println("测试:加载bitmap用时$re")
+        return items
+    }
+
+    private fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
+        return try {
+            BitmapFactory.decodeFile(
+                File(
+                    thumbnailsPath,
+                    getThumbnailName(mediaItem.displayName, otherStr = mediaItem.id.toString())
+                ).absolutePath
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun loadData(
+        mediaItem: MediaItem,
+        smbClient: SmbClient,
+        mutableState: MutableState<Bitmap?>
+    ) {
+        try {
+            mutableState.value = smbClient.getImage(
+                getThumbnailName(
+                    name = mediaItem.displayName,
+                    otherStr = mediaItem.id.toString()
+                ), mediaItem.id
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    override fun next(page: Int, loadSize: Int): Int? {
+        val start = page * loadSize
+        if (start > allData.size) return null
+        val result = page + 1
+        return result
+    }
+
+    override fun getItemIndex(id: Long): Int {
+        return allData.indexOfFirst { id == it.id }
+    }
+
+    override suspend fun getAllData(
+        param: String,
+        onlyMediaFile: Boolean,
+        selectItemId: Long
+    ): Int {
+        TODO("Not yet implemented")
+    }
+
 }
 
 class LocalNetStorageThumbnailService(
@@ -377,12 +515,16 @@ class LocalNetStorageThumbnailService(
 ) :
     MediaFileService<String> {
 
-    override val allData: MutableList<MediaItem> = mutableListOf()
+    override var allData: MutableList<MediaItem> = mutableListOf()
 
     override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_NET_STORAGE.path)
 
     override var initialLoadSize: Int = 0
+
+    override fun sharedAllData(allData: MutableList<MediaItem>) {
+        this.allData = allData
+    }
 
     override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
         if (page == 1) initialLoadSize = loadSize
@@ -402,7 +544,7 @@ class LocalNetStorageThumbnailService(
         for (item in items) {
             if (item.type == ItemType.IMAGE) {
                 //1k分辨率以下的图像生成缩略图时同步, 1k以上分辨率不再同步,使用state延时重组
-                if (item.fileSize < ImageSize.ONE_K.size) {
+                if (item.fileSize < ImageSize.M_1.size) {
                     jobs.add(coroutineScope.launch(Dispatchers.IO) {
                         item.thumbnail = loadThumbnail(item)
                     })
@@ -469,18 +611,15 @@ class LocalNetStorageThumbnailService(
             try {
                 val thumbnailName =
                     getThumbnailName(name = fileName, otherStr = mediaFileId.toString())
-                val thumbnailPath =
-                    (application.applicationContext.getExternalFilesDir(null)
-                        ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_NET_STORAGE.path)
-                val testFile = File(thumbnailPath, thumbnailName)
+                val testFile = File(thumbnailsPath, thumbnailName)
 
                 if (testFile.exists()) return@async null
-                smbClient.getImageThumbnail(name = fileName)?.let {
+                smbClient.getImageThumbnail(name = fileName, mediaFileId)?.let {
                     image = it
                     saveBitmapToPrivateStorage(
                         bitmap = it,
                         fileName = thumbnailName,
-                        directory = thumbnailPath
+                        directory = thumbnailsPath
                     )
                 }
                 image

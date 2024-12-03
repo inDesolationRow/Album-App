@@ -16,6 +16,7 @@
 
     <application
         android:name=".MediaApplication"
+        android:hardwareAccelerated="true"
         android:allowBackup="true"
         android:largeHeap="true"
         android:dataExtractionRules="@xml/data_extraction_rules"

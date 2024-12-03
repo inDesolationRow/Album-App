@@ -13,19 +13,15 @@ import android.renderscript.ScriptIntrinsicBlur
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.io.InputStream
 
-fun decodeBitmapFromStream(filePath: String): Bitmap? {
+fun decodeBitmap(filePath: String): Bitmap? {
     try {
-        val before = System.currentTimeMillis()
-        BitmapFactory.decodeFile(filePath)
-        val after = System.currentTimeMillis()
-        println("测试:原图加载时间 ${after - before}")
-
-        val before2 = System.currentTimeMillis()
-        //decodeSampledBitmapFromStream(filePath, 800, 800)
-        val after2 = System.currentTimeMillis()
-        println("测试:模糊图加载时间 ${after2 - before2}")
-
+        /*        val result : Bitmap
+                val before = System.currentTimeMillis()
+                result = BitmapFactory.decodeFile(filePath)
+                val after = System.currentTimeMillis()
+                println("测试:原图加载时间 ${after - before}")*/
         return BitmapFactory.decodeFile(filePath)
     } catch (e: Exception) {
         println("测试:解析失败 ${e.printStackTrace()}")
@@ -33,7 +29,35 @@ fun decodeBitmapFromStream(filePath: String): Bitmap? {
     }
 }
 
-fun decodeSampledBitmapFromStream(
+fun decodeBitmap(byteArray: ByteArray): Bitmap? {
+    try {
+        /*        val result : Bitmap
+                val before = System.currentTimeMillis()
+                result = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
+                val after = System.currentTimeMillis()
+                println("测试:原图加载时间 ${after - before}")*/
+        return BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
+    } catch (e: Exception) {
+        println("测试:解析失败 ${e.printStackTrace()}")
+        return null
+    }
+}
+
+fun decodeBitmap(inputStream: InputStream): Bitmap? {
+    try {
+        /*        val result : Bitmap
+                val before = System.currentTimeMillis()
+                result = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
+                val after = System.currentTimeMillis()
+                println("测试:原图加载时间 ${after - before}")*/
+        return BitmapFactory.decodeStream(inputStream)
+    } catch (e: Exception) {
+        println("测试:解析失败 ${e.printStackTrace()}")
+        return null
+    }
+}
+
+fun decodeSampledBitmap(
     filePath: String,
     orientation: Float,
     reqWidth: Int = 300,
@@ -51,6 +75,7 @@ fun decodeSampledBitmapFromStream(
 
         // 关闭 inJustDecodeBounds 并加载图像
         options.inJustDecodeBounds = false
+        options.inPreferredConfig = Bitmap.Config.RGB_565
         return rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation)
     } catch (e: Exception) {
         println("测试:解析失败 ${e.printStackTrace()}")
@@ -58,7 +83,7 @@ fun decodeSampledBitmapFromStream(
     }
 }
 
-fun decodeSampledBitmapFromStream(
+fun decodeSampledBitmap(
     byteArray: ByteArray,
     reqWidth: Int = 300,
     reqHeight: Int = 300

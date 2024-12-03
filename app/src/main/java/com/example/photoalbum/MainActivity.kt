@@ -14,6 +14,7 @@ import com.example.photoalbum.ui.screen.BaseViewModel
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.screen.MainScreen
 import com.example.photoalbum.ui.screen.MainScreenViewModel
+import com.example.photoalbum.utils.decodeBitmap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -71,6 +72,7 @@ class MainActivity : ComponentActivity() {
             }
         }
         enableEdgeToEdge()
+        //decodeBitmap("/storage/emulated/0/DCIM/Camera/20231008_154438.jpg")
         setContent {
             PhotoAlbumTheme {
                 MainScreen(viewModel)

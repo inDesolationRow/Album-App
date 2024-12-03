@@ -241,7 +241,7 @@ private fun BottomBar(
                                 }
                         ){
                             DisplayImage(
-                                bitmap = if (item.fileSize < ImageSize.ONE_K.size) item.thumbnail
+                                bitmap = if (item.fileSize < ImageSize.M_1.size) item.thumbnail
                                     ?: notPreview else item.thumbnailState.value
                                     ?: notPreview,
                                 modifier = Modifier.fillMaxSize()

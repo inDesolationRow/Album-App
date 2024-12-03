@@ -1,13 +1,17 @@
 package com.example.photoalbum.smb
 
 import android.graphics.Bitmap
+import android.util.LongSparseArray
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.core.util.contains
+import androidx.core.util.set
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.ui.action.ConnectResult
-import com.example.photoalbum.utils.decodeSampledBitmapFromStream
+import com.example.photoalbum.utils.decodeBitmap
+import com.example.photoalbum.utils.decodeSampledBitmap
 import com.example.photoalbum.utils.getThumbnailName
 import com.hierynomus.msdtyp.AccessMask
 import com.hierynomus.mssmb2.SMB2CreateDisposition
@@ -32,6 +36,8 @@ class SmbClient {
     private val pathStack: SnapshotStateList<String> = mutableStateListOf()
 
     private var popPath: String? = null
+
+    private val cacheArray: LongSparseArray<ByteArray> = LongSparseArray()
 
     fun connect(
         ip: String,
@@ -116,7 +122,7 @@ class SmbClient {
         }
     }
 
-    private fun getFilePath(name: String): String{
+    private fun getFilePath(name: String): String {
         return getPath().plus(name)
     }
 
@@ -125,6 +131,16 @@ class SmbClient {
             pathStack.add(it)
             popPath = null
         }
+    }
+
+    fun cacheImage(idArray: LongArray) {
+        idArray.forEach {
+            cacheArray.put(it, null)
+        }
+    }
+
+    fun clearCache() {
+        cacheArray.clear()
     }
 
     fun getList(path: String, onlyMediaFile: Boolean = false): MutableList<MediaItem> {
@@ -189,11 +205,42 @@ class SmbClient {
         return directoryList
     }
 
-    fun getImageThumbnail(name: String): Bitmap? {
+    fun getImage(name: String, mediaFileId: Long): Bitmap? {
+        var thumbnail: Bitmap? = null
+        try {
+            if (cacheArray.contains(mediaFileId)) {
+                thumbnail = decodeBitmap(cacheArray[mediaFileId])
+                cacheArray.remove(mediaFileId)
+            } else {
+                val path = getFilePath(name)
+                if (diskShare.fileExists(path)) {
+                    val file = diskShare.openFile(
+                        path,
+                        setOf(AccessMask.FILE_READ_DATA),
+                        null,
+                        setOf(SMB2ShareAccess.FILE_SHARE_READ),
+                        SMB2CreateDisposition.FILE_OPEN,
+                        setOf(SMB2CreateOptions.FILE_SEQUENTIAL_ONLY)
+                    )
+                    file.use {
+                        it.inputStream.use { inputStream ->
+                            thumbnail = decodeBitmap(inputStream)
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return thumbnail
+        }
+        return thumbnail
+    }
+
+    fun getImageThumbnail(name: String, mediaFileId: Long): Bitmap? {
         var thumbnail: Bitmap? = null
         val path = getFilePath(name)
         try {
-            if (diskShare.fileExists(path)){
+            if (diskShare.fileExists(path)) {
                 val file = diskShare.openFile(
                     path,
                     setOf(AccessMask.FILE_READ_DATA),
@@ -202,21 +249,22 @@ class SmbClient {
                     SMB2CreateDisposition.FILE_OPEN,
                     setOf(SMB2CreateOptions.FILE_SEQUENTIAL_ONLY)
                 )
-                var byteArray : ByteArray?
+                var byteArray: ByteArray?
                 file.use {
                     it.inputStream.use { inputStream ->
                         byteArray = inputStream.readBytes()
                     }
                 }
-                System.gc()
+                val cache = cacheArray.contains(mediaFileId)
                 byteArray?.let {
-                    thumbnail = decodeSampledBitmapFromStream(it)
+                    if (cache)
+                        cacheArray[mediaFileId] = it
+                    thumbnail = decodeSampledBitmap(it)
                 }
             }
-        }catch (e: Exception){
+        } catch (e: Exception) {
             println(e)
         }
-        System.gc()
         return thumbnail
     }
 

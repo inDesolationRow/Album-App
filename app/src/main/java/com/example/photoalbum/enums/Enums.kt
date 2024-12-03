@@ -60,9 +60,11 @@ enum class ThumbnailsPath(val path: String){
 }
 
 enum class ImageSize(val size: Int){
-    FOUR_K(5242880),
-    TWO_K(2621440),
-    ONE_K(1310720)
+    M_30(31457280),
+    M_10(10485760),
+    M_5(5242880),
+    M_2(2621440),
+    M_1(1310720)
 }
 
 enum class SystemFolder(val displayName: String){
