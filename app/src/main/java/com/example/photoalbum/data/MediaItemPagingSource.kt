@@ -46,6 +46,10 @@ class MediaItemPagingSource(private val apiService: MediaFileService<*>) :
             anchorPage?.prevKey?.plus(1) ?: anchorPage?.nextKey?.minus(1)
         }
     }
+
+    fun close() {
+        invalidate()
+    }
 }
 
 interface MediaFileService<T> {
@@ -58,7 +62,7 @@ interface MediaFileService<T> {
 
     suspend fun getAllData(param: T, onlyMediaFile: Boolean = false, selectItemId: Long = -1): Int
 
-    fun sharedAllData(allData: MutableList<MediaItem>)
+    fun sharedAllData(allData: MutableList<MediaItem>? = null): MutableList<MediaItem>
 
     suspend fun getData(page: Int, loadSize: Int): List<MediaItem>
 
@@ -77,8 +81,11 @@ class LocalStorageThumbnailService(private val application: MediaApplication) :
 
     override var initialLoadSize: Int = 0
 
-    override fun sharedAllData(allData: MutableList<MediaItem>) {
-        this.allData = allData
+    override fun sharedAllData(allData: MutableList<MediaItem>?): MutableList<MediaItem> {
+        allData?.let {
+            this.allData = it
+        }
+        return this.allData
     }
 
     override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Int {
@@ -290,8 +297,11 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
 
     override var initialLoadSize: Int = 0
 
-    override fun sharedAllData(allData: MutableList<MediaItem>) {
-        this.allData = allData
+    override fun sharedAllData(allData: MutableList<MediaItem>?): MutableList<MediaItem> {
+        allData?.let {
+            this.allData = it
+        }
+        return this.allData
     }
 
     override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Int {
@@ -352,7 +362,7 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
             if (item.type == ItemType.IMAGE) {
                 item.thumbnail = loadThumbnail(mediaItem = item)
                 coroutineScope.launch(Dispatchers.IO) {
-                    loadData(item.data!!, item.dataBitmap)
+                    loadData(item.data!!, item.dataBitmap, item.orientation.toFloat())
                 }
             }
         }
@@ -375,10 +385,10 @@ class LocalStorageMediaFileService(private val application: MediaApplication) :
         return allData.indexOfFirst { id == it.id }
     }
 
-    private fun loadData(path: String, state: MutableState<Bitmap?>) {
+    private fun loadData(path: String, state: MutableState<Bitmap?>, orientation: Float) {
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         coroutineScope.launch {
-            state.value = decodeBitmap(path)
+            state.value = decodeBitmap(path, orientation)
         }
     }
 
@@ -412,8 +422,11 @@ class LocalNetStorageMediaFileService(
 
     override var initialLoadSize: Int = 0
 
-    override fun sharedAllData(allData: MutableList<MediaItem>) {
-        this.allData = allData
+    override fun sharedAllData(allData: MutableList<MediaItem>?): MutableList<MediaItem> {
+        allData?.let {
+            this.allData = it
+        }
+        return this.allData
     }
 
     override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
@@ -522,8 +535,11 @@ class LocalNetStorageThumbnailService(
 
     override var initialLoadSize: Int = 0
 
-    override fun sharedAllData(allData: MutableList<MediaItem>) {
-        this.allData = allData
+    override fun sharedAllData(allData: MutableList<MediaItem>?): MutableList<MediaItem> {
+        allData?.let {
+            this.allData = it
+        }
+        return this.allData
     }
 
     override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {

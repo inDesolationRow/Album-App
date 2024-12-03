@@ -14,7 +14,9 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
+import com.example.photoalbum.data.LocalNetStorageMediaFileService
 import com.example.photoalbum.data.LocalNetStorageThumbnailService
+import com.example.photoalbum.data.LocalStorageMediaFileService
 import com.example.photoalbum.data.LocalStorageThumbnailService
 import com.example.photoalbum.data.MediaItemPagingSource
 import com.example.photoalbum.data.model.Settings
@@ -38,21 +40,25 @@ class ViewMediaFileViewModel(
 
     var showDialog by mutableStateOf(MediaListDialogEntity())
 
-    var local: Boolean = true
+    var local by mutableStateOf(true)
+
+    var isRow by mutableStateOf(true)
+
+    var expandMyBar: Boolean by mutableStateOf(false)
 
     var thumbnailFlow: MutableState<Flow<PagingData<MediaItem>>> = mutableStateOf(flowOf())
+
+    var imageFlow: MutableState<Flow<PagingData<MediaItem>>> = mutableStateOf(flowOf())
+
+    var itemIndex = mutableIntStateOf(0)
+
+    val thumbnailScrollState = LazyListState()
 
     var nextDirectory: String? = null
 
     var previousDirectory: String? = null
 
-    var expandMyBar: Boolean by mutableStateOf(false)
-
     val notPreviewIcon = application.getDrawable(R.drawable.hide)!!.toBitmap()
-
-    val thumbnailScrollState = LazyListState()
-
-    var itemIndex = mutableIntStateOf(0)
 
     private val smbClient by lazy {
         val client = SmbClient()
@@ -60,7 +66,7 @@ class ViewMediaFileViewModel(
         return@lazy client
     }
 
-    private val service by lazy {
+    private val thumbnailsService by lazy {
         if (local) {
             return@lazy LocalStorageThumbnailService(application)
         } else {
@@ -68,20 +74,40 @@ class ViewMediaFileViewModel(
         }
     }
 
+    private val imageService by lazy {
+        if (local) {
+            return@lazy LocalStorageMediaFileService(application)
+        } else {
+            return@lazy LocalNetStorageMediaFileService(application, smbClient)
+        }
+    }
+
     fun initData(directory: Any, imageId: Long, local: Boolean) {
         this.local = local
-        if (local) {
-            viewModelScope.launch(Dispatchers.IO) {
-                val service = service as LocalStorageThumbnailService
-                itemIndex.intValue = service.getAllData(param = directory as Long, onlyMediaFile = true, imageId)
+        viewModelScope.launch(Dispatchers.IO) {
+            if (local) {
+                val thumbnailsService = thumbnailsService as LocalStorageThumbnailService
+                itemIndex.intValue =
+                    thumbnailsService.getAllData(
+                        param = directory as Long,
+                        onlyMediaFile = true,
+                        imageId
+                    )
                 thumbnailFlow.value = Pager(
                     PagingConfig(pageSize = 10, initialLoadSize = 20)
                 ) {
-                    MediaItemPagingSource(service)
+                    MediaItemPagingSource(thumbnailsService)
                 }.flow.cachedIn(viewModelScope)
-            }
-        } else {
-            viewModelScope.launch(Dispatchers.IO) {
+
+                val imageService = imageService as LocalStorageMediaFileService
+                imageService.sharedAllData(thumbnailsService.sharedAllData())
+                imageFlow.value = Pager(
+                    PagingConfig(pageSize = 1, initialLoadSize = 2)
+                ) {
+                    MediaItemPagingSource(imageService)
+                }.flow.cachedIn(viewModelScope)
+
+            } else {
                 if (!smbClient.isConnect()) {
                     showDialog =
                         MediaListDialogEntity(MediaListDialog.LOCAL_NET_OFFLINE, true, onClick = {
@@ -89,12 +115,26 @@ class ViewMediaFileViewModel(
                         })
                     return@launch
                 }
-                val service = service as LocalNetStorageThumbnailService
-                itemIndex.intValue = service.getAllData(param = directory as String, onlyMediaFile = true, imageId)
+                val thumbnailsService = thumbnailsService as LocalNetStorageThumbnailService
+                itemIndex.intValue =
+                    thumbnailsService.getAllData(
+                        param = directory as String,
+                        onlyMediaFile = true,
+                        imageId
+                    )
                 thumbnailFlow.value = Pager(
                     PagingConfig(pageSize = 10, initialLoadSize = 20)
                 ) {
-                    MediaItemPagingSource(service)
+                    MediaItemPagingSource(thumbnailsService)
+                }.flow.cachedIn(viewModelScope)
+
+                val imageService = imageService as LocalNetStorageMediaFileService
+                imageService.sharedAllData(thumbnailsService.sharedAllData())
+                //smbClient.cacheImage(imageService.allData[itemIndex.intValue].id)
+                imageFlow.value = Pager(
+                    PagingConfig(pageSize = 1, initialLoadSize = 2)
+                ) {
+                    MediaItemPagingSource(imageService)
                 }.flow.cachedIn(viewModelScope)
             }
         }
@@ -114,11 +154,6 @@ class ViewMediaFileViewModel(
                 showDialog = MediaListDialogEntity(MediaListDialog.LOCAL_NET_OFFLINE, true)
             }
         }
-    }
-
-    fun getNextId(id: Long): Long{
-        val index = service.allData.indexOfFirst { id == it.id }
-        return if (index < service.allData.size - 1) index + 1L else -1
     }
 
     fun expandBar(expand: Boolean, recomposeKey: Int = 0) {

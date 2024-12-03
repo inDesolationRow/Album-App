@@ -15,14 +15,14 @@ import java.io.FileOutputStream
 import java.io.IOException
 import java.io.InputStream
 
-fun decodeBitmap(filePath: String): Bitmap? {
+fun decodeBitmap(filePath: String, orientation: Float): Bitmap? {
     try {
         /*        val result : Bitmap
                 val before = System.currentTimeMillis()
                 result = BitmapFactory.decodeFile(filePath)
                 val after = System.currentTimeMillis()
                 println("测试:原图加载时间 ${after - before}")*/
-        return BitmapFactory.decodeFile(filePath)
+        return rotateBitmap(BitmapFactory.decodeFile(filePath), orientation = orientation)
     } catch (e: Exception) {
         println("测试:解析失败 ${e.printStackTrace()}")
         return null

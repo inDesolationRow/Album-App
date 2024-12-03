@@ -1,5 +1,6 @@
 package com.example.photoalbum.ui.screen
 
+import android.content.Context
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
@@ -239,6 +240,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
                             gridColumn = viewModel.settings.gridColumnNumState.intValue,
+                            context = viewModel.application.applicationContext,
                             clickId = { id, type ->
                                 if (type == ItemType.DIRECTORY) viewModel.currentDirectoryId.value =
                                     id
@@ -310,6 +312,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
                             gridColumn = viewModel.settings.gridColumnNumState.intValue,
+                            context = viewModel.application.applicationContext,
                             expand = {
                                 viewModel.userAction.value = UserAction.ExpandStatusBarAction(it)
                             },
@@ -424,6 +427,7 @@ fun MediaList(
     gridColumn: Int,
     expand: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
+    context: Context,
     clickId: ((Long, ItemType) -> Unit)? = null,
     clickString: ((Long, String, ItemType) -> Unit)? = null,
 ) {
@@ -442,6 +446,7 @@ fun MediaList(
                     directoryIcon = directoryIcon,
                     directoryName = it.displayName,
                     fileType = it.type,
+                    context = context,
                     modifier = Modifier
                         .padding(end = TinyPadding, top = TinyPadding)
                         .clickable {
@@ -473,6 +478,7 @@ fun MediaFilePreview(
     directoryIcon: Bitmap,
     fileType: ItemType,
     directoryName: String,
+    context: Context,
     modifier: Modifier = Modifier
 ) {
     println("测试:item重组")
@@ -482,6 +488,7 @@ fun MediaFilePreview(
                 ItemType.DIRECTORY -> {
                     DisplayImage(
                         bitmap = directoryIcon,
+                        context = context,
                         modifier = Modifier.aspectRatio(1f)
                     )
                 }
@@ -489,6 +496,7 @@ fun MediaFilePreview(
                 ItemType.IMAGE -> {
                     DisplayImage(
                         bitmap = nullPreviewIcon,
+                        context = context,
                         modifier = Modifier.aspectRatio(1f)
                     )
                 }
@@ -505,6 +513,7 @@ fun MediaFilePreview(
                         }*/
             DisplayImage(
                 bitmap = image,
+                context = context,
                 modifier = Modifier.aspectRatio(1f)
             )
         }

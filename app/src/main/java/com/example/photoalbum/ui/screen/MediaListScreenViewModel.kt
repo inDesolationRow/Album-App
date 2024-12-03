@@ -83,7 +83,7 @@ class MediaListScreenViewModel(
 
     lateinit var localMediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
 
-    private val localMediaFileService = LocalStorageThumbnailService(application)
+    private var localMediaFileService = LocalStorageThumbnailService(application)
 
     /**
      * 本地网络相关的状态
@@ -98,7 +98,7 @@ class MediaListScreenViewModel(
 
     var recomposeLocalNetStorageListKey by mutableIntStateOf(0)
 
-    private val localNetMediaFileService = LocalNetStorageThumbnailService(application, smbClient)
+    private lateinit var localNetMediaFileService: LocalNetStorageThumbnailService
 
     var jumpToView: Boolean = false
 
@@ -187,25 +187,27 @@ class MediaListScreenViewModel(
 
     private fun initLocalMediaFilePaging(directoryId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
+            localMediaFileService = LocalStorageThumbnailService(application)
             localMediaFileService.getAllData(directoryId)
             localMediaFileFlow.value = Pager(
                 PagingConfig(pageSize = 20, initialLoadSize = 30)
             ) {
                 MediaItemPagingSource(localMediaFileService)
-            }.flow.cachedIn(viewModelScope)
+            }.flow
+            System.gc()
         }
     }
 
     private suspend fun initLocalMediaFilePaging(): Flow<PagingData<MediaItem>> {
-        return viewModelScope.async(Dispatchers.IO) {
+        val result = viewModelScope.async(Dispatchers.IO) {
             localMediaFileService.getAllData(-1)
-            val flow = Pager(
-                PagingConfig(pageSize = 20, initialLoadSize = 30)
-            ) {
-                MediaItemPagingSource(localMediaFileService)
-            }.flow.cachedIn(viewModelScope)
-            flow
+            MediaItemPagingSource(localMediaFileService)
         }.await()
+        return Pager(
+            PagingConfig(pageSize = 20, initialLoadSize = 30)
+        ) {
+            result
+        }.flow
     }
 
     fun localMediaFileStackBack() {
@@ -302,6 +304,7 @@ class MediaListScreenViewModel(
     fun initLocalNetMediaFilePaging(path: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val test = path ?: ""
+            localNetMediaFileService = LocalNetStorageThumbnailService(application, smbClient)
             localNetMediaFileService.getAllData(test)
             localNetMediaFileFlow.value = Pager(
                 PagingConfig(pageSize = 20, initialLoadSize = 30)
@@ -309,7 +312,7 @@ class MediaListScreenViewModel(
                 MediaItemPagingSource(
                     localNetMediaFileService
                 )
-            }.flow.cachedIn(viewModelScope)
+            }.flow
         }
     }
 

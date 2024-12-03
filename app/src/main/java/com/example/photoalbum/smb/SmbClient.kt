@@ -133,8 +133,8 @@ class SmbClient {
         }
     }
 
-    fun cacheImage(idArray: LongArray) {
-        idArray.forEach {
+    fun cacheImage(vararg ids: Long) {
+        ids.forEach {
             cacheArray.put(it, null)
         }
     }

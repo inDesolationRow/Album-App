@@ -4,7 +4,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,8 +18,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIosNew
 import androidx.compose.material.icons.filled.ScreenRotation
@@ -27,13 +31,16 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
-import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -46,6 +53,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import coil.compose.AsyncImage
@@ -102,6 +110,7 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
                 screenWidth = configuration.screenWidthDp.dp,
                 notPreview = viewModel.notPreviewIcon,
                 selectItemIndex = viewModel.itemIndex,
+                context = viewModel.application.applicationContext,
                 modifier = Modifier
                     .zIndex(1f)
                     .background(Color.White.copy(alpha = 0.8f))
@@ -112,19 +121,11 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
         it.let {
             topPaddingValues = PaddingValues(top = statusBarHeightDp)
         }
-        val bitmap: MutableState<Bitmap?> = remember { mutableStateOf(null) }
-        LaunchedEffect(flow.itemCount) {
-            /*if (flow.itemCount != 0 && bitmap.value == null)
-                bitmap.value = flow[viewModel.itemIndex.intValue]?.let { item ->
-                    if (item.thumbnail != null)
-                        return@let item.thumbnail
-                    else
-                        return@let item.thumbnailState.value
-                }*/
-        }
-        View(bitmap = bitmap,
-            notPreview = viewModel.notPreviewIcon,
-            context = viewModel.application,
+        View(
+            viewModel = viewModel,
+            screenHeight = screenHeightDp,
+            screenWidth = configuration.screenWidthDp.dp,
+            context = viewModel.application.applicationContext,
             modifier = Modifier
                 .zIndex(0f)
                 .fillMaxSize()
@@ -133,7 +134,8 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
                         viewModel.expandMyBar = !viewModel.expandMyBar
                         viewModel.expandBar(false, recomposeKey = Random.nextInt())
                     })
-                })
+                }
+        )
     }
 }
 
@@ -175,6 +177,7 @@ private fun BottomBar(
     screenWidth: Dp,
     state: LazyListState,
     selectItemIndex: MutableIntState,
+    context: Context,
     modifier: Modifier = Modifier
 ) {
     val density = LocalDensity.current
@@ -239,11 +242,12 @@ private fun BottomBar(
                                     }
                                     selectItemIndex.intValue = it
                                 }
-                        ){
+                        ) {
                             DisplayImage(
                                 bitmap = if (item.fileSize < ImageSize.M_1.size) item.thumbnail
                                     ?: notPreview else item.thumbnailState.value
                                     ?: notPreview,
+                                context = context,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -255,51 +259,74 @@ private fun BottomBar(
 }
 
 @Composable
-private fun DisplayImageTest(
-    bitmap: Bitmap,
+fun View(
+    viewModel: ViewMediaFileViewModel,
     modifier: Modifier = Modifier,
-    scale: Boolean = false,
-    orientation: Int = 0,
-    aspectRatio: Float = 1f,
-    notPreview: Bitmap,
+    screenWidth: Dp,
+    screenHeight: Dp,
     context: Context
 ) {
-    AsyncImage(
-        model = blurBitmap(context, bitmap, 5f),
-        contentDescription = null,
-        contentScale = ContentScale.FillWidth,
-        modifier = modifier
-            .aspectRatio(aspectRatio)
-            .graphicsLayer {
-                rotationZ = orientation.toFloat()
-                if (scale) {
-                    scaleX = 1.0f
-                    scaleY = 1.0f
-                    translationX = -20f
-                    translationY = -20f
-                }
-            }
+    val items = viewModel.imageFlow.value.collectAsLazyPagingItems()
+    val state = rememberLazyListState()
+    ZoomViewImage(
+        isRow = viewModel.isRow,
+        items = items,
+        notPreview = viewModel.notPreviewIcon,
+        screenWidth = screenWidth,
+        screenHeight = screenHeight,
+        state = state,
+        selectItemIndex = viewModel.itemIndex,
+        context = context,
+        modifier = modifier.background(if (viewModel.expandMyBar) Color.White else Color.Black)
     )
 }
 
 @Composable
-fun ZoomViewImage() {
-
-}
-
-@Composable
-fun View(
-    modifier: Modifier = Modifier,
-    bitmap: MutableState<Bitmap?>,
+fun ZoomViewImage(
+    isRow: Boolean,
+    items: LazyPagingItems<MediaItem>,
     notPreview: Bitmap,
-    context: Context
+    screenWidth: Dp,
+    screenHeight: Dp,
+    state: LazyListState,
+    selectItemIndex: MutableIntState,
+    context: Context,
+    modifier: Modifier = Modifier,
 ) {
-    Box(contentAlignment = Alignment.Center, modifier = modifier.background(Color.Black)) {
-        DisplayImageTest(
-            bitmap = bitmap.value ?: notPreview,
-            notPreview = notPreview,
-            context = context
-        )
+    var scale by remember { mutableFloatStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset(0f, 0f)) }
+
+    Box(contentAlignment = Alignment.Center,
+        modifier = modifier
+            .pointerInput(Unit) {
+                detectDragGestures(onDrag = { change, dragAmount -> true })
+                detectTapGestures(onTap = { true })
+                detectTransformGestures(onGesture = { centroid, pan, zoom, rotation -> true })
+            }) {
+        if (isRow) {
+            LazyRow(
+                state = state,
+                userScrollEnabled = false
+            ) {
+                items(count = items.itemCount) {
+                    items[it]?.let { item ->
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.width(screenWidth)
+                        ) {
+                            DisplayImage(
+                                bitmap = item.dataBitmap.value ?: item.thumbnail ?: notPreview,
+                                contentScale = ContentScale.FillWidth,
+                                context = context,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+            }
+        } else {
+            LazyColumn(state = state) { }
+        }
     }
 }
 
