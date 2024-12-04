@@ -18,7 +18,6 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
-import androidx.paging.cachedIn
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
 import com.example.photoalbum.data.LocalNetStorageThumbnailService
@@ -73,7 +72,7 @@ class MediaListScreenViewModel(
      */
     var currentDirectoryId: MutableStateFlow<Long> = MutableStateFlow(-1)
 
-    val levelStack: SnapshotStateList<Long> = mutableStateListOf()
+    val localLevelStack: SnapshotStateList<Pair<Long, Int>> = mutableStateListOf()
 
     val notPreviewIcon = application.getDrawable(R.drawable.hide)!!.toBitmap()
 
@@ -85,6 +84,7 @@ class MediaListScreenViewModel(
 
     private var localMediaFileService = LocalStorageThumbnailService(application)
 
+    val back = mutableStateOf(false)
     /**
      * 本地网络相关的状态
      */
@@ -93,6 +93,8 @@ class MediaListScreenViewModel(
     val smbClient = SmbClient()
 
     var localNetMediaFileFlow: MutableState<Flow<PagingData<MediaItem>>> = mutableStateOf(flowOf())
+
+    val localNetLevelStack: SnapshotStateList<Pair<String, Int>> = smbClient.pathStack
 
     var editLocalNetStorageInfo by mutableStateOf(false)
 
@@ -107,11 +109,11 @@ class MediaListScreenViewModel(
             currentDirectoryId.collect {
                 if (!::localMediaFileFlow.isInitialized) {
                     localMediaFileFlow = mutableStateOf(initLocalMediaFilePaging())
-                    levelStack.add(-1L)
+                    localLevelStack.add(-1L to 0)
                 } else {
                     initLocalMediaFilePaging(it)
-                    if (levelStack.last() != it) {
-                        levelStack.add(it)
+                    if (localLevelStack.last().first != it) {
+                        localLevelStack.add(it to 0)
                     }
                 }
             }
@@ -154,11 +156,6 @@ class MediaListScreenViewModel(
         }
     }
 
-    private fun updateSelectItem(id: Int) {
-        val selectItem = menu.value.filter { it.id == id }
-        selectedItem.value = selectItem.first()
-    }
-
     private fun getMenuList(list: MutableList<LocalNetStorageInfo>?): List<Menu> {
         val menuList: MutableList<Menu> = mutableListOf()
         menuList.add(
@@ -183,6 +180,11 @@ class MediaListScreenViewModel(
             )
         )
         return menuList
+    }
+
+    private fun updateSelectItem(id: Int) {
+        val selectItem = menu.value.filter { it.id == id }
+        selectedItem.value = selectItem.first()
     }
 
     private fun initLocalMediaFilePaging(directoryId: Long) {
@@ -211,9 +213,10 @@ class MediaListScreenViewModel(
     }
 
     fun localMediaFileStackBack() {
-        val levelStack = levelStack
+        back.value = true
+        val levelStack = localLevelStack
         levelStack.removeLast()
-        currentDirectoryId.value = levelStack.last()
+        currentDirectoryId.value = levelStack.last().first
     }
 
     /**
@@ -313,7 +316,12 @@ class MediaListScreenViewModel(
                     localNetMediaFileService
                 )
             }.flow
+            System.gc()
         }
     }
 
+    fun localNetStackBack(): String {
+        back.value = true
+        return smbClient.back()
+    }
 }

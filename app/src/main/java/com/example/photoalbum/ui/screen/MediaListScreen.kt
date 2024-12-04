@@ -44,6 +44,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -53,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -90,12 +92,12 @@ import kotlinx.coroutines.launch
 fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
     viewModel.selectedItem.value?.let {
         //本地文件列表的后退逻辑
-        BackHandler(it.id == viewModel.menuLocalStorage && viewModel.levelStack.size >= 2) {
+        BackHandler(it.id == viewModel.menuLocalStorage && viewModel.localLevelStack.size >= 2) {
             viewModel.localMediaFileStackBack()
         }
         //本地网络文件列表的后退逻辑
-        BackHandler(it.id >= viewModel.menuLocalNetMinimumId && viewModel.smbClient.pathStackSize() >= 2) {
-            val path = viewModel.smbClient.back()
+        BackHandler(it.id >= viewModel.menuLocalNetMinimumId && viewModel.localNetLevelStack.size >= 2) {
+            val path = viewModel.localNetStackBack()
             //每次操作时判断连接是否有效
             if (viewModel.smbClient.isConnect()) {
                 viewModel.initLocalNetMediaFilePaging(path)
@@ -237,6 +239,8 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                         val items = viewModel.localMediaFileFlow.value.collectAsLazyPagingItems()
                         MediaList(
                             itemList = items,
+                            itemIndex = viewModel.localLevelStack.last().second,
+                            back = viewModel.back,
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
                             gridColumn = viewModel.settings.gridColumnNumState.intValue,
@@ -251,6 +255,10 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             },
                             expand = {
                                 viewModel.userAction.value = UserAction.ExpandStatusBarAction(it)
+                            },
+                            onScroll = { index ->
+                                val last = viewModel.localLevelStack.removeLast()
+                                viewModel.localLevelStack.add(last.first to index)
                             },
                             modifier = Modifier.fillMaxHeight()
                         )
@@ -309,6 +317,13 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                         val items = viewModel.localNetMediaFileFlow.value.collectAsLazyPagingItems()
                         MediaList(
                             itemList = items,
+                            itemIndex = viewModel.localNetLevelStack.size.let {
+                                if (it == 0)
+                                    return@let 0
+                                else
+                                    return@let viewModel.localNetLevelStack.last().second
+                            },
+                            back = viewModel.back,
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
                             gridColumn = viewModel.settings.gridColumnNumState.intValue,
@@ -343,6 +358,10 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                         )
                                     }
                                 }
+                            },
+                            onScroll = { index ->
+                                val last = viewModel.localNetLevelStack.removeLast()
+                                viewModel.localNetLevelStack.add(last.first to index)
                             },
                             modifier = Modifier.fillMaxHeight()
                         )
@@ -426,19 +445,39 @@ fun MediaList(
     directoryIcon: Bitmap,
     gridColumn: Int,
     expand: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
     context: Context,
+    modifier: Modifier = Modifier,
+    itemIndex: Int = 0,
+    back: MutableState<Boolean>,
+    onScroll: (Int) -> Unit,
     clickId: ((Long, ItemType) -> Unit)? = null,
     clickString: ((Long, String, ItemType) -> Unit)? = null,
 ) {
-    val lazyState = rememberLazyGridState()
+    val state = rememberLazyGridState()
+
     LazyVerticalGrid(
         columns = GridCells.Fixed(gridColumn),
-        state = lazyState,
+        state = state,
         modifier = modifier
             .padding(start = TinyPadding)
     ) {
         items(itemList.itemCount) { index ->
+            LaunchedEffect(state) {
+                snapshotFlow { state.firstVisibleItemIndex }
+                    .collect {
+                        if (!back.value)
+                            onScroll(state.firstVisibleItemIndex)
+                        else {
+                            if (itemIndex != 0) {
+                                if (state.firstVisibleItemIndex != itemIndex) {
+                                    state.scrollToItem(itemIndex)
+                                } else {
+                                    back.value = false
+                                }
+                            }
+                        }
+                    }
+            }
             itemList[index]?.let {
                 MediaFilePreview(
                     image = if (it.fileSize < ImageSize.M_1.size) it.thumbnail else it.thumbnailState.value,
@@ -463,9 +502,10 @@ fun MediaList(
             }
         }
     }
+
     val invisibleStatusBar by remember {
         derivedStateOf {
-            lazyState.firstVisibleItemScrollOffset > 0
+            state.firstVisibleItemScrollOffset > 0
         }
     }
     expand(!invisibleStatusBar)

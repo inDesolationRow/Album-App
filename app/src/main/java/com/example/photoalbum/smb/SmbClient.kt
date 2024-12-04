@@ -33,9 +33,9 @@ class SmbClient {
 
     private lateinit var diskShare: DiskShare
 
-    private val pathStack: SnapshotStateList<String> = mutableStateListOf()
+    val pathStack : SnapshotStateList<Pair<String, Int>> = mutableStateListOf()
 
-    private var popPath: String? = null
+    private var popPath: Pair<String, Int>? = null
 
     private val cacheArray: LongSparseArray<ByteArray> = LongSparseArray()
 
@@ -108,14 +108,15 @@ class SmbClient {
 
     fun back(): String {
         if (pathStack.size == 1) return ""
-        popPath = pathStack.removeLast()
-        return pathStack.last()
+        val remove = pathStack.removeLast()
+        popPath = remove.first to remove.second
+        return pathStack.last().first
     }
 
     fun getPath(): String {
         return pathStack.joinToString(separator = "") {
-            if (it.isNotEmpty()) {
-                "$it/"
+            if (it.first.isNotEmpty()) {
+                "${it.first}/"
             } else {
                 ""
             }
@@ -149,7 +150,7 @@ class SmbClient {
 
         //popPath是null代表前进路径入栈,非空代表后退
         if (popPath == null) {
-            pathStack.add(path)
+            pathStack.add(path to 0)
         } else {
             popPath = null
         }
@@ -285,14 +286,4 @@ class SmbClient {
     fun isConnect(): Boolean {
         return connection.isConnected
     }
-    //endOfFile: 13679182731 实际大小（byte）
-    //allocationSize: 13679190016 占用硬盘空间（byte）
-    /*val testFolder = diskShare.openDirectory(
-                   "动漫",
-                   setOf(AccessMask.FILE_LIST_DIRECTORY),
-                   null,
-                   setOf(SMB2ShareAccess.FILE_SHARE_READ),
-                   SMB2CreateDisposition.FILE_OPEN,
-                   setOf(SMB2CreateOptions.FILE_SEQUENTIAL_ONLY)
-               )*/
 }
