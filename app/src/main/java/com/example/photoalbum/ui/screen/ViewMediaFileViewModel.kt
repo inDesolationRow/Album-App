@@ -68,17 +68,17 @@ class ViewMediaFileViewModel(
 
     private val thumbnailsService by lazy {
         if (local) {
-            return@lazy LocalStorageThumbnailService(application)
+            return@lazy LocalStorageThumbnailService(application, maxSize = 80, initialLoadSize = 40)
         } else {
-            return@lazy LocalNetStorageThumbnailService(application, smbClient)
+            return@lazy LocalNetStorageThumbnailService(application, smbClient, maxSize = 80, initialLoadSize = 40)
         }
     }
 
     private val imageService by lazy {
         if (local) {
-            return@lazy LocalStorageMediaFileService(application)
+            return@lazy LocalStorageMediaFileService(application, maxSize = 2, initialLoadSize = 4)
         } else {
-            return@lazy LocalNetStorageMediaFileService(application, smbClient)
+            return@lazy LocalNetStorageMediaFileService(application, smbClient, maxSize = 2, initialLoadSize = 4)
         }
     }
 
@@ -94,7 +94,7 @@ class ViewMediaFileViewModel(
                         imageId
                     )
                 thumbnailFlow.value = Pager(
-                    PagingConfig(pageSize = 10, initialLoadSize = 20)
+                    PagingConfig(pageSize = 20, initialLoadSize = 40, prefetchDistance = 10, maxSize = 80)
                 ) {
                     MediaItemPagingSource(thumbnailsService)
                 }.flow.cachedIn(viewModelScope)
@@ -123,7 +123,7 @@ class ViewMediaFileViewModel(
                         imageId
                     )
                 thumbnailFlow.value = Pager(
-                    PagingConfig(pageSize = 10, initialLoadSize = 20)
+                    PagingConfig(pageSize = 20, initialLoadSize = 40, prefetchDistance = 10, maxSize = 80)
                 ) {
                     MediaItemPagingSource(thumbnailsService)
                 }.flow.cachedIn(viewModelScope)

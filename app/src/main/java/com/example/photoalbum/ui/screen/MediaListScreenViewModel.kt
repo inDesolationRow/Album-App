@@ -25,6 +25,7 @@ import com.example.photoalbum.data.MediaItemPagingSource
 import com.example.photoalbum.data.LocalStorageThumbnailService
 import com.example.photoalbum.data.model.LocalNetStorageInfo
 import com.example.photoalbum.data.model.Settings
+import com.example.photoalbum.enums.StorageType
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.model.MediaListDialogEntity
 import com.example.photoalbum.model.Menu
@@ -37,6 +38,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
+import kotlin.math.max
 
 class MediaListScreenViewModel(
     application: MediaApplication,
@@ -82,9 +84,11 @@ class MediaListScreenViewModel(
 
     lateinit var localMediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
 
-    private var localMediaFileService = LocalStorageThumbnailService(application)
+    private var localMediaFileService =
+        LocalStorageThumbnailService(application, maxSize = 90, initialLoadSize = 60)
 
     val back = mutableStateOf(false)
+
     /**
      * 本地网络相关的状态
      */
@@ -189,10 +193,16 @@ class MediaListScreenViewModel(
 
     private fun initLocalMediaFilePaging(directoryId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            localMediaFileService = LocalStorageThumbnailService(application)
+            localMediaFileService =
+                LocalStorageThumbnailService(application, maxSize = 90, initialLoadSize = 60)
             localMediaFileService.getAllData(directoryId)
             localMediaFileFlow.value = Pager(
-                PagingConfig(pageSize = 20, initialLoadSize = 30)
+                PagingConfig(
+                    pageSize = 30,
+                    initialLoadSize = 60,
+                    prefetchDistance = 20,
+                    maxSize = 90
+                )
             ) {
                 MediaItemPagingSource(localMediaFileService)
             }.flow
@@ -206,10 +216,30 @@ class MediaListScreenViewModel(
             MediaItemPagingSource(localMediaFileService)
         }.await()
         return Pager(
-            PagingConfig(pageSize = 20, initialLoadSize = 30)
+            PagingConfig(pageSize = 30, initialLoadSize = 60, prefetchDistance = 20, maxSize = 90)
         ) {
             result
         }.flow
+    }
+
+    fun getItemCount(): Int {
+        return localMediaFileService.allData.size
+    }
+
+    fun clearCache(start: Int, end: Int, type: StorageType) {
+        if (type == StorageType.LOCAL)
+            localMediaFileService.allData.slice(IntRange(start, end)).onEach { item ->
+                item.thumbnail?.recycle()
+                item.thumbnail = null
+                //it.thumbnailState.value?.recycle()
+                //it.thumbnailState.value = null
+            } else
+            localNetMediaFileService.allData.slice(IntRange(start, end)).onEach { item ->
+                item.thumbnail?.recycle()
+                item.thumbnail = null
+                //it.thumbnailState.value?.recycle()
+                //it.thumbnailState.value = null
+            }
     }
 
     fun localMediaFileStackBack() {
@@ -307,10 +337,20 @@ class MediaListScreenViewModel(
     fun initLocalNetMediaFilePaging(path: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val test = path ?: ""
-            localNetMediaFileService = LocalNetStorageThumbnailService(application, smbClient)
+            localNetMediaFileService = LocalNetStorageThumbnailService(
+                application,
+                smbClient,
+                maxSize = 60,
+                initialLoadSize = 90
+            )
             localNetMediaFileService.getAllData(test)
             localNetMediaFileFlow.value = Pager(
-                PagingConfig(pageSize = 20, initialLoadSize = 30)
+                PagingConfig(
+                    pageSize = 30,
+                    initialLoadSize = 60,
+                    prefetchDistance = 10,
+                    maxSize = 90
+                )
             ) {
                 MediaItemPagingSource(
                     localNetMediaFileService

@@ -49,6 +49,7 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -69,9 +70,9 @@ import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.photoalbum.R
 import com.example.photoalbum.data.model.LocalNetStorageInfo
-import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.MediaListDialog
+import com.example.photoalbum.enums.StorageType
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.model.MediaListDialogEntity
 import com.example.photoalbum.model.Menu
@@ -239,12 +240,16 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                         val items = viewModel.localMediaFileFlow.value.collectAsLazyPagingItems()
                         MediaList(
                             itemList = items,
+                            itemCount = viewModel.getItemCount(),
                             itemIndex = viewModel.localLevelStack.last().second,
                             back = viewModel.back,
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
                             gridColumn = viewModel.settings.gridColumnNumState.intValue,
                             context = viewModel.application.applicationContext,
+                            onClear = { start, end ->
+                                viewModel.clearCache(start, end, StorageType.LOCAL)
+                            },
                             clickId = { id, type ->
                                 if (type == ItemType.DIRECTORY) viewModel.currentDirectoryId.value =
                                     id
@@ -317,6 +322,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                         val items = viewModel.localNetMediaFileFlow.value.collectAsLazyPagingItems()
                         MediaList(
                             itemList = items,
+                            itemCount = viewModel.getItemCount(),
                             itemIndex = viewModel.localNetLevelStack.size.let {
                                 if (it == 0)
                                     return@let 0
@@ -330,6 +336,9 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             context = viewModel.application.applicationContext,
                             expand = {
                                 viewModel.userAction.value = UserAction.ExpandStatusBarAction(it)
+                            },
+                            onClear = { start, end ->
+                                viewModel.clearCache(start, end, StorageType.CLOUD)
                             },
                             clickString = { id, name, type ->
                                 //每次操作时判断连接是否有效
@@ -360,8 +369,10 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                 }
                             },
                             onScroll = { index ->
-                                val last = viewModel.localNetLevelStack.removeLast()
-                                viewModel.localNetLevelStack.add(last.first to index)
+                                if (viewModel.localNetLevelStack.isNotEmpty()) {
+                                    val last = viewModel.localNetLevelStack.removeLast()
+                                    viewModel.localNetLevelStack.add(last.first to index)
+                                }
                             },
                             modifier = Modifier.fillMaxHeight()
                         )
@@ -441,6 +452,7 @@ private fun TopBar(
 @Composable
 fun MediaList(
     itemList: LazyPagingItems<MediaItem>,
+    itemCount: Int,
     nullPreviewIcon: Bitmap,
     directoryIcon: Bitmap,
     gridColumn: Int,
@@ -449,11 +461,16 @@ fun MediaList(
     modifier: Modifier = Modifier,
     itemIndex: Int = 0,
     back: MutableState<Boolean>,
+    onClear: (Int, Int) -> Unit,
     onScroll: (Int) -> Unit,
     clickId: ((Long, ItemType) -> Unit)? = null,
     clickString: ((Long, String, ItemType) -> Unit)? = null,
 ) {
     val state = rememberLazyGridState()
+    val topClearIndex = remember { mutableIntStateOf(0) }
+    val bottomClearIndex = remember { mutableIntStateOf(0) }
+    val farIndex = remember { mutableIntStateOf(0) }
+    val preIndex = remember { mutableIntStateOf(0) }
 
     LazyVerticalGrid(
         columns = GridCells.Fixed(gridColumn),
@@ -476,11 +493,26 @@ fun MediaList(
                                 }
                             }
                         }
+                        if (it > preIndex.intValue && it >= if (topClearIndex.intValue == 0) 180 else 180 + topClearIndex.intValue) {
+                            val end = topClearIndex.intValue + 90
+                            onClear(topClearIndex.intValue, end)
+                            if (topClearIndex.intValue + 90 <= itemCount - 90)
+                                topClearIndex.intValue += 90
+                        }
+                        if (it < preIndex.intValue && it <= bottomClearIndex.intValue - 180) {
+                            onClear(it + 90, bottomClearIndex.intValue)
+                            bottomClearIndex.intValue -= 90
+                        }
+                        if (it < preIndex.intValue && farIndex.intValue < preIndex.intValue) {
+                            farIndex.intValue = preIndex.intValue
+                            bottomClearIndex.intValue = farIndex.intValue
+                        }
+                        preIndex.intValue = it
                     }
             }
             itemList[index]?.let {
                 MediaFilePreview(
-                    image = if (it.fileSize < ImageSize.M_1.size) it.thumbnail else it.thumbnailState.value,
+                    image = it.thumbnail,//if (it.fileSize < ImageSize.M_1.size) it.thumbnail else it.thumbnailState.value,
                     nullPreviewIcon = nullPreviewIcon,
                     directoryIcon = directoryIcon,
                     directoryName = it.displayName,
@@ -521,7 +553,6 @@ fun MediaFilePreview(
     context: Context,
     modifier: Modifier = Modifier
 ) {
-    println("测试:item重组")
     Column(modifier = modifier) {
         if (image == null) {
             when (fileType) {
