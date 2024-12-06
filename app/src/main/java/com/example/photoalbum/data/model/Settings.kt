@@ -19,4 +19,28 @@ data class Settings(
 ) {
     @Ignore
     var gridColumnNumState = mutableIntStateOf(gridColumnNum)
+
+    @Ignore
+    var maxSizeLarge = 90
+
+    @Ignore
+    var initialLoadSizeLarge = 60
+
+    @Ignore
+    var pageSizeLarge = 30
+
+    @Ignore
+    var prefetchDistanceLarge = 20
+
+    @Ignore
+    var maxSizeMedium = 60
+
+    @Ignore
+    var initialLoadSizeMedium = 40
+
+    @Ignore
+    var pageSizeMedium = 20
+
+    @Ignore
+    var prefetchDistanceMedium = 10
 }

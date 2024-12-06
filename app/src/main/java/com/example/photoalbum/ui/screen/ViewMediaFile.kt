@@ -244,9 +244,11 @@ private fun BottomBar(
                                 }
                         ) {
                             DisplayImage(
-                                bitmap = if (item.fileSize < ImageSize.M_1.size) item.thumbnail
-                                    ?: notPreview else item.thumbnailState.value
-                                    ?: notPreview,
+                                bitmap = item.thumbnail
+                                    ?: item.thumbnailState.value?.let { bitmap ->
+                                        if (bitmap.isRecycled) item.thumbnail
+                                        else bitmap
+                                    } ?: notPreview,
                                 context = context,
                                 modifier = Modifier.fillMaxSize()
                             )

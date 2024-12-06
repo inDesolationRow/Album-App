@@ -88,6 +88,7 @@ import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlin.math.min
 
 @Composable
 fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
@@ -242,6 +243,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             itemList = items,
                             itemCount = viewModel.getItemCount(),
                             itemIndex = viewModel.localLevelStack.last().second,
+                            maxSize = viewModel.settings.maxSizeLarge,
                             back = viewModel.back,
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
@@ -329,6 +331,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                 else
                                     return@let viewModel.localNetLevelStack.last().second
                             },
+                            maxSize = viewModel.settings.maxSizeLarge,
                             back = viewModel.back,
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
@@ -451,15 +454,16 @@ private fun TopBar(
 
 @Composable
 fun MediaList(
+    modifier: Modifier = Modifier,
     itemList: LazyPagingItems<MediaItem>,
     itemCount: Int,
+    itemIndex: Int = 0,
+    maxSize: Int,
     nullPreviewIcon: Bitmap,
     directoryIcon: Bitmap,
     gridColumn: Int,
     expand: (Boolean) -> Unit,
     context: Context,
-    modifier: Modifier = Modifier,
-    itemIndex: Int = 0,
     back: MutableState<Boolean>,
     onClear: (Int, Int) -> Unit,
     onScroll: (Int) -> Unit,
@@ -493,26 +497,31 @@ fun MediaList(
                                 }
                             }
                         }
-                        if (it > preIndex.intValue && it >= if (topClearIndex.intValue == 0) 180 else 180 + topClearIndex.intValue) {
-                            val end = topClearIndex.intValue + 90
+                        //条件1：向下滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
+                        if (it > preIndex.intValue && it >= if (topClearIndex.intValue == 0) maxSize * 2 else maxSize * 2 + topClearIndex.intValue) {
+                            val end = topClearIndex.intValue + maxSize
                             onClear(topClearIndex.intValue, end)
-                            if (topClearIndex.intValue + 90 <= itemCount - 90)
-                                topClearIndex.intValue += 90
+                            if (topClearIndex.intValue + maxSize <= itemCount - maxSize)
+                                topClearIndex.intValue += maxSize
                         }
-                        if (it < preIndex.intValue && it <= bottomClearIndex.intValue - 180) {
-                            onClear(it + 90, bottomClearIndex.intValue)
-                            bottomClearIndex.intValue -= 90
+                        //条件1：向上滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
+                        if (it < preIndex.intValue && it <= bottomClearIndex.intValue - maxSize * 2) {
+                            onClear(it + maxSize, bottomClearIndex.intValue)
+                            bottomClearIndex.intValue -= maxSize
                         }
                         if (it < preIndex.intValue && farIndex.intValue < preIndex.intValue) {
                             farIndex.intValue = preIndex.intValue
                             bottomClearIndex.intValue = farIndex.intValue
                         }
-                        preIndex.intValue = it
+                        preIndex.intValue = min(itemCount - 1, it)
                     }
             }
             itemList[index]?.let {
                 MediaFilePreview(
-                    image = it.thumbnail,//if (it.fileSize < ImageSize.M_1.size) it.thumbnail else it.thumbnailState.value,
+                    image = it.thumbnailState.value?.let { bitmap ->
+                        if (bitmap.isRecycled) it.thumbnail
+                        else bitmap
+                    } ?: it.thumbnail ,
                     nullPreviewIcon = nullPreviewIcon,
                     directoryIcon = directoryIcon,
                     directoryName = it.displayName,
@@ -554,19 +563,20 @@ fun MediaFilePreview(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
-        if (image == null) {
+        println("测试:image is $image  type $fileType width ${image?.width}")
+        if (image == null || image.width == 0 && image.height == 0) {
             when (fileType) {
-                ItemType.DIRECTORY -> {
+                ItemType.IMAGE -> {
                     DisplayImage(
-                        bitmap = directoryIcon,
+                        bitmap = nullPreviewIcon,
                         context = context,
                         modifier = Modifier.aspectRatio(1f)
                     )
                 }
 
-                ItemType.IMAGE -> {
+                ItemType.DIRECTORY -> {
                     DisplayImage(
-                        bitmap = nullPreviewIcon,
+                        bitmap = directoryIcon,
                         context = context,
                         modifier = Modifier.aspectRatio(1f)
                     )

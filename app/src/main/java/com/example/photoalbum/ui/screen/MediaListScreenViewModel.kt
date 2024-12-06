@@ -85,7 +85,11 @@ class MediaListScreenViewModel(
     lateinit var localMediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
 
     private var localMediaFileService =
-        LocalStorageThumbnailService(application, maxSize = 90, initialLoadSize = 60)
+        LocalStorageThumbnailService(
+            application,
+            maxSize = settings.maxSizeLarge,
+            initialLoadSize = settings.initialLoadSizeLarge
+        )
 
     val back = mutableStateOf(false)
 
@@ -194,14 +198,18 @@ class MediaListScreenViewModel(
     private fun initLocalMediaFilePaging(directoryId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
             localMediaFileService =
-                LocalStorageThumbnailService(application, maxSize = 90, initialLoadSize = 60)
+                LocalStorageThumbnailService(
+                    application,
+                    maxSize = settings.maxSizeLarge,
+                    initialLoadSize = settings.initialLoadSizeLarge
+                )
             localMediaFileService.getAllData(directoryId)
             localMediaFileFlow.value = Pager(
                 PagingConfig(
-                    pageSize = 30,
-                    initialLoadSize = 60,
-                    prefetchDistance = 20,
-                    maxSize = 90
+                    pageSize = settings.pageSizeLarge,
+                    initialLoadSize = settings.initialLoadSizeLarge,
+                    prefetchDistance = settings.prefetchDistanceLarge,
+                    maxSize = settings.maxSizeLarge
                 )
             ) {
                 MediaItemPagingSource(localMediaFileService)
@@ -216,7 +224,12 @@ class MediaListScreenViewModel(
             MediaItemPagingSource(localMediaFileService)
         }.await()
         return Pager(
-            PagingConfig(pageSize = 30, initialLoadSize = 60, prefetchDistance = 20, maxSize = 90)
+            PagingConfig(
+                pageSize = settings.pageSizeLarge,
+                initialLoadSize = settings.initialLoadSizeLarge,
+                prefetchDistance = settings.prefetchDistanceLarge,
+                maxSize = settings.maxSizeLarge
+            )
         ) {
             result
         }.flow
@@ -227,18 +240,19 @@ class MediaListScreenViewModel(
     }
 
     fun clearCache(start: Int, end: Int, type: StorageType) {
-        if (type == StorageType.LOCAL)
+        if (type == StorageType.LOCAL) {
             localMediaFileService.allData.slice(IntRange(start, end)).onEach { item ->
                 item.thumbnail?.recycle()
                 item.thumbnail = null
-                //it.thumbnailState.value?.recycle()
-                //it.thumbnailState.value = null
-            } else
+                item.thumbnailState.value?.recycle()
+                item.thumbnailState.value = null
+            }
+        } else
             localNetMediaFileService.allData.slice(IntRange(start, end)).onEach { item ->
                 item.thumbnail?.recycle()
                 item.thumbnail = null
-                //it.thumbnailState.value?.recycle()
-                //it.thumbnailState.value = null
+                item.thumbnailState.value?.recycle()
+                item.thumbnailState.value = null
             }
     }
 
@@ -340,16 +354,16 @@ class MediaListScreenViewModel(
             localNetMediaFileService = LocalNetStorageThumbnailService(
                 application,
                 smbClient,
-                maxSize = 60,
-                initialLoadSize = 90
+                maxSize = settings.initialLoadSizeLarge,
+                initialLoadSize = settings.maxSizeLarge
             )
             localNetMediaFileService.getAllData(test)
             localNetMediaFileFlow.value = Pager(
                 PagingConfig(
-                    pageSize = 30,
-                    initialLoadSize = 60,
-                    prefetchDistance = 10,
-                    maxSize = 90
+                    pageSize = settings.pageSizeLarge,
+                    initialLoadSize = settings.initialLoadSizeLarge,
+                    prefetchDistance = settings.prefetchDistanceLarge,
+                    maxSize = settings.maxSizeLarge
                 )
             ) {
                 MediaItemPagingSource(

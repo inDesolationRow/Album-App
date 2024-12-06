@@ -192,17 +192,6 @@ class LocalStorageThumbnailService(
     }
 
     override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
-/*        if (clearData.size >= maxSize * 2) {
-            clearData.apply {
-                slice(IntRange(0, maxSize)).onEach {
-                    it.thumbnail?.recycle()
-                    it.thumbnail = null
-                    //it.thumbnailState.value?.recycle()
-                    //it.thumbnailState.value = null
-                }
-                subList(0, maxSize).clear()
-            }
-        }*/
         val start = (page - 1) * page.let {
             return@let if (it == 2) initialLoadSize else loadSize
         }
@@ -217,20 +206,19 @@ class LocalStorageThumbnailService(
         val jobs: MutableList<Job> = mutableListOf()
         for (item in items) {
             if (item.type == ItemType.IMAGE) {
-                //1k分辨率以下的图像生成缩略图时同步, 1k以上分辨率不再同步,使用state延时重组
-                if (item.thumbnail == null) {
-                    /*if (item.fileSize < ImageSize.M_1.size) {
+                if (item.thumbnail == null && item.thumbnailState.let {
+                        if (it.value == null) return@let true
+                        else return@let it.value!!.isRecycled
+                    }) {
+                    if (item.fileSize > ImageSize.M_1.size && item.thumbnailPath.isNullOrEmpty()) {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            item.thumbnailState.value = loadThumbnail(item)
+                        }
+                    } else {
                         jobs.add(coroutineScope.launch(Dispatchers.IO) {
                             item.thumbnail = loadThumbnail(item)
                         })
-                    } else {
-coroutineScope.launch(Dispatchers.IO) {
-                        item.thumbnailState.value = loadThumbnail(item)
                     }
-                    }*/
-                    jobs.add(coroutineScope.launch(Dispatchers.IO) {
-                        item.thumbnail = loadThumbnail(item)
-                    })
                 }
             }
         }
@@ -593,14 +581,21 @@ class LocalNetStorageThumbnailService(
         val jobs: MutableList<Job> = mutableListOf()
         for (item in items) {
             if (item.type == ItemType.IMAGE) {
-                //1k分辨率以下的图像生成缩略图时同步, 1k以上分辨率不再同步,使用state延时重组
-                if (item.fileSize < ImageSize.M_1.size) {
-                    jobs.add(coroutineScope.launch(Dispatchers.IO) {
-                        item.thumbnail = loadThumbnail(item)
-                    })
-                } else {
-                    coroutineScope.launch(Dispatchers.IO) {
-                        item.thumbnailState.value = loadThumbnail(item)
+                if (item.thumbnail == null && item.thumbnailState.let {
+                        if (it.value == null) return@let true
+                        else return@let it.value!!.isRecycled
+                    }) {
+                    val thumbnailName =
+                        getThumbnailName(name = item.displayName, otherStr = item.id.toString())
+                    val testFile = File(thumbnailsPath, thumbnailName)
+                    if (item.fileSize > ImageSize.M_1.size && !testFile.exists()) {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            item.thumbnailState.value = loadThumbnail(item)
+                        }
+                    } else {
+                        jobs.add(coroutineScope.launch(Dispatchers.IO) {
+                            item.thumbnail = loadThumbnail(item)
+                        })
                     }
                 }
             }
