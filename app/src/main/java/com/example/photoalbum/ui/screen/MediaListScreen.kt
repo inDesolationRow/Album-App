@@ -101,22 +101,22 @@ fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Mo
         BackHandler(it.id >= viewModel.menuLocalNetMinimumId && viewModel.localNetLevelStack.size >= 2) {
             val path = viewModel.localNetStackBack()
             //每次操作时判断连接是否有效
-            if (viewModel.smbClient.isConnect()) {
-                viewModel.initLocalNetMediaFilePaging(path)
-            } else {
-                //如果连接失效弹窗提示,并尝试重连
-                viewModel.smbClient.rollback()
-                viewModel.showDialog = MediaListDialogEntity(
-                    mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
-                    isShow = true
-                )
-                viewModel.selectedItem.value?.let {
-                    viewModel.viewModelScope.launch(Dispatchers.IO) {
-                        viewModel.connectSmb(
-                            id = it.id,
-                            reconnection = true
-                        )
-                    }
+            viewModel.viewModelScope.launch(Dispatchers.IO) {
+                val result = if (viewModel.isConnect())
+                    ConnectResult.Success
+                else
+                    viewModel.connectSmb(
+                        id = it.id,
+                        reconnection = true
+                    )
+                if (result is ConnectResult.Success) {
+                    viewModel.initLocalNetMediaFilePaging(path)
+                } else {
+                    viewModel.smbClient.rollback()
+                    viewModel.showDialog = MediaListDialogEntity(
+                        mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
+                        isShow = true
+                    )
                 }
             }
         }
@@ -345,28 +345,31 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             },
                             clickString = { id, name, type ->
                                 //每次操作时判断连接是否有效
-                                if (viewModel.isConnect()) {
-                                    if (type == ItemType.DIRECTORY) viewModel.initLocalNetMediaFilePaging(
-                                        name
-                                    ) else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
-                                        viewModel.userAction.value =
-                                            UserAction.OpenImage(
-                                                viewModel.smbClient.getPath().dropLast(1),
-                                                id,
-                                                selectItem.id
-                                            )
-                                        viewModel.jumpToView = true
-                                    }
-                                } else {
-                                    //如果连接失效弹窗提示,并尝试重连
-                                    viewModel.showDialog = MediaListDialogEntity(
-                                        mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
-                                        isShow = true
-                                    )
-                                    viewModel.viewModelScope.launch(Dispatchers.IO) {
+                                //如果连接失效弹窗提示,并尝试重连
+                                viewModel.viewModelScope.launch(Dispatchers.IO) {
+                                    val result = if (viewModel.isConnect())
+                                        ConnectResult.Success
+                                    else
                                         viewModel.connectSmb(
                                             id = selectItem.id,
                                             reconnection = true
+                                        )
+                                    if (result is ConnectResult.Success) {
+                                        if (type == ItemType.DIRECTORY) viewModel.initLocalNetMediaFilePaging(
+                                            name
+                                        ) else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
+                                            viewModel.userAction.value =
+                                                UserAction.OpenImage(
+                                                    viewModel.smbClient.getPath().dropLast(1),
+                                                    id,
+                                                    selectItem.id
+                                                )
+                                            viewModel.jumpToView = true
+                                        }
+                                    } else {
+                                        viewModel.showDialog = MediaListDialogEntity(
+                                            mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
+                                            isShow = true
                                         )
                                     }
                                 }
@@ -521,7 +524,7 @@ fun MediaList(
                     image = it.thumbnailState.value?.let { bitmap ->
                         if (bitmap.isRecycled) it.thumbnail
                         else bitmap
-                    } ?: it.thumbnail ,
+                    } ?: it.thumbnail,
                     nullPreviewIcon = nullPreviewIcon,
                     directoryIcon = directoryIcon,
                     directoryName = it.displayName,
