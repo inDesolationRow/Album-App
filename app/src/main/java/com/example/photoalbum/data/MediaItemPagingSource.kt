@@ -6,6 +6,7 @@ import androidx.compose.runtime.MutableState
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.example.photoalbum.MediaApplication
+import com.example.photoalbum.data.model.Directory
 import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.SystemFolder
@@ -27,13 +28,21 @@ import kotlin.math.min
 
 class MediaItemPagingSource(
     private val apiService: MediaFileService<*>,
+    private val directoryCount: Int = 0
 ) :
     PagingSource<Int, MediaItem>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, MediaItem> {
         return try {
             val page = params.key ?: 1
-            val response = apiService.getData(page, params.loadSize)
+            val response = if (page == 1) {
+                if (directoryCount > params.loadSize)
+                    apiService.getData(page, directoryCount)
+                else
+                    apiService.getData(page, params.loadSize)
+            } else {
+                apiService.getData(page, params.loadSize)
+            }
 
             LoadResult.Page(
                 data = response,
@@ -210,7 +219,10 @@ class LocalStorageThumbnailService(
                         if (it.value == null) return@let true
                         else return@let it.value!!.isRecycled
                     }) {
-                    if (item.fileSize > ImageSize.M_1.size && item.thumbnailPath.isNullOrEmpty()) {
+                    //加载第一页制作缩略图时全部使用state以节省时间 后续只有大图生成缩略图才使用state
+                    if ((item.fileSize > ImageSize.M_1.size && item.thumbnailPath.isNullOrEmpty()) ||
+                        (loadSize == initialLoadSize && item.thumbnailPath.isNullOrEmpty())
+                    ) {
                         coroutineScope.launch(Dispatchers.IO) {
                             item.thumbnailState.value = loadThumbnail(item)
                         }
@@ -575,6 +587,7 @@ class LocalNetStorageThumbnailService(
         if (end > allData.size - 1)
             end = allData.size - 1
         val items = allData.slice(IntRange(start, end))
+        println("加载长度$end")
 
         val startDate = System.currentTimeMillis()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
@@ -673,5 +686,6 @@ class LocalNetStorageThumbnailService(
             }
         }.await()
     }
+
 
 }

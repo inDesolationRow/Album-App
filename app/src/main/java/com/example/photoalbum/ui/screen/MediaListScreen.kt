@@ -6,6 +6,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +51,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -88,6 +90,7 @@ import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.time.delay
 import kotlin.math.min
 
 @Composable
@@ -140,7 +143,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
     val topBarAnimateDp: State<Dp>? = if (getNavHostHeight) {
         animateDpAsState(
             targetValue = if (viewModel.expand) hostHeight else 0.dp,
-            animationSpec = tween(durationMillis = 600),
+            animationSpec = tween(durationMillis = 300),
             label = "隐藏或显示bottomBar"
         )
     } else {
@@ -479,6 +482,35 @@ fun MediaList(
     val farIndex = remember { mutableIntStateOf(0) }
     val preIndex = remember { mutableIntStateOf(0) }
 
+    LaunchedEffect(state, itemCount, back) {
+        snapshotFlow { state.firstVisibleItemIndex }
+            .collect {
+                if (!back.value) {
+                    onScroll(state.firstVisibleItemIndex)
+                }
+
+                //条件1：向下滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
+                if (it > preIndex.intValue && it >= if (topClearIndex.intValue == 0) maxSize * 2 else maxSize * 2 + topClearIndex.intValue) {
+                    val end = topClearIndex.intValue + maxSize
+                    onClear(topClearIndex.intValue, end)
+                    if (topClearIndex.intValue + maxSize <= itemCount - maxSize)
+                        topClearIndex.intValue += maxSize
+                }
+                //条件1：向上滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
+                if (it < preIndex.intValue && it <= bottomClearIndex.intValue - maxSize * 2) {
+                    onClear(it + maxSize, bottomClearIndex.intValue)
+                    bottomClearIndex.intValue -= maxSize
+                }
+                if (it < preIndex.intValue && farIndex.intValue < preIndex.intValue) {
+                    farIndex.intValue = preIndex.intValue
+                    bottomClearIndex.intValue = farIndex.intValue
+                }
+                preIndex.intValue = min(itemCount - 1, it)
+            }
+    }
+
+    val delay = remember { mutableLongStateOf(0L) }
+    val co = rememberCoroutineScope()
     LazyVerticalGrid(
         columns = GridCells.Fixed(gridColumn),
         state = state,
@@ -486,40 +518,31 @@ fun MediaList(
             .padding(start = TinyPadding)
     ) {
         items(itemList.itemCount) { index ->
-            LaunchedEffect(state) {
-                snapshotFlow { state.firstVisibleItemIndex }
-                    .collect {
-                        if (!back.value)
-                            onScroll(state.firstVisibleItemIndex)
-                        else {
-                            if (itemIndex != 0) {
-                                if (state.firstVisibleItemIndex != itemIndex) {
-                                    state.scrollToItem(itemIndex)
+            itemList[index]?.let {
+                if (index % 10 == 0)
+                    LaunchedEffect(state) {
+                        snapshotFlow { state.firstVisibleItemIndex }
+                            .collect {
+                                if (itemIndex != 0 && back.value) {
+                                    if (state.firstVisibleItemIndex == 0) {
+                                        println("准备")
+                                        co.launch {
+                                            while (delay.longValue < 100){
+                                                println("滚动了 ${delay.longValue}")
+                                                state.scrollToItem(itemIndex)
+                                                kotlinx.coroutines.delay(10)
+                                                delay.longValue += 10
+                                            }
+                                            delay.longValue = 0
+                                        }
+                                    } else {
+                                        back.value = false
+                                    }
                                 } else {
                                     back.value = false
                                 }
                             }
-                        }
-                        //条件1：向下滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
-                        if (it > preIndex.intValue && it >= if (topClearIndex.intValue == 0) maxSize * 2 else maxSize * 2 + topClearIndex.intValue) {
-                            val end = topClearIndex.intValue + maxSize
-                            onClear(topClearIndex.intValue, end)
-                            if (topClearIndex.intValue + maxSize <= itemCount - maxSize)
-                                topClearIndex.intValue += maxSize
-                        }
-                        //条件1：向上滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
-                        if (it < preIndex.intValue && it <= bottomClearIndex.intValue - maxSize * 2) {
-                            onClear(it + maxSize, bottomClearIndex.intValue)
-                            bottomClearIndex.intValue -= maxSize
-                        }
-                        if (it < preIndex.intValue && farIndex.intValue < preIndex.intValue) {
-                            farIndex.intValue = preIndex.intValue
-                            bottomClearIndex.intValue = farIndex.intValue
-                        }
-                        preIndex.intValue = min(itemCount - 1, it)
                     }
-            }
-            itemList[index]?.let {
                 MediaFilePreview(
                     image = it.thumbnailState.value?.let { bitmap ->
                         if (bitmap.isRecycled) it.thumbnail
@@ -566,7 +589,6 @@ fun MediaFilePreview(
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier) {
-        println("测试:image is $image  type $fileType width ${image?.width}")
         if (image == null || image.width == 0 && image.height == 0) {
             when (fileType) {
                 ItemType.IMAGE -> {

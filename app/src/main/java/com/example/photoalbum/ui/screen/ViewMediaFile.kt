@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -65,6 +66,7 @@ import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.launch
+import kotlin.math.min
 import kotlin.random.Random
 
 @Composable
@@ -105,7 +107,12 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
                 screenWidth = configuration.screenWidthDp.dp,
                 notPreview = viewModel.notPreviewIcon,
                 selectItemIndex = viewModel.itemIndex,
+                itemCount = viewModel.getItemCount(),
+                maxSize = viewModel.settings.maxSizeLarge,
                 context = viewModel.application.applicationContext,
+                onClear = { start, end ->
+                    viewModel.clearCache(start, end)
+                },
                 modifier = Modifier
                     .zIndex(1f)
                     .background(Color.White.copy(alpha = 0.8f))
@@ -172,6 +179,9 @@ private fun BottomBar(
     screenWidth: Dp,
     state: LazyListState,
     selectItemIndex: MutableIntState,
+    itemCount: Int,
+    maxSize: Int,
+    onClear: (Int, Int) -> Unit,
     context: Context,
     modifier: Modifier = Modifier
 ) {
@@ -184,9 +194,21 @@ private fun BottomBar(
     var previousScrollOffset = remember { 0.dp }
     var offset = remember { 0.dp }
     val scope = rememberCoroutineScope()
+
+    val topClearIndex = remember { mutableIntStateOf(0) }
+    val bottomClearIndex = remember { mutableIntStateOf(0) }
+    val farIndex = remember { mutableIntStateOf(0) }
+    val preIndex = remember { mutableIntStateOf(0) }
+
     LaunchedEffect(Unit) {
         state.scrollToItem(selectItemIndex.intValue)
     }
+/*    LaunchedEffect(state) {
+        snapshotFlow { state.firstVisibleItemIndex }
+            .collect {
+
+            }
+    }*/
     LaunchedEffect(state) {
         snapshotFlow { state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset }
             .collect { (index, scroll) ->
@@ -203,6 +225,24 @@ private fun BottomBar(
                 }
                 previousScrollOffset = scrollDp
                 //println("after index ${selectItemIndex.intValue} ,scrollDiff $scrollDifference , scrollDp $scroll, 累计$offset")
+
+                //条件1：向下滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
+                if (index > preIndex.intValue && index >= if (topClearIndex.intValue == 0) maxSize * 2 else maxSize * 2 + topClearIndex.intValue) {
+                    val end = topClearIndex.intValue + maxSize
+                    onClear(topClearIndex.intValue, end)
+                    if (topClearIndex.intValue + maxSize <= itemCount - maxSize)
+                        topClearIndex.intValue += maxSize
+                }
+                //条件1：向上滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
+                if (index < preIndex.intValue && index <= bottomClearIndex.intValue - maxSize * 2) {
+                    onClear(index + maxSize, bottomClearIndex.intValue)
+                    bottomClearIndex.intValue -= maxSize
+                }
+                if (index < preIndex.intValue && farIndex.intValue < preIndex.intValue) {
+                    farIndex.intValue = preIndex.intValue
+                    bottomClearIndex.intValue = farIndex.intValue
+                }
+                preIndex.intValue = min(itemCount - 1, index)
             }
     }
 

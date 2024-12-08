@@ -68,9 +68,18 @@ class ViewMediaFileViewModel(
 
     private val thumbnailsService by lazy {
         if (local) {
-            return@lazy LocalStorageThumbnailService(application, maxSize = 80, initialLoadSize = 40)
+            return@lazy LocalStorageThumbnailService(
+                application,
+                maxSize = settings.maxSizeLarge,
+                initialLoadSize = settings.initialLoadSizeLarge
+            )
         } else {
-            return@lazy LocalNetStorageThumbnailService(application, smbClient, maxSize = 80, initialLoadSize = 40)
+            return@lazy LocalNetStorageThumbnailService(
+                application,
+                smbClient,
+                maxSize = settings.maxSizeLarge,
+                initialLoadSize = settings.initialLoadSizeLarge
+            )
         }
     }
 
@@ -78,7 +87,12 @@ class ViewMediaFileViewModel(
         if (local) {
             return@lazy LocalStorageMediaFileService(application, maxSize = 2, initialLoadSize = 4)
         } else {
-            return@lazy LocalNetStorageMediaFileService(application, smbClient, maxSize = 2, initialLoadSize = 4)
+            return@lazy LocalNetStorageMediaFileService(
+                application,
+                smbClient,
+                maxSize = 2,
+                initialLoadSize = 4
+            )
         }
     }
 
@@ -94,7 +108,12 @@ class ViewMediaFileViewModel(
                         imageId
                     )
                 thumbnailFlow.value = Pager(
-                    PagingConfig(pageSize = 20, initialLoadSize = 40, prefetchDistance = 10, maxSize = 80)
+                    PagingConfig(
+                        pageSize = settings.pageSizeLarge,
+                        initialLoadSize = settings.initialLoadSizeLarge,
+                        prefetchDistance = settings.prefetchDistanceLarge,
+                        maxSize = settings.maxSizeLarge
+                    )
                 ) {
                     MediaItemPagingSource(thumbnailsService)
                 }.flow.cachedIn(viewModelScope)
@@ -123,7 +142,12 @@ class ViewMediaFileViewModel(
                         imageId
                     )
                 thumbnailFlow.value = Pager(
-                    PagingConfig(pageSize = 20, initialLoadSize = 40, prefetchDistance = 10, maxSize = 80)
+                    PagingConfig(
+                        pageSize = settings.pageSizeLarge,
+                        initialLoadSize = settings.initialLoadSizeLarge,
+                        prefetchDistance = settings.prefetchDistanceLarge,
+                        maxSize = settings.maxSizeLarge
+                    )
                 ) {
                     MediaItemPagingSource(thumbnailsService)
                 }.flow.cachedIn(viewModelScope)
@@ -158,5 +182,18 @@ class ViewMediaFileViewModel(
 
     fun expandBar(expand: Boolean, recomposeKey: Int = 0) {
         userAction.value = UserAction.ExpandStatusBarAction(expand, recomposeKey)
+    }
+
+    fun getItemCount(): Int {
+        return thumbnailsService.allData.size
+    }
+
+    fun clearCache(start: Int, end: Int) {
+        thumbnailsService.allData.slice(IntRange(start, end)).onEach { item ->
+            item.thumbnail?.recycle()
+            item.thumbnail = null
+            item.thumbnailState.value?.recycle()
+            item.thumbnailState.value = null
+        }
     }
 }

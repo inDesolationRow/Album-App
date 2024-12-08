@@ -25,6 +25,7 @@ import com.example.photoalbum.data.MediaItemPagingSource
 import com.example.photoalbum.data.LocalStorageThumbnailService
 import com.example.photoalbum.data.model.LocalNetStorageInfo
 import com.example.photoalbum.data.model.Settings
+import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.StorageType
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.model.MediaListDialogEntity
@@ -211,7 +212,9 @@ class MediaListScreenViewModel(
                     maxSize = settings.maxSizeLarge
                 )
             ) {
-                MediaItemPagingSource(localMediaFileService)
+                MediaItemPagingSource(
+                    localMediaFileService,
+                    localMediaFileService.allData.indexOfFirst { it.type == ItemType.IMAGE })
             }.flow
             System.gc()
         }
@@ -220,7 +223,9 @@ class MediaListScreenViewModel(
     private suspend fun initLocalMediaFilePaging(): Flow<PagingData<MediaItem>> {
         val result = viewModelScope.async(Dispatchers.IO) {
             localMediaFileService.getAllData(-1)
-            MediaItemPagingSource(localMediaFileService)
+            MediaItemPagingSource(
+                localMediaFileService,
+                localMediaFileService.allData.indexOfFirst { it.type == ItemType.IMAGE })
         }.await()
         return Pager(
             PagingConfig(
@@ -239,6 +244,7 @@ class MediaListScreenViewModel(
     }
 
     fun clearCache(start: Int, end: Int, type: StorageType) {
+        println("测试:clear $start  $end")
         if (type == StorageType.LOCAL) {
             localMediaFileService.allData.slice(IntRange(start, end)).onEach { item ->
                 item.thumbnail?.recycle()
@@ -257,9 +263,8 @@ class MediaListScreenViewModel(
 
     fun localMediaFileStackBack() {
         back.value = true
-        val levelStack = localLevelStack
-        levelStack.removeLast()
-        currentDirectoryId.value = levelStack.last().first
+        localLevelStack.removeLast()
+        currentDirectoryId.value = localLevelStack.last().first
     }
 
     /**
@@ -366,7 +371,8 @@ class MediaListScreenViewModel(
                 )
             ) {
                 MediaItemPagingSource(
-                    localNetMediaFileService
+                    localNetMediaFileService,
+                    localNetMediaFileService.allData.indexOfLast { it.type == ItemType.DIRECTORY }
                 )
             }.flow
             System.gc()
