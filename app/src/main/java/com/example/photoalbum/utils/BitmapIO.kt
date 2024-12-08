@@ -24,7 +24,7 @@ fun decodeBitmap(filePath: String, orientation: Float): Bitmap? {
                 println("测试:原图加载时间 ${after - before}")*/
         return rotateBitmap(BitmapFactory.decodeFile(filePath), orientation = orientation)
     } catch (e: Exception) {
-        println("测试:解析失败 ${e.printStackTrace()}")
+        println("错误:解析失败 ${e.printStackTrace()}")
         return null
     }
 }
@@ -38,7 +38,7 @@ fun decodeBitmap(byteArray: ByteArray): Bitmap? {
                 println("测试:原图加载时间 ${after - before}")*/
         return BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
     } catch (e: Exception) {
-        println("测试:解析失败 ${e.printStackTrace()}")
+        println("错误:解析失败 ${e.printStackTrace()}")
         return null
     }
 }
@@ -52,7 +52,7 @@ fun decodeBitmap(inputStream: InputStream): Bitmap? {
                 println("测试:原图加载时间 ${after - before}")*/
         return BitmapFactory.decodeStream(inputStream)
     } catch (e: Exception) {
-        println("测试:解析失败 ${e.printStackTrace()}")
+        println("错误:解析失败 ${e.printStackTrace()}")
         return null
     }
 }
@@ -78,7 +78,7 @@ fun decodeSampledBitmap(
         options.inPreferredConfig = Bitmap.Config.RGB_565
         return rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation)
     } catch (e: Exception) {
-        println("测试:解析失败 ${e.printStackTrace()}")
+        println("错误:解析失败 ${e.printStackTrace()}")
         return null
     }
 }
@@ -102,7 +102,7 @@ fun decodeSampledBitmap(
         val bitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size, options)
         return bitmap
     } catch (e: Exception) {
-        println("测试:解析失败 ${e.printStackTrace()}")
+        println("错误:解析失败 ${e.printStackTrace()}")
         return null
     }
 }

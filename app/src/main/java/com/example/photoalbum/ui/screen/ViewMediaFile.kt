@@ -7,6 +7,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -201,14 +202,15 @@ private fun BottomBar(
     val preIndex = remember { mutableIntStateOf(0) }
 
     LaunchedEffect(Unit) {
-        state.scrollToItem(selectItemIndex.intValue)
+        if (selectItemIndex.intValue in 0..maxSize * 2) {
+            topClearIndex.intValue = 0
+        } else if (selectItemIndex.intValue > 180) {
+            topClearIndex.intValue = ((selectItemIndex.intValue - maxSize) / maxSize) * maxSize
+            println("测试:top clear $topClearIndex select ${selectItemIndex.intValue}")
+        }
+        //state.scrollToItem(selectItemIndex.intValue)
+        state.scrollBy(1000f)
     }
-/*    LaunchedEffect(state) {
-        snapshotFlow { state.firstVisibleItemIndex }
-            .collect {
-
-            }
-    }*/
     LaunchedEffect(state) {
         snapshotFlow { state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset }
             .collect { (index, scroll) ->
@@ -227,14 +229,21 @@ private fun BottomBar(
                 //println("after index ${selectItemIndex.intValue} ,scrollDiff $scrollDifference , scrollDp $scroll, 累计$offset")
 
                 //条件1：向下滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
-                if (index > preIndex.intValue && index >= if (topClearIndex.intValue == 0) maxSize * 2 else maxSize * 2 + topClearIndex.intValue) {
+                if (index > preIndex.intValue &&
+                    index >= if (topClearIndex.intValue == 0)
+                        maxSize * 2
+                    else
+                        maxSize * 2 + topClearIndex.intValue
+                ) {
                     val end = topClearIndex.intValue + maxSize
                     onClear(topClearIndex.intValue, end)
                     if (topClearIndex.intValue + maxSize <= itemCount - maxSize)
                         topClearIndex.intValue += maxSize
                 }
                 //条件1：向上滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
-                if (index < preIndex.intValue && index <= bottomClearIndex.intValue - maxSize * 2) {
+                if (index < preIndex.intValue &&
+                    index <= bottomClearIndex.intValue - maxSize * 2
+                ) {
                     onClear(index + maxSize, bottomClearIndex.intValue)
                     bottomClearIndex.intValue -= maxSize
                 }
@@ -243,6 +252,21 @@ private fun BottomBar(
                     bottomClearIndex.intValue = farIndex.intValue
                 }
                 preIndex.intValue = min(itemCount - 1, index)
+                /*val realIndex = min(itemCount - 1, index)
+                val top = realIndex - maxSize * 2
+                if (realIndex > preIndex.intValue &&
+                    top > 0
+                ) {
+                    onClear(top)
+                }
+                val bottom = index + maxSize * 2
+                //条件1：向上滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
+                if (realIndex < preIndex.intValue &&
+                    bottom < itemCount
+                ) {
+                    onClear(bottom)
+                }
+                preIndex.intValue = realIndex*/
             }
     }
 

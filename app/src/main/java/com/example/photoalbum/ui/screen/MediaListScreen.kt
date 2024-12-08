@@ -6,7 +6,6 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -21,8 +20,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -90,7 +89,6 @@ import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.time.delay
 import kotlin.math.min
 
 @Composable
@@ -248,6 +246,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             itemIndex = viewModel.localLevelStack.last().second,
                             maxSize = viewModel.settings.maxSizeLarge,
                             back = viewModel.back,
+                            state = viewModel.localState.value,
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
                             gridColumn = viewModel.settings.gridColumnNumState.intValue,
@@ -334,6 +333,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                 else
                                     return@let viewModel.localNetLevelStack.last().second
                             },
+                            state = viewModel.localNetState.value,
                             maxSize = viewModel.settings.maxSizeLarge,
                             back = viewModel.back,
                             nullPreviewIcon = viewModel.notPreviewIcon,
@@ -464,6 +464,7 @@ fun MediaList(
     itemList: LazyPagingItems<MediaItem>,
     itemCount: Int,
     itemIndex: Int = 0,
+    state: LazyGridState,
     maxSize: Int,
     nullPreviewIcon: Bitmap,
     directoryIcon: Bitmap,
@@ -476,7 +477,7 @@ fun MediaList(
     clickId: ((Long, ItemType) -> Unit)? = null,
     clickString: ((Long, String, ItemType) -> Unit)? = null,
 ) {
-    val state = rememberLazyGridState()
+
     val topClearIndex = remember { mutableIntStateOf(0) }
     val bottomClearIndex = remember { mutableIntStateOf(0) }
     val farIndex = remember { mutableIntStateOf(0) }

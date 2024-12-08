@@ -190,7 +190,6 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                         val directoryPath = it.arguments?.getString("directory")!!
                         viewMediaFileViewModel.initData(directoryPath, id!!, false)
                     }
-                    println("测试:路由")
                 }
                 ViewMediaFile(viewModel = viewMediaFileViewModel)
             }

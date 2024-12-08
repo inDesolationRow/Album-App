@@ -115,7 +115,7 @@ class ViewMediaFileViewModel(
                         maxSize = settings.maxSizeLarge
                     )
                 ) {
-                    MediaItemPagingSource(thumbnailsService)
+                    MediaItemPagingSource(thumbnailsService, itemIndex.intValue)
                 }.flow.cachedIn(viewModelScope)
 
                 val imageService = imageService as LocalStorageMediaFileService
@@ -189,6 +189,7 @@ class ViewMediaFileViewModel(
     }
 
     fun clearCache(start: Int, end: Int) {
+        println("测试: start $start end $end ")
         thumbnailsService.allData.slice(IntRange(start, end)).onEach { item ->
             item.thumbnail?.recycle()
             item.thumbnail = null

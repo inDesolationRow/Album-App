@@ -1,5 +1,6 @@
 package com.example.photoalbum.ui.screen
 
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudSync
@@ -18,6 +19,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
+import androidx.paging.cachedIn
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
 import com.example.photoalbum.data.LocalNetStorageThumbnailService
@@ -80,6 +82,8 @@ class MediaListScreenViewModel(
 
     val directoryIcon = application.getDrawable(R.drawable.baseline_folder)!!.toBitmap()
 
+    val localState = mutableStateOf(LazyGridState())
+
     private var recomposeLocalStorageListKey: MutableStateFlow<Int> = MutableStateFlow(0)
 
     lateinit var localMediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
@@ -107,6 +111,8 @@ class MediaListScreenViewModel(
     var editLocalNetStorageInfo by mutableStateOf(false)
 
     var recomposeLocalNetStorageListKey by mutableIntStateOf(0)
+
+    val localNetState = mutableStateOf(LazyGridState())
 
     private lateinit var localNetMediaFileService: LocalNetStorageThumbnailService
 
@@ -215,7 +221,7 @@ class MediaListScreenViewModel(
                 MediaItemPagingSource(
                     localMediaFileService,
                     localMediaFileService.allData.indexOfFirst { it.type == ItemType.IMAGE })
-            }.flow
+            }.flow.cachedIn(viewModelScope)
             System.gc()
         }
     }
@@ -236,7 +242,7 @@ class MediaListScreenViewModel(
             )
         ) {
             result
-        }.flow
+        }.flow.cachedIn(viewModelScope)
     }
 
     fun getItemCount(): Int {
@@ -374,7 +380,7 @@ class MediaListScreenViewModel(
                     localNetMediaFileService,
                     localNetMediaFileService.allData.indexOfLast { it.type == ItemType.DIRECTORY }
                 )
-            }.flow
+            }.flow.cachedIn(viewModelScope)
             System.gc()
         }
     }
