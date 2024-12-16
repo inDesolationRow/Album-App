@@ -11,6 +11,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.Pager
 import androidx.paging.PagingConfig
 import androidx.paging.PagingData
+import androidx.paging.PagingSource
 import androidx.paging.cachedIn
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
@@ -53,6 +54,8 @@ class ViewMediaFileViewModel(
     var itemIndex = mutableIntStateOf(0)
 
     val thumbnailScrollState = LazyListState()
+
+    var source : MutableState<PagingSource<Int, MediaItem>?> = mutableStateOf(null)
 
     var nextDirectory: String? = null
 
@@ -107,6 +110,7 @@ class ViewMediaFileViewModel(
                         onlyMediaFile = true,
                         imageId
                     )
+                source.value = MediaItemPagingSource(thumbnailsService)
                 thumbnailFlow.value = Pager(
                     PagingConfig(
                         pageSize = settings.pageSizeLarge,
@@ -115,9 +119,8 @@ class ViewMediaFileViewModel(
                         maxSize = settings.maxSizeLarge
                     )
                 ) {
-                    MediaItemPagingSource(thumbnailsService, itemIndex.intValue)
+                    source.value!!
                 }.flow.cachedIn(viewModelScope)
-
                 val imageService = imageService as LocalStorageMediaFileService
                 imageService.sharedAllData(thumbnailsService.sharedAllData())
                 imageFlow.value = Pager(
@@ -162,6 +165,22 @@ class ViewMediaFileViewModel(
                 }.flow.cachedIn(viewModelScope)
             }
         }
+    }
+
+    suspend fun loadUntilTargetPage(pagingSource: PagingSource<Int, MediaItem>, targetPage: Int, loadSize: Int, end:()->Unit) {
+        var currentPage = 1
+        while (currentPage < targetPage) {
+            // 手动加载分页
+            val loadResult = pagingSource.load(PagingSource.LoadParams.Refresh(currentPage, loadSize, false))
+            if (loadResult is PagingSource.LoadResult.Page) {
+                // 如果加载成功，增加当前页
+                currentPage++
+            } else {
+                // 如果出现错误，跳出循环
+                break
+            }
+        }
+        end()
     }
 
     private fun connectSmb(smbClient: SmbClient, reconnect: Boolean = false) {

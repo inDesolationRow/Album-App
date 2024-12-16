@@ -24,12 +24,12 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import java.io.File
+import kotlin.math.max
 import kotlin.math.min
 
 class MediaItemPagingSource(
     private val apiService: MediaFileService<*>,
-    private val directoryCount: Int = 0,
-    private val jumpIndex: Int = 0
+    private val directoryCount: Int = 0
 ) :
     PagingSource<Int, MediaItem>() {
 
@@ -44,7 +44,7 @@ class MediaItemPagingSource(
             } else {
                 apiService.getData(page, params.loadSize)
             }
-
+            println("测试:初始page $page")
             LoadResult.Page(
                 data = response,
                 prevKey = if (page == 1) null else page - 1,
@@ -205,22 +205,24 @@ class LocalStorageThumbnailService(
     }
 
     override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
-        val expandLoad: Boolean =
-            selectItemIndex > initialLoadSize && page == 1 && loadSize == initialLoadSize
+        /* val expandLoad: Boolean =
+             selectItemIndex > initialLoadSize && page == 1 && loadSize == initialLoadSize
+         val start: Int
+         val end: Int
+         if (expandLoad) {
+             //val last = (selectItemIndex - initialLoadSize) % loadSize
+             start = 0
+             end = selectItemIndex + loadSize / 2
+         } else {
+             start = (page - 1) * page.let {
+                 return@let if (it == 2) initialLoadSize else loadSize
+             }
+             end = min(page.let {
+                 return@let if (page == 2) start + loadSize else page * loadSize
+             } - 1, allData.size - 1)
+         }*/
         val start: Int
         val end: Int
-/*        if (expandLoad) {
-            //val last = (selectItemIndex - initialLoadSize) % loadSize
-            start = 0
-            end = selectItemIndex + loadSize / 2
-        } else {
-            start = (page - 1) * page.let {
-                return@let if (it == 2) initialLoadSize else loadSize
-            }
-            end = min(page.let {
-                return@let if (page == 2) start + loadSize else page * loadSize
-            } - 1, allData.size - 1)
-        }*/
         start = (page - 1) * page.let {
             return@let if (it == 2) initialLoadSize else loadSize
         }
@@ -231,11 +233,13 @@ class LocalStorageThumbnailService(
         val startDate = System.currentTimeMillis()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         val jobs: MutableList<Job> = mutableListOf()
-        val range = loadSize / 2
+        val range = maxSize / 2
         for ((index, item) in items.withIndex()) {
             /*if (!expandLoad || index in (selectItemIndex - range)..(selectItemIndex + range)) {
+                println("测试:items大小${items.size}  加载index $index")
 
             }*/
+
             if (item.type == ItemType.IMAGE) {
                 if (item.thumbnail == null && item.thumbnailState.let {
                         if (it.value == null) return@let true

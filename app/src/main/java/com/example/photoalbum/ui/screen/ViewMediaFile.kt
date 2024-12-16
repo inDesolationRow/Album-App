@@ -54,6 +54,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.viewModelScope
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.photoalbum.R
@@ -79,7 +80,30 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
     val screenHeightDp = configuration.screenHeightDp.dp
     var topPaddingValues = PaddingValues()
     val flow = viewModel.thumbnailFlow.value.collectAsLazyPagingItems()
-
+  /*  LaunchedEffect(viewModel.source.value) {
+        viewModel.source.value?.let {
+            var startPage = 0
+            if (viewModel.itemIndex.intValue >= viewModel.settings.initialLoadSizeLarge) {
+                startPage =
+                    kotlin.math.ceil((viewModel.itemIndex.intValue + 1).toDouble() / viewModel.settings.pageSizeLarge)
+                        .toInt()
+            }
+            viewModel.loadUntilTargetPage(
+                it,
+                startPage,
+                viewModel.settings.pageSizeLarge
+            ) {
+*//*                val scrollPx =
+                    with(density) { (selectItemIndex.intValue * itemWidth + selectItemIndex.intValue * com.example.photoalbum.ui.theme.TinyPadding).toPx() }
+                println("测试: 滚动 $scrollPx")*//*
+                *//*  viewModel.viewModelScope.launch {
+                      println("测试: 滚动")
+                      viewModel.thumbnailScrollState.scrollToItem(viewModel.itemIndex.intValue)
+                      //viewModel.thumbnailScrollState.scrollBy(20000f)
+                  }*//*
+            }
+        }
+    }*/
     if (viewModel.showDialog.isShow) {
         if (viewModel.showDialog.mediaListDialog == MediaListDialog.LOCAL_NET_OFFLINE) {
             MessageDialog(
@@ -208,8 +232,10 @@ private fun BottomBar(
             topClearIndex.intValue = ((selectItemIndex.intValue - maxSize) / maxSize) * maxSize
             println("测试:top clear $topClearIndex select ${selectItemIndex.intValue}")
         }
-        //state.scrollToItem(selectItemIndex.intValue)
-        state.scrollBy(1000f)
+        val scrollPx =
+            with(density) { (selectItemIndex.intValue * itemWidth + selectItemIndex.intValue * TinyPadding).toPx() }
+        state.scrollBy(scrollPx)
+        println("测试: 滚动 $scrollPx")
     }
     LaunchedEffect(state) {
         snapshotFlow { state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset }
@@ -281,6 +307,16 @@ private fun BottomBar(
         ) {
             items(count = items.itemCount) {
                 items[it]?.let { item ->
+                    /*if (it * itemWidth + it * TinyPadding <
+                        selectItemIndex.intValue * itemWidth + selectItemIndex.intValue * TinyPadding) {
+                        rememberCoroutineScope().launch {
+                            println("滚动")
+                            val scrollPx =
+                                with(density) { (itemWidth + TinyPadding).toPx() }
+                            state.scrollBy(scrollPx)
+                        }
+                    }*/
+                    println("index $it")
                     val select = it == selectItemIndex.intValue
                     if (item.type == ItemType.IMAGE) {
                         Box(

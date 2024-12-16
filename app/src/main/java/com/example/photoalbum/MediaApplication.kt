@@ -22,6 +22,8 @@ class MediaApplication: Application(){
 
     var localNetStorageInfo : LocalNetStorageInfo? = null
 
+
+
     override fun onCreate() {
         super.onCreate()
         appPermission = PermissionHelper(applicationContext)
