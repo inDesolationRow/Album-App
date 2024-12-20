@@ -2,16 +2,18 @@ package com.example.photoalbum.ui.screen
 
 import android.content.Context
 import android.graphics.Bitmap
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
-import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -22,12 +24,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
+import androidx.compose.foundation.pager.PagerDefaults
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIosNew
 import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
@@ -38,12 +45,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -54,11 +60,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import androidx.compose.ui.zIndex
-import androidx.lifecycle.viewModelScope
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.photoalbum.R
-import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.MediaListDialog
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.ui.action.UserAction
@@ -68,6 +72,8 @@ import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.launch
+import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.min
 import kotlin.random.Random
 
@@ -80,30 +86,6 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
     val screenHeightDp = configuration.screenHeightDp.dp
     var topPaddingValues = PaddingValues()
     val flow = viewModel.thumbnailFlow.value.collectAsLazyPagingItems()
-  /*  LaunchedEffect(viewModel.source.value) {
-        viewModel.source.value?.let {
-            var startPage = 0
-            if (viewModel.itemIndex.intValue >= viewModel.settings.initialLoadSizeLarge) {
-                startPage =
-                    kotlin.math.ceil((viewModel.itemIndex.intValue + 1).toDouble() / viewModel.settings.pageSizeLarge)
-                        .toInt()
-            }
-            viewModel.loadUntilTargetPage(
-                it,
-                startPage,
-                viewModel.settings.pageSizeLarge
-            ) {
-*//*                val scrollPx =
-                    with(density) { (selectItemIndex.intValue * itemWidth + selectItemIndex.intValue * com.example.photoalbum.ui.theme.TinyPadding).toPx() }
-                println("测试: 滚动 $scrollPx")*//*
-                *//*  viewModel.viewModelScope.launch {
-                      println("测试: 滚动")
-                      viewModel.thumbnailScrollState.scrollToItem(viewModel.itemIndex.intValue)
-                      //viewModel.thumbnailScrollState.scrollBy(20000f)
-                  }*//*
-            }
-        }
-    }*/
     if (viewModel.showDialog.isShow) {
         if (viewModel.showDialog.mediaListDialog == MediaListDialog.LOCAL_NET_OFFLINE) {
             MessageDialog(
@@ -135,6 +117,7 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
                 itemCount = viewModel.getItemCount(),
                 maxSize = viewModel.settings.maxSizeLarge,
                 context = viewModel.application.applicationContext,
+                viewModel = viewModel,
                 onClear = { start, end ->
                     viewModel.clearCache(start, end)
                 },
@@ -206,153 +189,164 @@ private fun BottomBar(
     selectItemIndex: MutableIntState,
     itemCount: Int,
     maxSize: Int,
+    viewModel: ViewMediaFileViewModel,
     onClear: (Int, Int) -> Unit,
     context: Context,
     modifier: Modifier = Modifier
 ) {
-    val density = LocalDensity.current
+    // 创建Pager状态
+    val pagerState = rememberPagerState(initialPage = 0, pageCount = { itemCount })
     val padding = height * 0.2f
     val itemHeight = height - padding * 2
     val itemWidth = (itemHeight * 0.75f)
     val estimateItemNumber: Int = screenWidth.value.toInt() / itemWidth.value.toInt()
     val startPadding = (estimateItemNumber / 2) * itemWidth
-    var previousScrollOffset = remember { 0.dp }
-    var offset = remember { 0.dp }
+
     val scope = rememberCoroutineScope()
+    val animateFlag = remember { mutableIntStateOf(0) }
+    var finalValue by remember { mutableFloatStateOf(0f) }
+    var scrollPage by remember { mutableFloatStateOf(0f) }
+    val animation = remember { Animatable(initialValue = 0f) }
 
-    val topClearIndex = remember { mutableIntStateOf(0) }
-    val bottomClearIndex = remember { mutableIntStateOf(0) }
-    val farIndex = remember { mutableIntStateOf(0) }
-    val preIndex = remember { mutableIntStateOf(0) }
+    LaunchedEffect(animateFlag.intValue) {
+        if (!animation.isRunning) {
+            try {
+                val result = animation.animateTo(
+                    targetValue = finalValue + scrollPage,
+                    animationSpec = tween(durationMillis = abs(scrollPage).toInt() * 75)
+                )
+                if (!result.endState.isRunning) {
+                    finalValue = animation.value
+                }
 
-    LaunchedEffect(Unit) {
-        if (selectItemIndex.intValue in 0..maxSize * 2) {
-            topClearIndex.intValue = 0
-        } else if (selectItemIndex.intValue > 180) {
-            topClearIndex.intValue = ((selectItemIndex.intValue - maxSize) / maxSize) * maxSize
-            println("测试:top clear $topClearIndex select ${selectItemIndex.intValue}")
-        }
-        val scrollPx =
-            with(density) { (selectItemIndex.intValue * itemWidth + selectItemIndex.intValue * TinyPadding).toPx() }
-        state.scrollBy(scrollPx)
-        println("测试: 滚动 $scrollPx")
-    }
-    LaunchedEffect(state) {
-        snapshotFlow { state.firstVisibleItemIndex to state.firstVisibleItemScrollOffset }
-            .collect { (index, scroll) ->
-                val scrollDp = with(density) { scroll.toDp() }
-                val scrollDifference = scrollDp - previousScrollOffset
-                offset += scrollDifference
-                //println("before index ${selectItemIndex.intValue} ,scrollDiff $scrollDifference , scrollDp $scroll, 累计$offset, $itemWidth")
-                if (scrollDifference > 0.dp && offset > itemWidth / 3) {
-                    if (index + 1 <= items.itemCount - 1) selectItemIndex.intValue = index + 1
-                    //println("加 ${selectItemIndex.intValue}")
-                } else if (scrollDifference < 0.dp && offset > itemWidth / 3) {
-                    selectItemIndex.intValue = index
-                    //println("减 ${selectItemIndex.intValue}")
-                }
-                previousScrollOffset = scrollDp
-                //println("after index ${selectItemIndex.intValue} ,scrollDiff $scrollDifference , scrollDp $scroll, 累计$offset")
-
-                //条件1：向下滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
-                if (index > preIndex.intValue &&
-                    index >= if (topClearIndex.intValue == 0)
-                        maxSize * 2
-                    else
-                        maxSize * 2 + topClearIndex.intValue
-                ) {
-                    val end = topClearIndex.intValue + maxSize
-                    onClear(topClearIndex.intValue, end)
-                    if (topClearIndex.intValue + maxSize <= itemCount - maxSize)
-                        topClearIndex.intValue += maxSize
-                }
-                //条件1：向上滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
-                if (index < preIndex.intValue &&
-                    index <= bottomClearIndex.intValue - maxSize * 2
-                ) {
-                    onClear(index + maxSize, bottomClearIndex.intValue)
-                    bottomClearIndex.intValue -= maxSize
-                }
-                if (index < preIndex.intValue && farIndex.intValue < preIndex.intValue) {
-                    farIndex.intValue = preIndex.intValue
-                    bottomClearIndex.intValue = farIndex.intValue
-                }
-                preIndex.intValue = min(itemCount - 1, index)
-                /*val realIndex = min(itemCount - 1, index)
-                val top = realIndex - maxSize * 2
-                if (realIndex > preIndex.intValue &&
-                    top > 0
-                ) {
-                    onClear(top)
-                }
-                val bottom = index + maxSize * 2
-                //条件1：向上滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
-                if (realIndex < preIndex.intValue &&
-                    bottom < itemCount
-                ) {
-                    onClear(bottom)
-                }
-                preIndex.intValue = realIndex*/
+            } catch (e: Exception) {
+                e.printStackTrace()
+                finalValue = animation.value
+                animation.snapTo(finalValue)
             }
+        }
     }
 
-    Box(
-        modifier = modifier
-            .padding(top = padding, bottom = padding)
-            .fillMaxWidth()
-    ) {
-        LazyRow(
-            state = state,
-            contentPadding = PaddingValues(start = startPadding, end = startPadding)
-        ) {
-            items(count = items.itemCount) {
-                items[it]?.let { item ->
-                    /*if (it * itemWidth + it * TinyPadding <
-                        selectItemIndex.intValue * itemWidth + selectItemIndex.intValue * TinyPadding) {
-                        rememberCoroutineScope().launch {
-                            println("滚动")
-                            val scrollPx =
-                                with(density) { (itemWidth + TinyPadding).toPx() }
-                            state.scrollBy(scrollPx)
-                        }
-                    }*/
-                    println("index $it")
-                    val select = it == selectItemIndex.intValue
-                    if (item.type == ItemType.IMAGE) {
-                        Box(
-                            modifier = Modifier
-                                .padding(
-                                    start = if (select) TinyPadding else 0.dp,
-                                    end = if (select) TinyPadding * 2 else TinyPadding
-                                )
-                                .height(itemHeight)
-                                .width(itemWidth)
-                                .graphicsLayer(
-                                    scaleX = if (select) 1.2f else 1f,
-                                    scaleY = if (select) 1.2f else 1f,
-                                )
-                                .clickable {
-                                    scope.launch {
-                                        state.animateScrollToItem(it)
+    LaunchedEffect(animation.value.toInt()) {
+        pagerState.animateScrollToPage(animation.value.toInt())
+    }
+
+    Box {
+        HorizontalPager(
+            userScrollEnabled = false,
+            contentPadding = PaddingValues(start = startPadding, end = startPadding),
+            state = pagerState,
+            pageSpacing = TinyPadding,
+            pageSize = PageSize.Fixed(itemWidth),
+            verticalAlignment = Alignment.CenterVertically,
+            flingBehavior = PagerDefaults.flingBehavior(
+                state = pagerState,
+                snapPositionalThreshold = 0.001f
+            ),
+            modifier = modifier
+                .fillMaxHeight()
+                .pointerInput(Unit) {
+                    val velocityTracker =
+                        androidx.compose.ui.input.pointer.util.VelocityTracker() // 记录滑动速度
+                    var isDragging = false // 用于标记是否正在拖动
+                    var addup = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { startOffset ->
+                            // 拖动开始，初始化状态
+                            isDragging = true
+                            velocityTracker.resetTracking()
+                            println("Drag started at $startOffset")
+                        },
+                        onHorizontalDrag = { change, dragAmount ->
+                            // 拖动中，记录增量和位置
+                            if (isDragging) {
+                                change.consume() // 消费事件，防止干扰
+                                velocityTracker.addPosition(
+                                    change.uptimeMillis,
+                                    change.position
+                                ) // 记录位置和时间
+                                addup += dragAmount
+                                if (abs(addup) >= itemWidth.toPx() / 2 && !animation.isRunning) {
+                                    if (addup < 0) {
+                                        addup = 0f
+                                        scrollPage = min(1f, itemCount - finalValue - 1)
+                                        animateFlag.intValue += 1
+                                    } else {
+                                        addup = 0f
+                                        scrollPage = max(-1f, -finalValue)
+                                        animateFlag.intValue += 1
                                     }
-                                    selectItemIndex.intValue = it
                                 }
-                        ) {
-                            DisplayImage(
-                                bitmap = item.thumbnail
-                                    ?: item.thumbnailState.value?.let { bitmap ->
-                                        if (bitmap.isRecycled) item.thumbnail
-                                        else bitmap
-                                    } ?: notPreview,
-                                context = context,
-                                modifier = Modifier.fillMaxSize()
-                            )
+                                println("Dragging by $dragAmount add up by $addup ${animateFlag.intValue} ${animation.isRunning}")
+                            }
+                        },
+                        onDragEnd = {
+                            // 拖动结束，切换到滑动逻辑
+                            isDragging = false
+                            addup = 0f
+                            val velocity = velocityTracker.calculateVelocity() // 计算滑动速度
+                            val speed = velocity.x // 水平方向的速度
+                            if (abs(speed) > 1000) { // 自定义滑动速度阈值
+                                if (speed < 0) {
+                                    scrollPage = min(20f, itemCount - finalValue - 1)
+                                    animateFlag.intValue += 1
+                                } else {
+                                    scrollPage = max(-20f, -finalValue)
+                                    animateFlag.intValue += 1
+                                }
+                                println("Fling detected! Speed: $speed")
+                            } else {
+                                println("Drag ended without fling")
+                            }
+                        },
+                        onDragCancel = {
+                            // 拖动取消的处理
+                            addup = 0f
+                            scope.launch {
+                                animation.stop()
+                            }
+                            isDragging = false
+                            println("Drag canceled")
                         }
-                    }
+                    )
                 }
+                .pointerInput(Unit) {
+                    detectTapGestures(onTap = {
+
+                    }, onPress = {
+                        scope.launch {
+                            animation.stop()
+                        }
+                    })
+                }
+        ) { page ->
+            println("测试 $page")
+            Box(
+                modifier = Modifier
+                    .background(Color.DarkGray)
+                    .height(itemHeight)
+                    .fillMaxWidth()
+            ) {
+                Text("$page")
+                DisplayImage(
+                    bitmap = notPreview,
+                    context = context,
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(if (page != animation.value.toInt()) {
+                            modifier.drawWithContent {
+                                drawContent()
+                                drawRect(
+                                    color = Color.Gray.copy(alpha = 0.5f), // 半透明灰色
+                                    size = size
+                                )
+                            }
+                        } else modifier)
+                )
             }
         }
     }
+
 }
 
 @Composable

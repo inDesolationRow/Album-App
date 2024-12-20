@@ -6,7 +6,6 @@ import androidx.compose.runtime.MutableState
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.example.photoalbum.MediaApplication
-import com.example.photoalbum.data.model.Directory
 import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.SystemFolder
@@ -24,26 +23,24 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import java.io.File
-import kotlin.math.max
 import kotlin.math.min
 
 class MediaItemPagingSource(
     private val apiService: MediaFileService<*>,
-    private val directoryCount: Int = 0
 ) :
     PagingSource<Int, MediaItem>() {
 
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, MediaItem> {
         return try {
             val page = params.key ?: 1
-            val response = if (page == 1) {
+            val response = apiService.getData(page, params.loadSize)/*if (page == 1) {
                 if (directoryCount > params.loadSize)
                     apiService.getData(page, directoryCount)
                 else
                     apiService.getData(page, params.loadSize)
             } else {
                 apiService.getData(page, params.loadSize)
-            }
+            }*/
             println("测试:初始page $page")
             LoadResult.Page(
                 data = response,
@@ -205,41 +202,13 @@ class LocalStorageThumbnailService(
     }
 
     override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
-        /* val expandLoad: Boolean =
-             selectItemIndex > initialLoadSize && page == 1 && loadSize == initialLoadSize
-         val start: Int
-         val end: Int
-         if (expandLoad) {
-             //val last = (selectItemIndex - initialLoadSize) % loadSize
-             start = 0
-             end = selectItemIndex + loadSize / 2
-         } else {
-             start = (page - 1) * page.let {
-                 return@let if (it == 2) initialLoadSize else loadSize
-             }
-             end = min(page.let {
-                 return@let if (page == 2) start + loadSize else page * loadSize
-             } - 1, allData.size - 1)
-         }*/
-        val start: Int
-        val end: Int
-        start = (page - 1) * page.let {
-            return@let if (it == 2) initialLoadSize else loadSize
-        }
-        end = min(page.let {
-            return@let if (page == 2) start + loadSize else page * loadSize
-        } - 1, allData.size - 1)
+        val start = (page - 1) * loadSize
+        val end = min(page * loadSize - 1, allData.size - 1)
         val items = allData.slice(IntRange(start, end))
         val startDate = System.currentTimeMillis()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         val jobs: MutableList<Job> = mutableListOf()
-        val range = maxSize / 2
-        for ((index, item) in items.withIndex()) {
-            /*if (!expandLoad || index in (selectItemIndex - range)..(selectItemIndex + range)) {
-                println("测试:items大小${items.size}  加载index $index")
-
-            }*/
-
+        for (item in items) {
             if (item.type == ItemType.IMAGE) {
                 if (item.thumbnail == null && item.thumbnailState.let {
                         if (it.value == null) return@let true
@@ -603,17 +572,9 @@ class LocalNetStorageThumbnailService(
     }
 
     override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
-        if (page == 1) initialLoadSize = loadSize
-        val start = (page - 1) * page.let {
-            return@let if (it == 2) initialLoadSize else loadSize
-        }
-        var end = page.let {
-            return@let if (page == 2) start + loadSize else page * loadSize
-        } - 1
-        if (end > allData.size - 1)
-            end = allData.size - 1
+        val start = (page - 1) * loadSize
+        val end = min(page * loadSize - 1, allData.size - 1)
         val items = allData.slice(IntRange(start, end))
-        println("加载长度$end")
 
         val startDate = System.currentTimeMillis()
         val coroutineScope = CoroutineScope(Dispatchers.IO)

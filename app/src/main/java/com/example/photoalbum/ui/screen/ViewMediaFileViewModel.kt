@@ -117,7 +117,8 @@ class ViewMediaFileViewModel(
                         initialLoadSize = settings.initialLoadSizeLarge,
                         prefetchDistance = settings.prefetchDistanceLarge,
                         maxSize = settings.maxSizeLarge
-                    )
+                    ),
+                    initialKey = 10
                 ) {
                     source.value!!
                 }.flow.cachedIn(viewModelScope)

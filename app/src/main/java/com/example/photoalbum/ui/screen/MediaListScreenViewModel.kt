@@ -27,7 +27,6 @@ import com.example.photoalbum.data.MediaItemPagingSource
 import com.example.photoalbum.data.LocalStorageThumbnailService
 import com.example.photoalbum.data.model.LocalNetStorageInfo
 import com.example.photoalbum.data.model.Settings
-import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.StorageType
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.model.MediaListDialogEntity
@@ -219,8 +218,8 @@ class MediaListScreenViewModel(
                 )
             ) {
                 MediaItemPagingSource(
-                    localMediaFileService,
-                    localMediaFileService.allData.indexOfFirst { it.type == ItemType.IMAGE })
+                    localMediaFileService
+                )
             }.flow.cachedIn(viewModelScope)
             System.gc()
         }
@@ -230,8 +229,8 @@ class MediaListScreenViewModel(
         val result = viewModelScope.async(Dispatchers.IO) {
             localMediaFileService.getAllData(-1)
             MediaItemPagingSource(
-                localMediaFileService,
-                localMediaFileService.allData.indexOfFirst { it.type == ItemType.IMAGE })
+                localMediaFileService
+            )
         }.await()
         return Pager(
             PagingConfig(
@@ -377,8 +376,7 @@ class MediaListScreenViewModel(
                 )
             ) {
                 MediaItemPagingSource(
-                    localNetMediaFileService,
-                    localNetMediaFileService.allData.indexOfLast { it.type == ItemType.DIRECTORY }
+                    localNetMediaFileService
                 )
             }.flow.cachedIn(viewModelScope)
             System.gc()

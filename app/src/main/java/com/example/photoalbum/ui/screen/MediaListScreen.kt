@@ -526,10 +526,8 @@ fun MediaList(
                             .collect {
                                 if (itemIndex != 0 && back.value) {
                                     if (state.firstVisibleItemIndex == 0) {
-                                        println("准备")
                                         co.launch {
                                             while (delay.longValue < 100){
-                                                println("滚动了 ${delay.longValue}")
                                                 state.scrollToItem(itemIndex)
                                                 kotlinx.coroutines.delay(10)
                                                 delay.longValue += 10
@@ -612,12 +610,6 @@ fun MediaFilePreview(
                 ItemType.ERROR -> {}
             }
         } else {
-            /*            Card(
-                            shape = MaterialTheme.shapes.large,
-                            modifier = Modifier.padding(bottom = TinyPadding)
-                        ) {
-                            DisplayImage(bitmap = image, orientation = orientation, modifier = Modifier.padding(bottom = TinyPadding))
-                        }*/
             DisplayImage(
                 bitmap = image,
                 context = context,

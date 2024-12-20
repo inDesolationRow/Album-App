@@ -24,7 +24,7 @@ data class Settings(
     var maxSizeLarge = 90
 
     @Ignore
-    var initialLoadSizeLarge = 60
+    var initialLoadSizeLarge = 30
 
     @Ignore
     var pageSizeLarge = 30
@@ -36,7 +36,7 @@ data class Settings(
     var maxSizeMedium = 60
 
     @Ignore
-    var initialLoadSizeMedium = 40
+    var initialLoadSizeMedium = 20
 
     @Ignore
     var pageSizeMedium = 20

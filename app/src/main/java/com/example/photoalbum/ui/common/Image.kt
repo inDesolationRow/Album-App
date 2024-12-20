@@ -16,13 +16,13 @@ fun DisplayImage(
     contentScale: ContentScale = ContentScale.Crop,
     context: Context
 ) {
-    val image = ImageRequest.Builder(context)
+    /*val image = ImageRequest.Builder(context)
         .data(bitmap)  // 设置图片的 URI 或者数据
         .memoryCachePolicy(CachePolicy.DISABLED)
         .diskCachePolicy(CachePolicy.ENABLED)
-        .build()
+        .build()*/
     AsyncImage(
-        model = image,
+        model = bitmap,
         contentDescription = null,
         contentScale = contentScale,
         modifier = modifier,
