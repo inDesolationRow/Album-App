@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -34,7 +33,6 @@ import androidx.compose.material.icons.filled.ScreenRotation
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
@@ -52,7 +50,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
@@ -60,11 +58,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.times
 import androidx.compose.ui.zIndex
-import androidx.paging.compose.LazyPagingItems
-import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.photoalbum.R
+import com.example.photoalbum.data.DataList
 import com.example.photoalbum.enums.MediaListDialog
-import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.ui.common.DisplayImage
 import com.example.photoalbum.ui.common.MessageDialog
@@ -85,7 +81,6 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
     val configuration = LocalConfiguration.current
     val screenHeightDp = configuration.screenHeightDp.dp
     var topPaddingValues = PaddingValues()
-    val flow = viewModel.thumbnailFlow.value.collectAsLazyPagingItems()
     if (viewModel.showDialog.isShow) {
         if (viewModel.showDialog.mediaListDialog == MediaListDialog.LOCAL_NET_OFFLINE) {
             MessageDialog(
@@ -106,21 +101,13 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
             )
         },
         bottomBar = {
-            val listState = viewModel.thumbnailScrollState
             if (viewModel.expandMyBar) BottomBar(
-                state = listState,
-                items = flow,
+                items = viewModel.source.items,
                 height = screenHeightDp * 0.12f,
                 screenWidth = configuration.screenWidthDp.dp,
                 notPreview = viewModel.notPreviewIcon,
                 selectItemIndex = viewModel.itemIndex,
-                itemCount = viewModel.getItemCount(),
-                maxSize = viewModel.settings.maxSizeLarge,
                 context = viewModel.application.applicationContext,
-                viewModel = viewModel,
-                onClear = { start, end ->
-                    viewModel.clearCache(start, end)
-                },
                 modifier = Modifier
                     .zIndex(1f)
                     .background(Color.White.copy(alpha = 0.8f))
@@ -181,21 +168,16 @@ private fun TopBar(viewModel: ViewMediaFileViewModel, modifier: Modifier = Modif
 
 @Composable
 private fun BottomBar(
-    items: LazyPagingItems<MediaItem>,
+    items: DataList,
     notPreview: Bitmap,
     height: Dp,
     screenWidth: Dp,
-    state: LazyListState,
     selectItemIndex: MutableIntState,
-    itemCount: Int,
-    maxSize: Int,
-    viewModel: ViewMediaFileViewModel,
-    onClear: (Int, Int) -> Unit,
     context: Context,
     modifier: Modifier = Modifier
 ) {
-    // 创建Pager状态
-    val pagerState = rememberPagerState(initialPage = 0, pageCount = { itemCount })
+    val state =
+        rememberPagerState(initialPage = selectItemIndex.intValue, pageCount = { items.size() })
     val padding = height * 0.2f
     val itemHeight = height - padding * 2
     val itemWidth = (itemHeight * 0.75f)
@@ -204,50 +186,50 @@ private fun BottomBar(
 
     val scope = rememberCoroutineScope()
     val animateFlag = remember { mutableIntStateOf(0) }
-    var finalValue by remember { mutableFloatStateOf(0f) }
     var scrollPage by remember { mutableFloatStateOf(0f) }
-    val animation = remember { Animatable(initialValue = 0f) }
+    val animation = remember { Animatable(initialValue = selectItemIndex.intValue.toFloat()) }
 
     LaunchedEffect(animateFlag.intValue) {
-        if (!animation.isRunning) {
+        if (!animation.isRunning && animateFlag.intValue > 0) {
             try {
-                val result = animation.animateTo(
-                    targetValue = finalValue + scrollPage,
+                animation.animateTo(
+                    targetValue = selectItemIndex.intValue + scrollPage,
                     animationSpec = tween(durationMillis = abs(scrollPage).toInt() * 75)
                 )
-                if (!result.endState.isRunning) {
-                    finalValue = animation.value
-                }
-
             } catch (e: Exception) {
                 e.printStackTrace()
-                finalValue = animation.value
-                animation.snapTo(finalValue)
+                animation.snapTo(animation.value)
             }
         }
     }
 
-    LaunchedEffect(animation.value.toInt()) {
-        pagerState.animateScrollToPage(animation.value.toInt())
+    LaunchedEffect(animation.value.toInt(), animation.isRunning) {
+        if (animation.isRunning) {
+            println("测试:滚动至 ${animation.value.toInt()}")
+            state.animateScrollToPage(animation.value.toInt())
+        }
+    }
+
+    LaunchedEffect(state.currentPage) {
+        selectItemIndex.intValue = state.currentPage
     }
 
     Box {
         HorizontalPager(
             userScrollEnabled = false,
             contentPadding = PaddingValues(start = startPadding, end = startPadding),
-            state = pagerState,
+            state = state,
             pageSpacing = TinyPadding,
             pageSize = PageSize.Fixed(itemWidth),
             verticalAlignment = Alignment.CenterVertically,
             flingBehavior = PagerDefaults.flingBehavior(
-                state = pagerState,
+                state = state,
                 snapPositionalThreshold = 0.001f
             ),
             modifier = modifier
                 .fillMaxHeight()
                 .pointerInput(Unit) {
-                    val velocityTracker =
-                        androidx.compose.ui.input.pointer.util.VelocityTracker() // 记录滑动速度
+                    val velocityTracker = VelocityTracker() // 记录滑动速度
                     var isDragging = false // 用于标记是否正在拖动
                     var addup = 0f
                     detectHorizontalDragGestures(
@@ -269,11 +251,14 @@ private fun BottomBar(
                                 if (abs(addup) >= itemWidth.toPx() / 2 && !animation.isRunning) {
                                     if (addup < 0) {
                                         addup = 0f
-                                        scrollPage = min(1f, itemCount - finalValue - 1)
+                                        scrollPage = min(
+                                            1f,
+                                            items.size() - selectItemIndex.intValue.toFloat() - 1
+                                        )
                                         animateFlag.intValue += 1
                                     } else {
                                         addup = 0f
-                                        scrollPage = max(-1f, -finalValue)
+                                        scrollPage = max(-1f, -selectItemIndex.intValue.toFloat())
                                         animateFlag.intValue += 1
                                     }
                                 }
@@ -288,10 +273,13 @@ private fun BottomBar(
                             val speed = velocity.x // 水平方向的速度
                             if (abs(speed) > 1000) { // 自定义滑动速度阈值
                                 if (speed < 0) {
-                                    scrollPage = min(20f, itemCount - finalValue - 1)
+                                    scrollPage = min(
+                                        20f,
+                                        items.size() - selectItemIndex.intValue.toFloat() - 1
+                                    )
                                     animateFlag.intValue += 1
                                 } else {
-                                    scrollPage = max(-20f, -finalValue)
+                                    scrollPage = max(-20f, -selectItemIndex.intValue.toFloat())
                                     animateFlag.intValue += 1
                                 }
                                 println("Fling detected! Speed: $speed")
@@ -321,28 +309,33 @@ private fun BottomBar(
                 }
         ) { page ->
             println("测试 $page")
-            Box(
-                modifier = Modifier
-                    .background(Color.DarkGray)
-                    .height(itemHeight)
-                    .fillMaxWidth()
-            ) {
-                Text("$page")
-                DisplayImage(
-                    bitmap = notPreview,
-                    context = context,
+            items[page].let {
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .then(if (page != animation.value.toInt()) {
-                            modifier.drawWithContent {
-                                drawContent()
-                                drawRect(
-                                    color = Color.Gray.copy(alpha = 0.5f), // 半透明灰色
-                                    size = size
-                                )
-                            }
-                        } else modifier)
-                )
+                        .background(Color.DarkGray)
+                        .height(itemHeight)
+                        .fillMaxWidth()
+                ) {
+                    val image = it.thumbnailState.value?.let { bitmap ->
+                        if (bitmap.isRecycled) it.thumbnail
+                        else bitmap
+                    } ?: it.thumbnail
+                    DisplayImage(
+                        bitmap = image ?: notPreview,
+                        context = context,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .then(if (page != selectItemIndex.intValue) {
+                                modifier.drawWithContent {
+                                    drawContent()
+                                    drawRect(
+                                        color = Color.Gray.copy(alpha = 0.8f), // 半透明灰色
+                                        size = size
+                                    )
+                                }
+                            } else modifier)
+                    )
+                }
             }
         }
     }
@@ -357,11 +350,10 @@ fun View(
     screenHeight: Dp,
     context: Context
 ) {
-    val items = viewModel.imageFlow.value.collectAsLazyPagingItems()
+    //val items = viewModel.imageFlow.value.collectAsLazyPagingItems()
     val state = rememberLazyListState()
     ZoomViewImage(
         isRow = viewModel.isRow,
-        items = items,
         notPreview = viewModel.notPreviewIcon,
         screenWidth = screenWidth,
         screenHeight = screenHeight,
@@ -375,7 +367,7 @@ fun View(
 @Composable
 fun ZoomViewImage(
     isRow: Boolean,
-    items: LazyPagingItems<MediaItem>,
+    //items: LazyPagingItems<MediaItem>,
     notPreview: Bitmap,
     screenWidth: Dp,
     screenHeight: Dp,
@@ -399,7 +391,7 @@ fun ZoomViewImage(
                 state = state,
                 userScrollEnabled = false
             ) {
-                items(count = items.itemCount) {
+                /*items(count = items.itemCount) {
                     items[it]?.let { item ->
                         Box(
                             contentAlignment = Alignment.Center,
@@ -413,7 +405,7 @@ fun ZoomViewImage(
                             )
                         }
                     }
-                }
+                }*/
             }
         } else {
             LazyColumn(state = state) { }

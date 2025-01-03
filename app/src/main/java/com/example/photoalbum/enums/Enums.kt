@@ -75,3 +75,9 @@ enum class SystemFolder(val displayName: String){
     DOCUMENT("document"),
     DOWNLOAD("download"),
 }
+
+enum class Direction(val value: Int){
+    LEFT(-1),
+    RIGHT(1),
+    NULL(-10)
+}
