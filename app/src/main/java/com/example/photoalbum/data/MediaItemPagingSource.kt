@@ -90,7 +90,7 @@ interface MediaFileService<T> {
 class LocalStorageThumbnailService(
     private val application: MediaApplication,
     override var initialLoadSize: Int,
-    override var maxSize: Int
+    override var maxSize: Int,
 ) :
     MediaFileService<Long> {
 
@@ -268,7 +268,7 @@ class LocalStorageThumbnailService(
         path: String,
         mediaFileId: Long,
         fileName: String,
-        orientation: Float
+        orientation: Float,
     ): Bitmap? {
         val file = File(path)
         if (!file.exists()) return null
@@ -311,7 +311,7 @@ class LocalStorageThumbnailService(
 class LocalStorageMediaFileService(
     private val application: MediaApplication,
     override var initialLoadSize: Int,
-    override var maxSize: Int
+    override var maxSize: Int,
 ) :
     MediaFileService<Long> {
 
@@ -437,7 +437,7 @@ class LocalStorageMediaFileService(
 
 class LocalNetStorageMediaFileService(
     val application: MediaApplication,
-    private val smbClient: SmbClient, override var initialLoadSize: Int, override var maxSize: Int
+    private val smbClient: SmbClient, override var initialLoadSize: Int, override var maxSize: Int,
 ) :
     MediaFileService<String> {
 
@@ -515,7 +515,7 @@ class LocalNetStorageMediaFileService(
     private fun loadData(
         mediaItem: MediaItem,
         smbClient: SmbClient,
-        mutableState: MutableState<Bitmap?>
+        mutableState: MutableState<Bitmap?>,
     ) {
         try {
             mutableState.value = smbClient.getImage(
@@ -543,7 +543,7 @@ class LocalNetStorageMediaFileService(
     override suspend fun getAllData(
         param: String,
         onlyMediaFile: Boolean,
-        selectItemId: Long
+        selectItemId: Long,
     ): Int {
         TODO("Not yet implemented")
     }
@@ -552,7 +552,7 @@ class LocalNetStorageMediaFileService(
 
 class LocalNetStorageThumbnailService(
     val application: MediaApplication,
-    private val smbClient: SmbClient, override var maxSize: Int, override var initialLoadSize: Int
+    private val smbClient: SmbClient, override var maxSize: Int, override var initialLoadSize: Int,
 ) :
     MediaFileService<String> {
 
@@ -560,6 +560,7 @@ class LocalNetStorageThumbnailService(
 
     override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_NET_STORAGE.path)
+
     override var selectItemIndex: Int
         get() = TODO("Not yet implemented")
         set(value) {}
@@ -623,7 +624,7 @@ class LocalNetStorageThumbnailService(
     override suspend fun getAllData(
         param: String,
         onlyMediaFile: Boolean,
-        selectItemId: Long
+        selectItemId: Long,
     ): Int {
         allData.clear()
         allData.addAll(smbClient.getList(param, onlyMediaFile))
@@ -648,7 +649,7 @@ class LocalNetStorageThumbnailService(
 
     private suspend fun createThumbnail(
         mediaFileId: Long,
-        fileName: String
+        fileName: String,
     ): Bitmap? {
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         return coroutineScope.async(context = Dispatchers.IO) {

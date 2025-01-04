@@ -9,6 +9,7 @@ import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.SystemFolder
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.model.MediaItem
+import com.example.photoalbum.smb.SmbClient
 import com.example.photoalbum.utils.decodeSampledBitmap
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
@@ -21,17 +22,39 @@ import java.io.File
 import kotlin.math.max
 import kotlin.math.min
 
-class MediaItemDataSource(
+interface DataService<T> {
+
+    val thumbnailsPath: String
+
+    var allData: MutableList<MediaItem>
+
+    val items: DataList
+
+    suspend fun getAllData(param: T, onlyMediaFile: Boolean, selectItemId: Long): Int
+
+    suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap?
+
+    suspend fun createThumbnail(
+        path: String,
+        mediaFileId: Long,
+        fileName: String,
+        orientation: Float,
+    ): Bitmap?
+
+}
+
+class LocalDataSource(
     private val application: MediaApplication,
     private val loadSize: Int,
     maxSize: Int,
-) {
-    private val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
+) : DataService<Long> {
+
+    override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
 
-    private var allData: MutableList<MediaItem> = mutableListOf()
+    override var allData: MutableList<MediaItem> = mutableListOf()
 
-    val items: DataList =
+    override val items =
         DataList(
             allData,
             loadSize = loadSize,
@@ -80,7 +103,7 @@ class MediaItemDataSource(
             }
         }
 
-    suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Int {
+    override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Int {
         var index = -1
         if (!onlyMediaFile) {
             val directories =
@@ -172,7 +195,7 @@ class MediaItemDataSource(
         return index
     }
 
-    private suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
+    override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
         return if (mediaItem.thumbnailPath.isNullOrEmpty()) {
             createThumbnail(
                 mediaItem.data!!,
@@ -188,7 +211,7 @@ class MediaItemDataSource(
         } else BitmapFactory.decodeFile(mediaItem.thumbnailPath)
     }
 
-    private suspend fun createThumbnail(
+    override suspend fun createThumbnail(
         path: String,
         mediaFileId: Long,
         fileName: String,
@@ -230,6 +253,127 @@ class MediaItemDataSource(
             }
         }.await()
     }
+}
+
+class LocalNetDataSource(
+    val application: MediaApplication,
+    private val loadSize: Int,
+    private val smbClient: SmbClient,
+    maxSize: Int,
+) : DataService<String> {
+
+    override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
+        ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
+
+    override var allData: MutableList<MediaItem> = mutableListOf()
+
+    override val items: DataList = DataList(allData,
+        loadSize = loadSize,
+        maxSize = maxSize,
+        onClear = { top, bottom ->
+            val items = allData.subList(top, bottom + 1)
+            items.onEach { item ->
+                item.thumbnail?.recycle()
+                item.thumbnail = null
+                item.thumbnailState.value?.recycle()
+                item.thumbnailState.value = null
+            }
+        }) { top, bottom ->
+        val items = allData.subList(top, bottom + 1)
+
+        val startDate = System.currentTimeMillis()
+        val coroutineScope = CoroutineScope(Dispatchers.IO)
+        val jobs: MutableList<Job> = mutableListOf()
+        coroutineScope.launch(Dispatchers.IO) {
+            for (item in items) {
+                if (item.type == ItemType.IMAGE) {
+                    if (item.thumbnail == null && item.thumbnailState.let {
+                            if (it.value == null) return@let true
+                            else return@let it.value!!.isRecycled
+                        }) {
+                        val thumbnailName =
+                            getThumbnailName(name = item.displayName, otherStr = item.id.toString())
+                        val testFile = File(thumbnailsPath, thumbnailName)
+                        if (item.fileSize > ImageSize.M_1.size && !testFile.exists() ||
+                            (items.size == 2 * loadSize && item.thumbnailPath.isNullOrEmpty())
+                        ) {
+                            coroutineScope.launch(Dispatchers.IO) {
+                                item.thumbnailState.value = loadThumbnail(item)
+                            }
+                        } else {
+                            jobs.add(coroutineScope.launch(Dispatchers.IO) {
+                                item.thumbnail = loadThumbnail(item)
+                            })
+                        }
+                    }
+                }
+            }
+            jobs.forEach {
+                it.join()
+            }
+            val endDate = System.currentTimeMillis()
+            val re = endDate - startDate
+            println("测试:加载bitmap用时$re")
+        }
+    }
+
+    override suspend fun getAllData(
+        param: String,
+        onlyMediaFile: Boolean,
+        selectItemId: Long,
+    ): Int {
+        allData.clear()
+        allData.addAll(smbClient.getList(param, onlyMediaFile))
+        return allData.indexOfFirst { selectItemId == it.id }
+    }
+
+    override suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
+        return try {
+            createThumbnail(
+                mediaFileId = mediaItem.id,
+                fileName = mediaItem.displayName,
+                path = "",
+                orientation = 0f
+            ) ?: BitmapFactory.decodeFile(
+                File(
+                    thumbnailsPath,
+                    getThumbnailName(mediaItem.displayName, otherStr = mediaItem.id.toString())
+                ).absolutePath
+            )
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    override suspend fun createThumbnail(
+        path: String,
+        mediaFileId: Long,
+        fileName: String,
+        orientation: Float,
+    ): Bitmap? {
+        val coroutineScope = CoroutineScope(Dispatchers.IO)
+        return coroutineScope.async(context = Dispatchers.IO) {
+            var image: Bitmap? = null
+            try {
+                val thumbnailName =
+                    getThumbnailName(name = fileName, otherStr = mediaFileId.toString())
+                val testFile = File(thumbnailsPath, thumbnailName)
+
+                if (testFile.exists()) return@async null
+                smbClient.getImageThumbnail(name = fileName, mediaFileId)?.let {
+                    image = it
+                    saveBitmapToPrivateStorage(
+                        bitmap = it,
+                        fileName = thumbnailName,
+                        directory = thumbnailsPath
+                    )
+                }
+                image
+            } catch (e: Exception) {
+                return@async null
+            }
+        }.await()
+    }
 
 
 }
@@ -248,7 +392,6 @@ class DataList(
     private var previousIndex = -1
 
     operator fun get(index: Int): MediaItem {
-        println("测试:触发get $index")
         val op: Direction
         if (previousIndex == -1) {
             previousIndex = index
@@ -278,7 +421,7 @@ class DataList(
             Direction.NULL -> {
                 if (index <= loadSize - 1) {
                     topEdge = 0
-                    bottomEdge = loadSize * 2 - 1
+                    bottomEdge = min(loadSize * 2 - 1, size() - 1)
                     onGet(topEdge, bottomEdge)
                 } else {
                     topEdge = index - (loadSize - 1)
@@ -290,7 +433,7 @@ class DataList(
 
             Direction.RIGHT -> {
                 if (bottomEdge - 10 == index) {
-                    bottomEdge = min(bottomEdge + loadSize, list.size - 1)
+                    bottomEdge = min(bottomEdge + loadSize, size() - 1)
                     onGet(index + 10 + 1, bottomEdge)
                     //println("测试:op>0 上边界$topEdge 下边界$bottomEdge index$index op$op")
                 }

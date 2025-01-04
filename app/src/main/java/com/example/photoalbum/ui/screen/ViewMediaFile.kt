@@ -25,7 +25,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
-import androidx.compose.foundation.pager.PagerDefaults
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIosNew
@@ -205,7 +204,6 @@ private fun BottomBar(
 
     LaunchedEffect(animation.value.toInt(), animation.isRunning) {
         if (animation.isRunning) {
-            println("测试:滚动至 ${animation.value.toInt()}")
             state.animateScrollToPage(animation.value.toInt())
         }
     }
@@ -222,10 +220,6 @@ private fun BottomBar(
             pageSpacing = TinyPadding,
             pageSize = PageSize.Fixed(itemWidth),
             verticalAlignment = Alignment.CenterVertically,
-            flingBehavior = PagerDefaults.flingBehavior(
-                state = state,
-                snapPositionalThreshold = 0.001f
-            ),
             modifier = modifier
                 .fillMaxHeight()
                 .pointerInput(Unit) {
@@ -233,11 +227,10 @@ private fun BottomBar(
                     var isDragging = false // 用于标记是否正在拖动
                     var addup = 0f
                     detectHorizontalDragGestures(
-                        onDragStart = { startOffset ->
+                        onDragStart = {
                             // 拖动开始，初始化状态
                             isDragging = true
                             velocityTracker.resetTracking()
-                            println("Drag started at $startOffset")
                         },
                         onHorizontalDrag = { change, dragAmount ->
                             // 拖动中，记录增量和位置
@@ -262,7 +255,6 @@ private fun BottomBar(
                                         animateFlag.intValue += 1
                                     }
                                 }
-                                println("Dragging by $dragAmount add up by $addup ${animateFlag.intValue} ${animation.isRunning}")
                             }
                         },
                         onDragEnd = {
@@ -282,9 +274,6 @@ private fun BottomBar(
                                     scrollPage = max(-20f, -selectItemIndex.intValue.toFloat())
                                     animateFlag.intValue += 1
                                 }
-                                println("Fling detected! Speed: $speed")
-                            } else {
-                                println("Drag ended without fling")
                             }
                         },
                         onDragCancel = {
@@ -294,7 +283,7 @@ private fun BottomBar(
                                 animation.stop()
                             }
                             isDragging = false
-                            println("Drag canceled")
+                            println("测试:拖动取消")
                         }
                     )
                 }
@@ -329,7 +318,7 @@ private fun BottomBar(
                                 modifier.drawWithContent {
                                     drawContent()
                                     drawRect(
-                                        color = Color.Gray.copy(alpha = 0.8f), // 半透明灰色
+                                        color = Color.Gray.copy(alpha = 0.8f),
                                         size = size
                                     )
                                 }
@@ -350,7 +339,6 @@ fun View(
     screenHeight: Dp,
     context: Context
 ) {
-    //val items = viewModel.imageFlow.value.collectAsLazyPagingItems()
     val state = rememberLazyListState()
     ZoomViewImage(
         isRow = viewModel.isRow,
