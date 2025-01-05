@@ -3,6 +3,7 @@ package com.example.photoalbum.ui.screen
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -19,12 +20,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
+import androidx.compose.foundation.pager.PagerState
+import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIosNew
@@ -35,6 +34,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -47,9 +48,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
@@ -74,7 +77,9 @@ import kotlin.random.Random
 
 @Composable
 fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
-    viewModel.expandBar(false)
+    LaunchedEffect(Unit) {
+        viewModel.expandBar(false)
+    }
     val statusBarHeight = WindowInsets.systemBars.getTop(LocalDensity.current)
     val statusBarHeightDp = with(LocalDensity.current) { statusBarHeight.toDp() }
     val configuration = LocalConfiguration.current
@@ -131,6 +136,9 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
                         viewModel.expandBar(false, recomposeKey = Random.nextInt())
                     })
                 }
+                .background(
+                    if (viewModel.expandMyBar) Color.White else Color.Black
+                )
         )
     }
 }
@@ -173,7 +181,7 @@ private fun BottomBar(
     screenWidth: Dp,
     selectItemIndex: MutableIntState,
     context: Context,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val state =
         rememberPagerState(initialPage = selectItemIndex.intValue, pageCount = { items.size() })
@@ -337,66 +345,114 @@ fun View(
     modifier: Modifier = Modifier,
     screenWidth: Dp,
     screenHeight: Dp,
-    context: Context
+    context: Context,
 ) {
-    val state = rememberLazyListState()
-    ZoomViewImage(
-        isRow = viewModel.isRow,
-        notPreview = viewModel.notPreviewIcon,
-        screenWidth = screenWidth,
-        screenHeight = screenHeight,
-        state = state,
-        selectItemIndex = viewModel.itemIndex,
-        context = context,
-        modifier = modifier.background(if (viewModel.expandMyBar) Color.White else Color.Black)
-    )
+    val ani = remember {
+        Animatable(initialValue = 1f)
+    }
+    val density = LocalDensity.current
+    val loadBitmap = viewModel.application.loadThumbnailBitmap ?: viewModel.notPreviewIcon
+    LaunchedEffect(Unit) {
+        with(density) {
+            val imageWidthPx = loadBitmap.width.toFloat()
+            val targetScale = screenWidth.toPx() / imageWidthPx
+            ani.animateTo(
+                targetValue = targetScale,
+                animationSpec = tween(durationMillis = 700, easing = LinearOutSlowInEasing)
+            )
+        }
+    }
+
+    Box(contentAlignment = Alignment.Center, modifier = modifier) {
+        val loadPageParams by remember {
+            derivedStateOf { viewModel.loadPageParams.value }
+        }
+
+        val pagerState: MutableState<PagerState?> = remember { mutableStateOf(null) }
+        LaunchedEffect(loadPageParams) {
+            if (loadPageParams.first != -1) {
+                pagerState.value = PagerState(
+                    currentPage = viewModel.loadPageParams.value.first
+                ) {
+                    viewModel.loadPageParams.value.second
+                }
+            }
+        }
+        ZoomViewImage(
+            isRow = viewModel.isRow,
+            items = viewModel.source.items,
+            notPreview = viewModel.notPreviewIcon,
+            screenWidth = screenWidth,
+            screenHeight = screenHeight,
+            pageState = pagerState.value,
+            selectItemIndex = viewModel.itemIndex,
+            context = context,
+            modifier = modifier.graphicsLayer(
+                alpha = if (ani.isRunning) 0f else 1f
+            )
+        )
+
+        DisplayImage(
+            bitmap = loadBitmap,
+            context = context,
+            contentScale = ContentScale.None,
+            modifier = Modifier.graphicsLayer(
+                scaleX = ani.value,
+                scaleY = ani.value,
+                alpha = if (ani.isRunning) 1f else 0f
+            )
+        )
+    }
 }
 
 @Composable
 fun ZoomViewImage(
     isRow: Boolean,
-    //items: LazyPagingItems<MediaItem>,
+    items: DataList,
     notPreview: Bitmap,
     screenWidth: Dp,
     screenHeight: Dp,
-    state: LazyListState,
+    pageState: PagerState?,
     selectItemIndex: MutableIntState,
     context: Context,
     modifier: Modifier = Modifier,
 ) {
-    var scale by remember { mutableFloatStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset(0f, 0f)) }
+    pageState?.let { state ->
+        var scale by remember { mutableFloatStateOf(1f) }
+        var offset by remember { mutableStateOf(Offset(0f, 0f)) }
 
-    Box(contentAlignment = Alignment.Center,
-        modifier = modifier
-            .pointerInput(Unit) {
-                detectDragGestures(onDrag = { change, dragAmount -> true })
-                detectTapGestures(onTap = { true })
-                detectTransformGestures(onGesture = { centroid, pan, zoom, rotation -> true })
-            }) {
-        if (isRow) {
-            LazyRow(
-                state = state,
-                userScrollEnabled = false
-            ) {
-                /*items(count = items.itemCount) {
-                    items[it]?.let { item ->
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier.width(screenWidth)
-                        ) {
-                            DisplayImage(
-                                bitmap = item.dataBitmap.value ?: item.thumbnail ?: notPreview,
-                                contentScale = ContentScale.FillWidth,
-                                context = context,
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                        }
+        Box(contentAlignment = Alignment.Center,
+            modifier = modifier
+                .pointerInput(Unit) {
+                    detectDragGestures(onDrag = { change, dragAmount -> true })
+                    detectTapGestures(onTap = { true })
+                    detectTransformGestures(onGesture = { centroid, pan, zoom, rotation -> true })
+                }) {
+            if (isRow) {
+                HorizontalPager(
+                    userScrollEnabled = false,
+                    state = state,
+                    verticalAlignment = Alignment.CenterVertically,
+                    pageSize = PageSize.Fixed(screenWidth),
+                    modifier = modifier
+                        .fillMaxHeight()
+                ) {
+                    items[selectItemIndex.intValue].let {
+                        val image = it.thumbnailState.value?.let { bitmap ->
+                            if (bitmap.isRecycled) it.thumbnail
+                            else bitmap
+                        } ?: it.thumbnail
+                        DisplayImage(
+                            bitmap = image ?: notPreview, context = context,
+                            contentScale = ContentScale.FillWidth,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
-                }*/
+
+                }
+            } else {
+                VerticalPager(state = state) { }
             }
-        } else {
-            LazyColumn(state = state) { }
         }
     }
 }

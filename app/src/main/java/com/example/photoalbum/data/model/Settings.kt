@@ -18,6 +18,9 @@ data class Settings(
     var gridColumnNum: Int = 3
 ) {
     @Ignore
+    var expandDuration: Int = 400
+
+    @Ignore
     var gridColumnNumState = mutableIntStateOf(gridColumnNum)
 
     @Ignore

@@ -35,7 +35,9 @@ class ViewMediaFileViewModel(
 
     var expandMyBar: Boolean by mutableStateOf(false)
 
-    var itemIndex = mutableIntStateOf(0)
+    var itemIndex = mutableIntStateOf(-1)
+
+    var loadPageParams = mutableStateOf(-1 to -1)
 
     var nextDirectory: String? = null
 
@@ -76,6 +78,8 @@ class ViewMediaFileViewModel(
                         imageId
                     )
                 }
+            println("open new")
+            loadPageParams.value = select to source.items.size()
             itemIndex.intValue = select
             source.items[select]
         }
@@ -98,6 +102,6 @@ class ViewMediaFileViewModel(
     }
 
     fun expandBar(expand: Boolean, recomposeKey: Int = 0) {
-        userAction.value = UserAction.ExpandStatusBarAction(expand, recomposeKey)
+        userAction.value = UserAction.ExpandStatusBarAction(expand, recomposeKey, 0)
     }
 }

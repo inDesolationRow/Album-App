@@ -43,6 +43,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
@@ -66,6 +67,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewModelScope
 import androidx.paging.compose.LazyPagingItems
 import androidx.paging.compose.collectAsLazyPagingItems
@@ -254,10 +258,11 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             onClear = { start, end ->
                                 viewModel.clearCache(start, end, StorageType.LOCAL)
                             },
-                            clickId = { id, type ->
+                            clickId = { id, type, image ->
                                 if (type == ItemType.DIRECTORY) viewModel.currentDirectoryId.value =
                                     id
                                 else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
+                                    viewModel.application.loadThumbnailBitmap = image
                                     viewModel.userAction.value =
                                         UserAction.OpenImage(viewModel.currentDirectoryId.value, id)
                                 }
@@ -346,7 +351,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             onClear = { start, end ->
                                 viewModel.clearCache(start, end, StorageType.CLOUD)
                             },
-                            clickString = { id, name, type ->
+                            clickString = { id, name, type, image ->
                                 //每次操作时判断连接是否有效
                                 //如果连接失效弹窗提示,并尝试重连
                                 viewModel.viewModelScope.launch(Dispatchers.IO) {
@@ -361,6 +366,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                         if (type == ItemType.DIRECTORY) viewModel.initLocalNetMediaFilePaging(
                                             name
                                         ) else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
+                                            viewModel.application.loadThumbnailBitmap = image
                                             viewModel.userAction.value =
                                                 UserAction.OpenImage(
                                                     viewModel.smbClient.getPath().dropLast(1),
@@ -397,7 +403,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
 private fun TopBar(
     viewModel: MediaListScreenViewModel,
     selectItem: Menu,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
     Box(modifier = modifier) {
@@ -474,8 +480,8 @@ fun MediaList(
     back: MutableState<Boolean>,
     onClear: (Int, Int) -> Unit,
     onScroll: (Int) -> Unit,
-    clickId: ((Long, ItemType) -> Unit)? = null,
-    clickString: ((Long, String, ItemType) -> Unit)? = null,
+    clickId: ((Long, ItemType, Bitmap?) -> Unit)? = null,
+    clickString: ((Long, String, ItemType, Bitmap?) -> Unit)? = null,
 ) {
 
     val topClearIndex = remember { mutableIntStateOf(0) }
@@ -527,7 +533,7 @@ fun MediaList(
                                 if (itemIndex != 0 && back.value) {
                                     if (state.firstVisibleItemIndex == 0) {
                                         co.launch {
-                                            while (delay.longValue < 100){
+                                            while (delay.longValue < 100) {
                                                 state.scrollToItem(itemIndex)
                                                 kotlinx.coroutines.delay(10)
                                                 delay.longValue += 10
@@ -542,11 +548,12 @@ fun MediaList(
                                 }
                             }
                     }
+                val image = it.thumbnailState.value?.let { bitmap ->
+                    if (bitmap.isRecycled) it.thumbnail
+                    else bitmap
+                } ?: it.thumbnail
                 MediaFilePreview(
-                    image = it.thumbnailState.value?.let { bitmap ->
-                        if (bitmap.isRecycled) it.thumbnail
-                        else bitmap
-                    } ?: it.thumbnail,
+                    image = image,
                     nullPreviewIcon = nullPreviewIcon,
                     directoryIcon = directoryIcon,
                     directoryName = it.displayName,
@@ -557,24 +564,49 @@ fun MediaList(
                         .clickable {
                             if (clickId != null) clickId(
                                 it.id,
-                                it.type
+                                it.type,
+                                image
                             ) else if (clickString != null) clickString(
                                 it.id,
                                 it.displayName,
-                                it.type
+                                it.type,
+                                image
                             )
                         }
                 )
             }
         }
     }
-
     val invisibleStatusBar by remember {
         derivedStateOf {
             state.firstVisibleItemScrollOffset > 0
         }
     }
-    expand(!invisibleStatusBar)
+    var lifecycle by remember {
+        mutableStateOf(true)
+    }
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    lifecycle = true
+                }
+
+                Lifecycle.Event.ON_PAUSE -> {
+                    lifecycle = false
+                }
+
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    expand(!invisibleStatusBar && lifecycle)
 }
 
 @Composable
@@ -585,7 +617,7 @@ fun MediaFilePreview(
     fileType: ItemType,
     directoryName: String,
     context: Context,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier) {
         if (image == null || image.width == 0 && image.height == 0) {
@@ -629,7 +661,7 @@ fun MediaFilePreview(
 @Composable
 fun AddLocalNetStorage(
     onClick: (String, String, String?, String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -719,7 +751,7 @@ fun AddLocalNetStorage(
 fun result(
     result: ConnectResult,
     viewModel: MediaListScreenViewModel,
-    onSuccess: () -> Unit
+    onSuccess: () -> Unit,
 ) {
     when (result) {
         is ConnectResult.IPError -> viewModel.showDialog =

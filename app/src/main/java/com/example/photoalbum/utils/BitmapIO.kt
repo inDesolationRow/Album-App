@@ -153,7 +153,7 @@ fun rotateBitmap(bitmap: Bitmap, orientation: Float): Bitmap {
 }
 
 fun blurBitmap(context: Context, bitmap: Bitmap, radius: Float): Bitmap {
-
+    val start = System.currentTimeMillis()
     val renderScript = RenderScript.create(context)
     val input = Allocation.createFromBitmap(renderScript, bitmap)
     val output = Allocation.createTyped(renderScript, input.type)
@@ -165,6 +165,8 @@ fun blurBitmap(context: Context, bitmap: Bitmap, radius: Float): Bitmap {
 
     output.copyTo(bitmap) // 将处理后的图像输出回Bitmap
     renderScript.destroy()
+    val end = System.currentTimeMillis()
+    println("测试:模糊处理用时${end - start}")
     return bitmap
 }
 

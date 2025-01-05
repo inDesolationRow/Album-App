@@ -1,6 +1,5 @@
 package com.example.photoalbum.ui.screen
 
-import android.app.Activity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -36,5 +35,4 @@ class MainScreenViewModel(
             settings
         )
     )[FavoriteScreenViewModel::class.java]
-
 }

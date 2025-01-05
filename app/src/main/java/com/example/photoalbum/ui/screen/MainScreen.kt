@@ -21,7 +21,9 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -47,8 +49,10 @@ fun MainScreen(viewModel: MainScreenViewModel) {
     val density = LocalDensity.current
     val navHost = rememberNavController()
     val userAction = viewModel.userAction.collectAsState()
+    val durationMillis = remember { mutableIntStateOf(400) }
     when (val action = userAction.value) {
         is UserAction.ExpandStatusBarAction -> {
+            durationMillis.intValue = action.duration
             viewModel.expand = action.expand
         }
 
@@ -59,10 +63,12 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                     directory = action.directory.toString()
                     true
                 }
+
                 is String -> {
                     directory = action.directory
                     false
                 }
+
                 else -> throw IllegalArgumentException("转跳ViewImage参数异常")
             }
             navHost.navigate("ViewImage?directory=$directory&id=${action.imageId}&local=$local")
@@ -78,7 +84,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
     val bottomBarAnimateDp: State<Dp>? = if (getNavHostHeight) {
         animateDpAsState(
             targetValue = if (viewModel.expand) hostHeight else 0.dp,
-            animationSpec = tween(durationMillis = 600),
+            animationSpec = tween(durationMillis = durationMillis.intValue),
             label = "隐藏或显示bottomBar"
         )
     } else {
@@ -86,13 +92,15 @@ fun MainScreen(viewModel: MainScreenViewModel) {
     }
     Scaffold(
         bottomBar = {
-            NavigationBar(modifier = Modifier.then(
+            NavigationBar(modifier = Modifier
+                .then(
                     if (getNavHostHeight) {
                         Modifier.height(bottomBarAnimateDp!!.value)
                     } else {
                         Modifier
                     }
-                ).onGloballyPositioned { layout ->
+                )
+                .onGloballyPositioned { layout ->
                     with(density) {
                         if (!getNavHostHeight) {
                             hostHeight = layout.size.height.toDp()
@@ -183,10 +191,10 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                 val local = it.arguments?.getString("local")?.toBoolean() ?: false
                 val id = it.arguments?.getString("id")?.toLongOrNull()
                 LaunchedEffect(local, id) {
-                    if (local){
+                    if (local) {
                         val directoryId = it.arguments?.getString("directory")!!.toLong()
                         viewMediaFileViewModel.initData(directoryId, id!!, true)
-                    }else{
+                    } else {
                         val directoryPath = it.arguments?.getString("directory")!!
                         viewMediaFileViewModel.initData(directoryPath, id!!, false)
                     }
