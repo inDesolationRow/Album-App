@@ -29,8 +29,6 @@ class ViewMediaFileViewModel(
 
     var showDialog by mutableStateOf(MediaListDialogEntity())
 
-    private var local by mutableStateOf(true)
-
     var isRow by mutableStateOf(true)
 
     var expandMyBar: Boolean by mutableStateOf(false)
@@ -38,6 +36,8 @@ class ViewMediaFileViewModel(
     var itemIndex = mutableIntStateOf(-1)
 
     var loadPageParams = mutableStateOf(-1 to -1)
+
+    var initializer by mutableStateOf(false)
 
     var nextDirectory: String? = null
 
@@ -50,22 +50,33 @@ class ViewMediaFileViewModel(
         connectSmb(client)
         return@lazy client
     }
+    private var _source: DataService<*>? = null
 
-    val source: DataService<*> by lazy {
-        if (local)
-            return@lazy LocalDataSource(application, loadSize = 20, maxSize = 80)
-        else
-            return@lazy LocalNetDataSource(
-                application,
-                loadSize = 20,
-                maxSize = 80,
-                smbClient = smbClient
-            )
-    }
+    val source: DataService<*>
+        get() {
+            return _source!!
+        }
 
     fun initData(directory: Any, imageId: Long, local: Boolean) {
-        this.local = local
         viewModelScope.launch(Dispatchers.IO) {
+            _source = if (local)
+                LocalDataSource(application, loadSize = 20, maxSize = 80)
+            else {
+                if (!smbClient.isConnect()) {
+                    showDialog =
+                        MediaListDialogEntity(MediaListDialog.LOCAL_NET_OFFLINE, true, onClick = {
+                            userAction.value = UserAction.Back
+                        })
+                    return@launch
+                }
+                LocalNetDataSource(
+                    application,
+                    loadSize = 20,
+                    maxSize = 80,
+                    smbClient = smbClient
+                )
+            }
+            initializer = true
             val select =
                 source.let {
                     if (local) return@let (it as LocalDataSource).getAllData(
@@ -78,11 +89,11 @@ class ViewMediaFileViewModel(
                         imageId
                     )
                 }
-            println("open new")
             loadPageParams.value = select to source.items.size()
             itemIndex.intValue = select
             source.items[select]
         }
+
     }
 
     private fun connectSmb(smbClient: SmbClient, reconnect: Boolean = false) {

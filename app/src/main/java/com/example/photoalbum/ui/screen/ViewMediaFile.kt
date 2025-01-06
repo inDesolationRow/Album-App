@@ -93,53 +93,55 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
             ) { viewModel.showDialog.onClick }
         }
     }
-    Scaffold(
-        topBar = {
-            if (viewModel.expandMyBar) TopBar(
+    if (viewModel.initializer){
+        Scaffold(
+            topBar = {
+                if (viewModel.expandMyBar) TopBar(
+                    viewModel = viewModel,
+                    modifier = Modifier
+                        .zIndex(1f)
+                        .background(Color.White.copy(alpha = 0.8f))
+                        .height(screenHeightDp * 0.12f)
+                        .padding(topPaddingValues)
+                )
+            },
+            bottomBar = {
+                if (viewModel.expandMyBar) BottomBar(
+                    items = viewModel.source.items,
+                    height = screenHeightDp * 0.12f,
+                    screenWidth = configuration.screenWidthDp.dp,
+                    notPreview = viewModel.notPreviewIcon,
+                    selectItemIndex = viewModel.itemIndex,
+                    context = viewModel.application.applicationContext,
+                    modifier = Modifier
+                        .zIndex(1f)
+                        .background(Color.White.copy(alpha = 0.8f))
+                        .height(screenHeightDp * 0.12f)
+                )
+            }
+        ) {
+            it.let {
+                topPaddingValues = PaddingValues(top = statusBarHeightDp)
+            }
+            View(
                 viewModel = viewModel,
-                modifier = Modifier
-                    .zIndex(1f)
-                    .background(Color.White.copy(alpha = 0.8f))
-                    .height(screenHeightDp * 0.12f)
-                    .padding(topPaddingValues)
-            )
-        },
-        bottomBar = {
-            if (viewModel.expandMyBar) BottomBar(
-                items = viewModel.source.items,
-                height = screenHeightDp * 0.12f,
+                screenHeight = screenHeightDp,
                 screenWidth = configuration.screenWidthDp.dp,
-                notPreview = viewModel.notPreviewIcon,
-                selectItemIndex = viewModel.itemIndex,
                 context = viewModel.application.applicationContext,
                 modifier = Modifier
-                    .zIndex(1f)
-                    .background(Color.White.copy(alpha = 0.8f))
-                    .height(screenHeightDp * 0.12f)
+                    .zIndex(0f)
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {
+                            viewModel.expandMyBar = !viewModel.expandMyBar
+                            viewModel.expandBar(false, recomposeKey = Random.nextInt())
+                        })
+                    }
+                    .background(
+                        if (viewModel.expandMyBar) Color.White else Color.Black
+                    )
             )
         }
-    ) {
-        it.let {
-            topPaddingValues = PaddingValues(top = statusBarHeightDp)
-        }
-        View(
-            viewModel = viewModel,
-            screenHeight = screenHeightDp,
-            screenWidth = configuration.screenWidthDp.dp,
-            context = viewModel.application.applicationContext,
-            modifier = Modifier
-                .zIndex(0f)
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = {
-                        viewModel.expandMyBar = !viewModel.expandMyBar
-                        viewModel.expandBar(false, recomposeKey = Random.nextInt())
-                    })
-                }
-                .background(
-                    if (viewModel.expandMyBar) Color.White else Color.Black
-                )
-        )
     }
 }
 

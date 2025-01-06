@@ -41,7 +41,6 @@ class MediaItemPagingSource(
             } else {
                 apiService.getData(page, params.loadSize)
             }*/
-            println("测试:初始page $page")
             LoadResult.Page(
                 data = response,
                 prevKey = if (page == 1) null else page - 1,

@@ -249,7 +249,6 @@ class MediaListScreenViewModel(
     }
 
     fun clearCache(start: Int, end: Int, type: StorageType) {
-        println("测试:clear $start  $end")
         if (type == StorageType.LOCAL) {
             localMediaFileService.allData.slice(IntRange(start, end)).onEach { item ->
                 item.thumbnail?.recycle()
