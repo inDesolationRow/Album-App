@@ -10,6 +10,7 @@ import com.example.photoalbum.enums.SystemFolder
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.smb.SmbClient
+import com.example.photoalbum.utils.decodeBitmap
 import com.example.photoalbum.utils.decodeSampledBitmap
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
@@ -17,6 +18,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
 import kotlin.math.max
@@ -30,6 +33,8 @@ interface DataService<T> {
 
     val items: DataList
 
+    var loadImageJob: Job?
+
     suspend fun getAllData(param: T, onlyMediaFile: Boolean, selectItemId: Long): Int
 
     suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap?
@@ -41,6 +46,7 @@ interface DataService<T> {
         orientation: Float,
     ): Bitmap?
 
+    suspend fun loadImage(position: Int)
 }
 
 class LocalDataSource(
@@ -99,9 +105,9 @@ class LocalDataSource(
                 }
                 val endDate = System.currentTimeMillis()
                 val re = endDate - startDate
-                println("测试:加载bitmap用时$re")
             }
         }
+    override var loadImageJob: Job? = null
 
     override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Int {
         var index = -1
@@ -253,6 +259,18 @@ class LocalDataSource(
             }
         }.await()
     }
+
+    override suspend fun loadImage(position: Int) {
+        loadImageJob?.cancel()
+        val coroutineScope = CoroutineScope(Dispatchers.IO)
+        loadImageJob = coroutineScope.launch {
+            delay(100)
+            println("测试:load图片 $position")
+            val item = allData[position]
+            item.dataBitmap.value =
+                decodeBitmap(filePath = item.data!!, orientation = item.orientation.toFloat())
+        }
+    }
 }
 
 class LocalNetDataSource(
@@ -281,7 +299,6 @@ class LocalNetDataSource(
         }) { top, bottom ->
         val items = allData.subList(top, bottom + 1)
 
-        val startDate = System.currentTimeMillis()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         val jobs: MutableList<Job> = mutableListOf()
         coroutineScope.launch(Dispatchers.IO) {
@@ -311,11 +328,10 @@ class LocalNetDataSource(
             jobs.forEach {
                 it.join()
             }
-            val endDate = System.currentTimeMillis()
-            val re = endDate - startDate
-            println("测试:加载bitmap用时$re")
         }
     }
+
+    override var loadImageJob: Job? = null
 
     override suspend fun getAllData(
         param: String,
@@ -375,6 +391,9 @@ class LocalNetDataSource(
         }.await()
     }
 
+    override suspend fun loadImage(position: Int) {
+        TODO("Not yet implemented")
+    }
 
 }
 

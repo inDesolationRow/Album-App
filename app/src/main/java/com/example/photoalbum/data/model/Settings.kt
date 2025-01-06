@@ -1,5 +1,6 @@
 package com.example.photoalbum.data.model
 
+import android.util.Size
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.room.ColumnInfo
 import androidx.room.Entity
@@ -15,8 +16,11 @@ data class Settings(
     var openLocalNetStorageThumbnail: Boolean = true,
 
     @ColumnInfo(name = "grid_column_num")
-    var gridColumnNum: Int = 3
+    var gridColumnNum: Int = 3,
 ) {
+    @Ignore
+    var phoneSize: Size? = null
+
     @Ignore
     var expandDuration: Int = 400
 

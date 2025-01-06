@@ -13,44 +13,50 @@ import android.renderscript.ScriptIntrinsicBlur
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
-import java.io.InputStream
 
-fun decodeBitmap(filePath: String, orientation: Float): Bitmap? {
+suspend fun decodeBitmap(
+    filePath: String,
+    orientation: Float,
+    targetWidth: Int = 1080,
+    maxMemorySize: Int = 50 * 1024 * 1024,
+): Bitmap? {
     try {
-        /*        val result : Bitmap
-                val before = System.currentTimeMillis()
-                result = BitmapFactory.decodeFile(filePath)
-                val after = System.currentTimeMillis()
-                println("测试:原图加载时间 ${after - before}")*/
-        return rotateBitmap(BitmapFactory.decodeFile(filePath), orientation = orientation)
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true // 只加载图片的元信息，不加载实际内容
+        }
+        BitmapFactory.decodeFile(filePath, options)
+        // 计算合适的 inSampleSize
+        options.inSampleSize = calculateOptimalSampleSize(
+            options = options,
+            targetWidth = targetWidth,
+            maxMemorySize = maxMemorySize
+        )
+        options.inJustDecodeBounds = false
+
+        return rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation = orientation)
     } catch (e: Exception) {
         println("错误:解析失败 ${e.printStackTrace()}")
         return null
     }
 }
 
-fun decodeBitmap(byteArray: ByteArray): Bitmap? {
+fun decodeBitmap(
+    byteArray: ByteArray,
+    targetWidth: Int = 1080,
+    maxMemorySize: Int = 50 * 1024 * 1024,
+): Bitmap? {
     try {
-        /*        val result : Bitmap
-                val before = System.currentTimeMillis()
-                result = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
-                val after = System.currentTimeMillis()
-                println("测试:原图加载时间 ${after - before}")*/
-        return BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
-    } catch (e: Exception) {
-        println("错误:解析失败 ${e.printStackTrace()}")
-        return null
-    }
-}
-
-fun decodeBitmap(inputStream: InputStream): Bitmap? {
-    try {
-        /*        val result : Bitmap
-                val before = System.currentTimeMillis()
-                result = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size)
-                val after = System.currentTimeMillis()
-                println("测试:原图加载时间 ${after - before}")*/
-        return BitmapFactory.decodeStream(inputStream)
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true // 只加载图片的元信息，不加载实际内容
+        }
+        BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size, options)
+        options.inSampleSize = calculateOptimalSampleSize(
+            options = options,
+            targetWidth = targetWidth,
+            maxMemorySize = maxMemorySize
+        )
+        options.inJustDecodeBounds = false
+        return BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size, options)
     } catch (e: Exception) {
         println("错误:解析失败 ${e.printStackTrace()}")
         return null
@@ -61,7 +67,7 @@ fun decodeSampledBitmap(
     filePath: String,
     orientation: Float,
     reqWidth: Int = 300,
-    reqHeight: Int = 300
+    reqHeight: Int = 300,
 ): Bitmap? {
     try {
         // 第一次加载仅获取图片的尺寸
@@ -86,7 +92,7 @@ fun decodeSampledBitmap(
 fun decodeSampledBitmap(
     byteArray: ByteArray,
     reqWidth: Int = 300,
-    reqHeight: Int = 300
+    reqHeight: Int = 300,
 ): Bitmap? {
     try {
         val options = BitmapFactory.Options().apply {
@@ -120,10 +126,42 @@ fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeig
     return inSampleSize
 }
 
+fun calculateOptimalSampleSize(
+    options: BitmapFactory.Options,
+    targetWidth: Int,
+    maxMemorySize: Int,
+): Int {
+    val originalWidth: Int = options.outWidth
+    val originalHeight: Int = options.outHeight
+    val bytesPerPixel = 4 // ARGB_8888 格式，每像素 4 字节
+    var inSampleSize = 1
+
+    // 宽度适配
+    if (originalWidth > targetWidth) {
+        inSampleSize = originalWidth / targetWidth
+    }
+
+    // 内存限制调整
+    while (true) {
+        val scaledWidth = originalWidth / inSampleSize
+        val scaledHeight = originalHeight / inSampleSize
+        val estimatedMemory = scaledWidth * scaledHeight * bytesPerPixel
+
+        if (estimatedMemory <= maxMemorySize) {
+            break
+        }
+
+        // 优化缩放策略，逐步增加缩放比
+        inSampleSize++
+    }
+
+    return inSampleSize
+}
+
 fun saveBitmapToPrivateStorage(
     bitmap: Bitmap,
     fileName: String,
-    directory: String
+    directory: String,
 ): File? {
     val saveDirectory = File(directory)
     if (!saveDirectory.exists()) {

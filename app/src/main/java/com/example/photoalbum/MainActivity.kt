@@ -1,7 +1,11 @@
 package com.example.photoalbum
 
+import android.app.Activity
+import android.graphics.Point
 import android.os.Build
 import android.os.Bundle
+import android.util.DisplayMetrics
+import android.util.Size
 import android.view.View
 import android.view.WindowInsets
 import androidx.activity.ComponentActivity
@@ -22,6 +26,7 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         val myapplication = application as MediaApplication
         val factory = BaseViewModel.Companion.MyViewModelFactory(
@@ -70,13 +75,36 @@ class MainActivity : ComponentActivity() {
                     settings?.openLocalNetStorageThumbnail ?: true
                 viewModel.settings.gridColumnNumState.intValue = settings?.gridColumnNum ?: 3
             }
+            viewModel.settings.phoneSize = getPhysicalResolution(this@MainActivity)
         }
-        enableEdgeToEdge()
         //decodeBitmap("/storage/emulated/0/DCIM/Camera/20231008_154438.jpg")
         setContent {
             PhotoAlbumTheme {
                 MainScreen(viewModel)
             }
+        }
+    }
+}
+
+fun getPhysicalResolution(activity: Activity): Size {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        // Android 11 (API 30)及以上
+        val windowManager = activity.windowManager
+        val metrics = windowManager.currentWindowMetrics
+        val bounds = metrics.bounds // 获取窗口的边界
+        Size(bounds.width(), bounds.height())
+    } else {
+        // Android 10 (API 29)及以下
+        val display = activity.windowManager.defaultDisplay
+        val metrics = DisplayMetrics()
+        try {
+            display.getRealMetrics(metrics) // 获取完整分辨率，包括系统栏
+            Size(metrics.widthPixels, metrics.heightPixels)
+        } catch (e: Exception) {
+            // Fallback：对于部分特殊设备，使用旧方法获取
+            val size = Point()
+            display.getRealSize(size)
+            Size(size.x, size.y)
         }
     }
 }

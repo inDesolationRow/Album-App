@@ -3,7 +3,9 @@ package com.example.photoalbum.ui.screen
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -62,6 +64,7 @@ import androidx.compose.ui.unit.times
 import androidx.compose.ui.zIndex
 import com.example.photoalbum.R
 import com.example.photoalbum.data.DataList
+import com.example.photoalbum.data.DataService
 import com.example.photoalbum.enums.MediaListDialog
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.ui.common.DisplayImage
@@ -93,7 +96,7 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
             ) { viewModel.showDialog.onClick }
         }
     }
-    if (viewModel.initializer){
+    if (viewModel.initializer) {
         Scaffold(
             topBar = {
                 if (viewModel.expandMyBar) TopBar(
@@ -203,7 +206,10 @@ private fun BottomBar(
             try {
                 animation.animateTo(
                     targetValue = selectItemIndex.intValue + scrollPage,
-                    animationSpec = tween(durationMillis = abs(scrollPage).toInt() * 75)
+                    animationSpec = tween(
+                        durationMillis = abs(scrollPage).toInt() * 50,
+                        easing = LinearEasing
+                    )
                 )
             } catch (e: Exception) {
                 e.printStackTrace()
@@ -214,12 +220,23 @@ private fun BottomBar(
 
     LaunchedEffect(animation.value.toInt(), animation.isRunning) {
         if (animation.isRunning) {
-            state.animateScrollToPage(animation.value.toInt())
+            state.animateScrollToPage(
+                animation.value.toInt(), animationSpec = tween(
+                    durationMillis = 50,
+                    easing = LinearEasing
+                )
+            )
         }
     }
 
     LaunchedEffect(state.currentPage) {
-        selectItemIndex.intValue = state.currentPage
+        if (state.currentPage != selectItemIndex.intValue)
+            selectItemIndex.intValue = state.currentPage
+    }
+
+    LaunchedEffect(selectItemIndex.intValue) {
+        if (selectItemIndex.intValue != state.currentPage)
+            state.animateScrollToPage(selectItemIndex.intValue)
     }
 
     Box {
@@ -273,11 +290,11 @@ private fun BottomBar(
                             addup = 0f
                             val velocity = velocityTracker.calculateVelocity() // 计算滑动速度
                             val speed = velocity.x // 水平方向的速度
-                            if (abs(speed) > 1000) { // 自定义滑动速度阈值
+                            if (abs(speed) > 2000) { // 自定义滑动速度阈值
                                 if (speed < 0) {
                                     scrollPage = min(
                                         20f,
-                                        items.size() - selectItemIndex.intValue.toFloat() - 1
+                                        items.size() - selectItemIndex.intValue.toFloat()
                                     )
                                     animateFlag.intValue += 1
                                 } else {
@@ -293,7 +310,6 @@ private fun BottomBar(
                                 animation.stop()
                             }
                             isDragging = false
-                            println("测试:拖动取消")
                         }
                     )
                 }
@@ -307,7 +323,7 @@ private fun BottomBar(
                     })
                 }
         ) { page ->
-            println("测试 $page")
+            //println("测试: 缩略图$page")
             items[page].let {
                 Box(
                     modifier = Modifier
@@ -385,7 +401,7 @@ fun View(
             items = viewModel.source.items,
             notPreview = viewModel.notPreviewIcon,
             screenWidth = screenWidth,
-            screenHeight = screenHeight,
+            source = viewModel.source,
             pageState = pagerState.value,
             selectItemIndex = viewModel.itemIndex,
             context = context,
@@ -413,7 +429,7 @@ fun ZoomViewImage(
     items: DataList,
     notPreview: Bitmap,
     screenWidth: Dp,
-    screenHeight: Dp,
+    source: DataService<*>,
     pageState: PagerState?,
     selectItemIndex: MutableIntState,
     context: Context,
@@ -422,6 +438,26 @@ fun ZoomViewImage(
     pageState?.let { state ->
         var scale by remember { mutableFloatStateOf(1f) }
         var offset by remember { mutableStateOf(Offset(0f, 0f)) }
+
+        LaunchedEffect(Unit) {
+            source.loadImage(selectItemIndex.intValue)
+        }
+
+        LaunchedEffect(state.currentPage) {
+            if (state.currentPage != selectItemIndex.intValue) {
+                selectItemIndex.intValue = state.currentPage
+                println("通过page改select ${System.currentTimeMillis()}")
+                source.loadImage(selectItemIndex.intValue)
+            }
+        }
+
+        LaunchedEffect(selectItemIndex.intValue) {
+            if (selectItemIndex.intValue != state.currentPage) {
+                state.scrollToPage(selectItemIndex.intValue)
+                println("通过select改page ${System.currentTimeMillis()}")
+                source.loadImage(selectItemIndex.intValue)
+            }
+        }
 
         Box(contentAlignment = Alignment.Center,
             modifier = modifier
@@ -432,25 +468,47 @@ fun ZoomViewImage(
                 }) {
             if (isRow) {
                 HorizontalPager(
-                    userScrollEnabled = false,
                     state = state,
                     verticalAlignment = Alignment.CenterVertically,
                     pageSize = PageSize.Fixed(screenWidth),
                     modifier = modifier
                         .fillMaxHeight()
-                ) {
-                    items[selectItemIndex.intValue].let {
-                        val image = it.thumbnailState.value?.let { bitmap ->
+                ) { page ->
+                    items[page].let {
+                        val image = it.dataBitmap.value
+                        val thumbnail = it.thumbnailState.value?.let { bitmap ->
                             if (bitmap.isRecycled) it.thumbnail
                             else bitmap
                         } ?: it.thumbnail
-                        DisplayImage(
-                            bitmap = image ?: notPreview, context = context,
-                            contentScale = ContentScale.FillWidth,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        println("测试:大图重组$page $image")
+                        Box(
+                            contentAlignment = Alignment.Center,
+                            modifier = Modifier.fillMaxSize()
+                        ) {
+                            val thumbnailAlpha by animateFloatAsState(
+                                targetValue = if (image == null) 1f else 0f,
+                                animationSpec = tween(durationMillis = 10), label = "" // 淡出动画
+                            )
+                            DisplayImage(
+                                bitmap = thumbnail ?: notPreview, context = context,
+                                contentScale = ContentScale.FillWidth,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer(
+                                        alpha = thumbnailAlpha
+                                    )
+                            )
+                            DisplayImage(
+                                bitmap = image ?: notPreview, context = context,
+                                contentScale = ContentScale.FillWidth,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .graphicsLayer(
+                                        alpha = if (image == null) 0f else 1f
+                                    )
+                            )
+                        }
                     }
-
                 }
             } else {
                 VerticalPager(state = state) { }

@@ -204,7 +204,6 @@ class LocalStorageThumbnailService(
         val start = (page - 1) * loadSize
         val end = min(page * loadSize - 1, allData.size - 1)
         val items = allData.slice(IntRange(start, end))
-        val startDate = System.currentTimeMillis()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         val jobs: MutableList<Job> = mutableListOf()
         for (item in items) {
@@ -231,9 +230,6 @@ class LocalStorageThumbnailService(
         jobs.forEach {
             it.join()
         }
-        val endDate = System.currentTimeMillis()
-        val re = endDate - startDate
-        println("测试:加载bitmap用时$re")
         return items
     }
 
@@ -380,7 +376,6 @@ class LocalStorageMediaFileService(
             end = allData.size - 1
         val items = allData.slice(IntRange(start, end))
 
-        val startDate = System.currentTimeMillis()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         val jobs: MutableList<Job> = mutableListOf()
         for (item in items) {
@@ -394,9 +389,6 @@ class LocalStorageMediaFileService(
         jobs.forEach {
             it.join()
         }
-        val endDate = System.currentTimeMillis()
-        val re = endDate - startDate
-        println("测试:加载bitmap用时$re")
         return items
     }
 
@@ -468,7 +460,6 @@ class LocalNetStorageMediaFileService(
             end = allData.size - 1
         val items = allData.slice(IntRange(start, end))
 
-        val startDate = System.currentTimeMillis()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         val jobs: MutableList<Job> = mutableListOf()
         for (item in items) {
@@ -492,9 +483,6 @@ class LocalNetStorageMediaFileService(
         jobs.forEach {
             it.join()
         }
-        val endDate = System.currentTimeMillis()
-        val re = endDate - startDate
-        println("测试:加载bitmap用时$re")
         return items
     }
 
@@ -576,7 +564,6 @@ class LocalNetStorageThumbnailService(
         val end = min(page * loadSize - 1, allData.size - 1)
         val items = allData.slice(IntRange(start, end))
 
-        val startDate = System.currentTimeMillis()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         val jobs: MutableList<Job> = mutableListOf()
         for (item in items) {
@@ -603,9 +590,6 @@ class LocalNetStorageThumbnailService(
         jobs.forEach {
             it.join()
         }
-        val endDate = System.currentTimeMillis()
-        val re = endDate - startDate
-        println("测试:加载bitmap用时$re")
         return items
     }
 
