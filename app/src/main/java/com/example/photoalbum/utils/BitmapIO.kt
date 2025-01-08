@@ -14,7 +14,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 
-suspend fun decodeBitmap(
+fun decodeBitmap(
     filePath: String,
     orientation: Float,
     targetWidth: Int = 1080,

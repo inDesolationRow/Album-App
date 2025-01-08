@@ -187,10 +187,9 @@ class SmbClient {
         return directoryList
     }
 
-    fun getImage(name: String, mediaFileId: Long = -1): Bitmap? {
+    fun getImage(path: String, mediaFileId: Long = -1): Bitmap? {
         var image: Bitmap? = null
         try {
-            val path = getFilePath(name)
             if (diskShare.fileExists(path)) {
                 val file = diskShare.openFile(
                     path,
@@ -233,6 +232,7 @@ class SmbClient {
                         byteArray = inputStream.readBytes()
                     }
                 }
+                println("测试:数组${byteArray?.size}")
                 byteArray?.let {
                     thumbnail = decodeSampledBitmap(it)
                 }

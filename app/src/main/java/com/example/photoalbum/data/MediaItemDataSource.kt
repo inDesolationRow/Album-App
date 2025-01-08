@@ -18,7 +18,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -77,7 +76,6 @@ class LocalDataSource(
             val items = allData.subList(top, bottom + 1)
             val coroutineScope = CoroutineScope(Dispatchers.IO)
             val jobs: MutableList<Job> = mutableListOf()
-            val startDate = System.currentTimeMillis()
             coroutineScope.launch {
                 for (item in items) {
                     if (item.type == ItemType.IMAGE) {
@@ -103,11 +101,11 @@ class LocalDataSource(
                 jobs.forEach {
                     it.join()
                 }
-                val endDate = System.currentTimeMillis()
-                val re = endDate - startDate
             }
         }
     override var loadImageJob: Job? = null
+
+    private var previousLoadItem: MediaItem? = null
 
     override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Int {
         var index = -1
@@ -264,11 +262,14 @@ class LocalDataSource(
         loadImageJob?.cancel()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         loadImageJob = coroutineScope.launch {
-            delay(100)
+            delay(200)
             println("测试:load图片 $position")
+            previousLoadItem?.dataBitmap?.value?.recycle()
+            previousLoadItem?.dataBitmap?.value = null
             val item = allData[position]
             item.dataBitmap.value =
                 decodeBitmap(filePath = item.data!!, orientation = item.orientation.toFloat())
+            previousLoadItem = item
         }
     }
 }
@@ -333,6 +334,8 @@ class LocalNetDataSource(
 
     override var loadImageJob: Job? = null
 
+    private var previousLoadItem: MediaItem? = null
+
     override suspend fun getAllData(
         param: String,
         onlyMediaFile: Boolean,
@@ -392,7 +395,17 @@ class LocalNetDataSource(
     }
 
     override suspend fun loadImage(position: Int) {
-        TODO("Not yet implemented")
+        loadImageJob?.cancel()
+        val coroutineScope = CoroutineScope(Dispatchers.IO)
+        loadImageJob = coroutineScope.launch {
+            delay(200)
+            previousLoadItem?.dataBitmap?.value?.recycle()
+            previousLoadItem?.dataBitmap?.value = null
+            val item = allData[position]
+            val image = smbClient.getImage(item.data!!)
+            item.dataBitmap.value =image
+            previousLoadItem = item
+        }
     }
 
 }

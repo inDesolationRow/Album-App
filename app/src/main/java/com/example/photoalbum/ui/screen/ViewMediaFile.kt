@@ -8,10 +8,8 @@ import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -27,6 +25,7 @@ import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.VerticalPager
 import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBackIosNew
 import androidx.compose.material.icons.filled.ScreenRotation
@@ -47,11 +46,14 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
@@ -72,6 +74,8 @@ import com.example.photoalbum.ui.common.MessageDialog
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
@@ -88,6 +92,8 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
     val configuration = LocalConfiguration.current
     val screenHeightDp = configuration.screenHeightDp.dp
     var topPaddingValues = PaddingValues()
+    val scope = rememberCoroutineScope()
+    var job: Job? = null
     if (viewModel.showDialog.isShow) {
         if (viewModel.showDialog.mediaListDialog == MediaListDialog.LOCAL_NET_OFFLINE) {
             MessageDialog(
@@ -111,7 +117,7 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
             bottomBar = {
                 if (viewModel.expandMyBar) BottomBar(
                     items = viewModel.source.items,
-                    height = screenHeightDp * 0.12f,
+                    height = screenHeightDp * 0.10f,
                     screenWidth = configuration.screenWidthDp.dp,
                     notPreview = viewModel.notPreviewIcon,
                     selectItemIndex = viewModel.itemIndex,
@@ -135,10 +141,30 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
                     .zIndex(0f)
                     .fillMaxSize()
                     .pointerInput(Unit) {
-                        detectTapGestures(onTap = {
-                            viewModel.expandMyBar = !viewModel.expandMyBar
-                            viewModel.expandBar(false, recomposeKey = Random.nextInt())
-                        })
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                //如果子composable在400ms内再次点击，事件被消费则取消切换ui
+                                if (event.changes.all { change -> change.isConsumed }) {
+                                    job?.cancel()
+                                    continue
+                                }
+                                when (event.type) {
+                                    PointerEventType.Release -> {
+                                        //等待400ms再切换ui，如果这期间子composable再次被点击则取消
+                                        job = scope.launch {
+                                            delay(400)
+                                            viewModel.expandMyBar = !viewModel.expandMyBar
+                                            viewModel.expandBar(
+                                                false,
+                                                recomposeKey = Random.nextInt()
+                                            )
+                                            event.changes.forEach { change -> change.consume() }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                     .background(
                         if (viewModel.expandMyBar) Color.White else Color.Black
@@ -192,7 +218,7 @@ private fun BottomBar(
         rememberPagerState(initialPage = selectItemIndex.intValue, pageCount = { items.size() })
     val padding = height * 0.2f
     val itemHeight = height - padding * 2
-    val itemWidth = (itemHeight * 0.75f)
+    val itemWidth = (itemHeight * 0.7f)
     val estimateItemNumber: Int = screenWidth.value.toInt() / itemWidth.value.toInt()
     val startPadding = (estimateItemNumber / 2) * itemWidth
 
@@ -239,119 +265,124 @@ private fun BottomBar(
             state.animateScrollToPage(selectItemIndex.intValue)
     }
 
-    Box {
-        HorizontalPager(
-            userScrollEnabled = false,
-            contentPadding = PaddingValues(start = startPadding, end = startPadding),
-            state = state,
-            pageSpacing = TinyPadding,
-            pageSize = PageSize.Fixed(itemWidth),
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = modifier
-                .fillMaxHeight()
-                .pointerInput(Unit) {
-                    val velocityTracker = VelocityTracker() // 记录滑动速度
-                    var isDragging = false // 用于标记是否正在拖动
-                    var addup = 0f
-                    detectHorizontalDragGestures(
-                        onDragStart = {
-                            // 拖动开始，初始化状态
-                            isDragging = true
-                            velocityTracker.resetTracking()
-                        },
-                        onHorizontalDrag = { change, dragAmount ->
-                            // 拖动中，记录增量和位置
-                            if (isDragging) {
-                                change.consume() // 消费事件，防止干扰
-                                velocityTracker.addPosition(
-                                    change.uptimeMillis,
-                                    change.position
-                                ) // 记录位置和时间
-                                addup += dragAmount
-                                if (abs(addup) >= itemWidth.toPx() / 2 && !animation.isRunning) {
-                                    if (addup < 0) {
-                                        addup = 0f
-                                        scrollPage = min(
-                                            1f,
-                                            items.size() - selectItemIndex.intValue.toFloat() - 1
-                                        )
-                                        animateFlag.intValue += 1
-                                    } else {
-                                        addup = 0f
-                                        scrollPage = max(-1f, -selectItemIndex.intValue.toFloat())
-                                        animateFlag.intValue += 1
-                                    }
-                                }
-                            }
-                        },
-                        onDragEnd = {
-                            // 拖动结束，切换到滑动逻辑
-                            isDragging = false
-                            addup = 0f
-                            val velocity = velocityTracker.calculateVelocity() // 计算滑动速度
-                            val speed = velocity.x // 水平方向的速度
-                            if (abs(speed) > 2000) { // 自定义滑动速度阈值
-                                if (speed < 0) {
+    HorizontalPager(
+        userScrollEnabled = false,
+        contentPadding = PaddingValues(start = startPadding, end = startPadding),
+        state = state,
+        pageSpacing = TinyPadding,
+        pageSize = PageSize.Fixed(itemWidth),
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .background(Color.Transparent)
+            .fillMaxHeight()
+            .pointerInput(Unit) {
+                val velocityTracker = VelocityTracker() // 记录滑动速度
+                var isDragging = false // 用于标记是否正在拖动
+                var addup = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = {
+                        // 拖动开始，初始化状态
+                        isDragging = true
+                        velocityTracker.resetTracking()
+                    },
+                    onHorizontalDrag = { change, dragAmount ->
+                        // 拖动中，记录增量和位置
+                        if (isDragging) {
+                            change.consume() // 消费事件，防止干扰
+                            velocityTracker.addPosition(
+                                change.uptimeMillis,
+                                change.position
+                            ) // 记录位置和时间
+                            addup += dragAmount
+                            if (abs(addup) >= itemWidth.toPx() / 2 && !animation.isRunning) {
+                                if (addup < 0) {
+                                    addup = 0f
                                     scrollPage = min(
-                                        20f,
-                                        items.size() - selectItemIndex.intValue.toFloat()
+                                        1f,
+                                        items.size() - selectItemIndex.intValue.toFloat() - 1
                                     )
+                                    println("测试:滚动 $scrollPage")
                                     animateFlag.intValue += 1
                                 } else {
-                                    scrollPage = max(-20f, -selectItemIndex.intValue.toFloat())
+                                    addup = 0f
+                                    scrollPage = max(-1f, -selectItemIndex.intValue.toFloat())
+                                    println("测试:滚动 $scrollPage")
                                     animateFlag.intValue += 1
                                 }
                             }
-                        },
-                        onDragCancel = {
-                            // 拖动取消的处理
-                            addup = 0f
-                            scope.launch {
-                                animation.stop()
-                            }
-                            isDragging = false
                         }
-                    )
-                }
-                .pointerInput(Unit) {
-                    detectTapGestures(onTap = {
-
-                    }, onPress = {
+                    },
+                    onDragEnd = {
+                        // 拖动结束，切换到滑动逻辑
+                        isDragging = false
+                        addup = 0f
+                        val velocity = velocityTracker.calculateVelocity() // 计算滑动速度
+                        val speed = velocity.x // 水平方向的速度
+                        if (abs(speed) > 2000) { // 自定义滑动速度阈值
+                            if (speed < 0) {
+                                scrollPage = min(
+                                    10f,
+                                    items.size() - selectItemIndex.intValue.toFloat()
+                                )
+                                println("测试:滚动 $scrollPage")
+                                animateFlag.intValue += 1
+                            } else {
+                                scrollPage = max(-10f, -selectItemIndex.intValue.toFloat())
+                                println("测试:滚动 $scrollPage")
+                                animateFlag.intValue += 1
+                            }
+                        }
+                    },
+                    onDragCancel = {
+                        // 拖动取消的处理
+                        addup = 0f
                         scope.launch {
                             animation.stop()
                         }
-                    })
-                }
-        ) { page ->
-            //println("测试: 缩略图$page")
-            items[page].let {
-                Box(
-                    modifier = Modifier
-                        .background(Color.DarkGray)
-                        .height(itemHeight)
-                        .fillMaxWidth()
-                ) {
-                    val image = it.thumbnailState.value?.let { bitmap ->
-                        if (bitmap.isRecycled) it.thumbnail
-                        else bitmap
-                    } ?: it.thumbnail
-                    DisplayImage(
-                        bitmap = image ?: notPreview,
-                        context = context,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(if (page != selectItemIndex.intValue) {
-                                modifier.drawWithContent {
-                                    drawContent()
-                                    drawRect(
-                                        color = Color.Gray.copy(alpha = 0.8f),
-                                        size = size
-                                    )
-                                }
-                            } else modifier)
-                    )
-                }
+                        isDragging = false
+                    }
+                )
             }
+            .pointerInput(Unit) {
+                detectTapGestures(onTap = {
+                }, onPress = {
+                    scope.launch {
+                        animation.stop()
+                    }
+                })
+            }
+    ) { page ->
+        items[page].let {
+            val image = it.thumbnailState.value?.let { bitmap ->
+                if (bitmap.isRecycled) it.thumbnail
+                else bitmap
+            } ?: it.thumbnail
+            DisplayImage(
+                bitmap = image ?: notPreview,
+                context = context,
+                modifier = Modifier
+                    .background(Color.Transparent)
+                    .clip(RoundedCornerShape(5.dp))
+                    .height(itemHeight)
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(onTap = {
+                            scope.launch {
+                                state.scrollToPage(page)
+                            }
+                        }, onPress = {
+                        })
+                    }
+                    .then(if (page != selectItemIndex.intValue) {
+                        modifier.drawWithContent {
+                            drawContent()
+                            drawRect(
+                                color = Color.Gray.copy(alpha = 0.8f),
+                                size = size
+                            )
+                        }
+                    } else modifier)
+            )
         }
     }
 
@@ -405,7 +436,7 @@ fun View(
             pageState = pagerState.value,
             selectItemIndex = viewModel.itemIndex,
             context = context,
-            modifier = modifier.graphicsLayer(
+            modifier = Modifier.graphicsLayer(
                 alpha = if (ani.isRunning) 0f else 1f
             )
         )
@@ -438,7 +469,7 @@ fun ZoomViewImage(
     pageState?.let { state ->
         var scale by remember { mutableFloatStateOf(1f) }
         var offset by remember { mutableStateOf(Offset(0f, 0f)) }
-
+        var pivot by remember { mutableStateOf(Offset(0f, 0f)) }
         LaunchedEffect(Unit) {
             source.loadImage(selectItemIndex.intValue)
         }
@@ -446,7 +477,6 @@ fun ZoomViewImage(
         LaunchedEffect(state.currentPage) {
             if (state.currentPage != selectItemIndex.intValue) {
                 selectItemIndex.intValue = state.currentPage
-                println("通过page改select ${System.currentTimeMillis()}")
                 source.loadImage(selectItemIndex.intValue)
             }
         }
@@ -454,17 +484,59 @@ fun ZoomViewImage(
         LaunchedEffect(selectItemIndex.intValue) {
             if (selectItemIndex.intValue != state.currentPage) {
                 state.scrollToPage(selectItemIndex.intValue)
-                println("通过select改page ${System.currentTimeMillis()}")
                 source.loadImage(selectItemIndex.intValue)
             }
         }
 
+        val scope = rememberCoroutineScope()
+
         Box(contentAlignment = Alignment.Center,
             modifier = modifier
                 .pointerInput(Unit) {
-                    detectDragGestures(onDrag = { change, dragAmount -> true })
-                    detectTapGestures(onTap = { true })
-                    detectTransformGestures(onGesture = { centroid, pan, zoom, rotation -> true })
+                    awaitPointerEventScope {
+                        var doubleClick = false
+                        var previousClickTimer = 0L
+                        var pressTimer = 0L
+                        while (true) {
+                            val event = awaitPointerEvent()
+                            when (event.type) {
+                                PointerEventType.Press -> {
+                                    val currentTime = System.currentTimeMillis()
+                                    pressTimer = currentTime
+                                    // 判断是否为双击
+                                    doubleClick = if (previousClickTimer == 0L) {
+                                        previousClickTimer = currentTime
+                                        false
+                                    } else {
+                                        val doubleTimer = currentTime - previousClickTimer
+                                        doubleTimer < 400
+                                    }
+                                    // 启动一个协程重置双击计时器
+                                    scope.launch {
+                                        delay(400)
+                                        previousClickTimer = 0L
+                                    }
+                                }
+
+                                PointerEventType.Release -> {
+                                    // 如果是双击，消费事件
+                                    if (doubleClick) {
+                                        doubleClick = false
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                    // 如果长按超过400ms，消费事件
+                                    if (System.currentTimeMillis() - pressTimer > 400
+                                    ) {
+                                        event.changes.forEach { it.consume() }
+                                    }
+                                }
+
+                                PointerEventType.Move -> {
+                                    TODO()
+                                }
+                            }
+                        }
+                    }
                 }) {
             if (isRow) {
                 HorizontalPager(
@@ -480,7 +552,7 @@ fun ZoomViewImage(
                             if (bitmap.isRecycled) it.thumbnail
                             else bitmap
                         } ?: it.thumbnail
-                        println("测试:大图重组$page $image")
+                        //println("测试:大图重组$page $image")
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier.fillMaxSize()
@@ -504,7 +576,15 @@ fun ZoomViewImage(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .graphicsLayer(
-                                        alpha = if (image == null) 0f else 1f
+                                        alpha = if (image == null) 0f else 1f,
+                                        scaleX = scale,
+                                        scaleY = scale,
+                                        translationX = offset.x,
+                                        translationY = offset.y,
+                                        transformOrigin = TransformOrigin(
+                                            pivot.x / 1000f,
+                                            pivot.y / 1000f
+                                        )
                                     )
                             )
                         }
