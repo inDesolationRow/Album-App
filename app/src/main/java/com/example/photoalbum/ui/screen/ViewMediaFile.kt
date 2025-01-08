@@ -214,13 +214,11 @@ private fun BottomBar(
     context: Context,
     modifier: Modifier = Modifier,
 ) {
-    val state =
-        rememberPagerState(initialPage = selectItemIndex.intValue, pageCount = { items.size() })
+    val state = rememberPagerState(initialPage = selectItemIndex.intValue, pageCount = { items.size() })
     val padding = height * 0.2f
     val itemHeight = height - padding * 2
     val itemWidth = (itemHeight * 0.7f)
-    val estimateItemNumber: Int = screenWidth.value.toInt() / itemWidth.value.toInt()
-    val startPadding = (estimateItemNumber / 2) * itemWidth
+    val startPadding = (screenWidth - itemWidth) / 2
 
     val scope = rememberCoroutineScope()
     val animateFlag = remember { mutableIntStateOf(0) }
@@ -532,7 +530,7 @@ fun ZoomViewImage(
                                 }
 
                                 PointerEventType.Move -> {
-                                    TODO()
+
                                 }
                             }
                         }
