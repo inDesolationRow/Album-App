@@ -50,19 +50,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.times
 import androidx.compose.ui.zIndex
 import com.example.photoalbum.R
 import com.example.photoalbum.data.DataList
@@ -214,7 +215,8 @@ private fun BottomBar(
     context: Context,
     modifier: Modifier = Modifier,
 ) {
-    val state = rememberPagerState(initialPage = selectItemIndex.intValue, pageCount = { items.size() })
+    val state =
+        rememberPagerState(initialPage = selectItemIndex.intValue, pageCount = { items.size() })
     val padding = height * 0.2f
     val itemHeight = height - padding * 2
     val itemWidth = (itemHeight * 0.7f)
@@ -430,6 +432,8 @@ fun View(
             items = viewModel.source.items,
             notPreview = viewModel.notPreviewIcon,
             screenWidth = screenWidth,
+            screenHeight = screenHeight,
+            density = density,
             source = viewModel.source,
             pageState = pagerState.value,
             selectItemIndex = viewModel.itemIndex,
@@ -458,6 +462,8 @@ fun ZoomViewImage(
     items: DataList,
     notPreview: Bitmap,
     screenWidth: Dp,
+    screenHeight: Dp,
+    density: Density,
     source: DataService<*>,
     pageState: PagerState?,
     selectItemIndex: MutableIntState,
@@ -467,7 +473,11 @@ fun ZoomViewImage(
     pageState?.let { state ->
         var scale by remember { mutableFloatStateOf(1f) }
         var offset by remember { mutableStateOf(Offset(0f, 0f)) }
-        var pivot by remember { mutableStateOf(Offset(0f, 0f)) }
+        val widthPx = remember { with(density) { screenWidth.toPx() } }
+        val heightPx = remember { with(density) { screenHeight.toPx() } }
+        var imageSize = remember { IntSize(0, 0) }
+        val maxScale = 3f
+
         LaunchedEffect(Unit) {
             source.loadImage(selectItemIndex.intValue)
         }
@@ -495,10 +505,13 @@ fun ZoomViewImage(
                         var doubleClick = false
                         var previousClickTimer = 0L
                         var pressTimer = 0L
+                        var tapCenter: Offset? = null
                         while (true) {
                             val event = awaitPointerEvent()
                             when (event.type) {
                                 PointerEventType.Press -> {
+                                    tapCenter = event.changes.first().position
+                                    println("测试:点击坐标 $tapCenter")
                                     val currentTime = System.currentTimeMillis()
                                     pressTimer = currentTime
                                     // 判断是否为双击
@@ -520,6 +533,22 @@ fun ZoomViewImage(
                                     // 如果是双击，消费事件
                                     if (doubleClick) {
                                         doubleClick = false
+                                        //以点击的位置为中心，计算缩放时的偏移量
+                                        val translationX: Float = tapCenter?.x?.let {
+                                            if (it.toInt() in 0..widthPx.toInt() / 2) {
+                                                //左半屏幕，最终值要* 缩放倍率-1
+                                                abs(it - widthPx / 2) * (maxScale - 1)
+                                            } else {
+                                                //右半屏幕
+                                                -(it - widthPx / 2) * (maxScale - 1)
+                                            }
+                                        } ?: 0f
+                                        scale = if (scale == maxScale) 1f else maxScale
+                                        offset =
+                                            if (scale == maxScale) Offset(
+                                                translationX,
+                                                0f
+                                            ) else Offset(0f, 0f)
                                         event.changes.forEach { it.consume() }
                                     }
                                     // 如果长按超过400ms，消费事件
@@ -567,6 +596,9 @@ fun ZoomViewImage(
                                     .graphicsLayer(
                                         alpha = thumbnailAlpha
                                     )
+                                    .onGloballyPositioned { layoutCoordinates ->
+                                        imageSize = layoutCoordinates.size
+                                    }
                             )
                             DisplayImage(
                                 bitmap = image ?: notPreview, context = context,
@@ -579,10 +611,6 @@ fun ZoomViewImage(
                                         scaleY = scale,
                                         translationX = offset.x,
                                         translationY = offset.y,
-                                        transformOrigin = TransformOrigin(
-                                            pivot.x / 1000f,
-                                            pivot.y / 1000f
-                                        )
                                     )
                             )
                         }
