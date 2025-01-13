@@ -2,6 +2,7 @@ package com.example.photoalbum.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.ui.unit.IntSize
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.enums.Direction
 import com.example.photoalbum.enums.ImageSize
@@ -267,9 +268,11 @@ class LocalDataSource(
             previousLoadItem?.dataBitmap?.value?.recycle()
             previousLoadItem?.dataBitmap?.value = null
             val item = allData[position]
-            item.dataBitmap.value =
-                decodeBitmap(filePath = item.data!!, orientation = item.orientation.toFloat())
-            previousLoadItem = item
+            decodeBitmap(filePath = item.data!!, orientation = item.orientation.toFloat())?.let {
+                item.intSize = IntSize(it.width, it.height)
+                item.dataBitmap.value = it
+                previousLoadItem = item
+            }
         }
     }
 }
@@ -403,7 +406,7 @@ class LocalNetDataSource(
             previousLoadItem?.dataBitmap?.value = null
             val item = allData[position]
             val image = smbClient.getImage(item.data!!)
-            item.dataBitmap.value =image
+            item.dataBitmap.value = image
             previousLoadItem = item
         }
     }

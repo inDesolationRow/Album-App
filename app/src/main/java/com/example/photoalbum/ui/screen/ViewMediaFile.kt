@@ -133,6 +133,7 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
             it.let {
                 topPaddingValues = PaddingValues(top = statusBarHeightDp)
             }
+            var cancelExpand by remember { mutableIntStateOf(0) }
             View(
                 viewModel = viewModel,
                 screenHeight = screenHeightDp,
@@ -147,6 +148,7 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
                                 val event = awaitPointerEvent()
                                 //如果子composable在400ms内再次点击，事件被消费则取消切换ui
                                 if (event.changes.all { change -> change.isConsumed }) {
+                                    println("事件被消费了")
                                     job?.cancel()
                                     continue
                                 }
@@ -476,7 +478,8 @@ fun ZoomViewImage(
         val widthPx = remember { with(density) { screenWidth.toPx() } }
         val heightPx = remember { with(density) { screenHeight.toPx() } }
         var imageSize = remember { IntSize(0, 0) }
-        val maxScale = 3f
+        val maxScale = 4f
+        val doubleScale = 2f
 
         LaunchedEffect(Unit) {
             source.loadImage(selectItemIndex.intValue)
@@ -498,79 +501,51 @@ fun ZoomViewImage(
 
         val scope = rememberCoroutineScope()
 
-        Box(contentAlignment = Alignment.Center,
+        Box(
+            contentAlignment = Alignment.Center,
             modifier = modifier
-                .pointerInput(Unit) {
-                    awaitPointerEventScope {
-                        var doubleClick = false
-                        var previousClickTimer = 0L
-                        var pressTimer = 0L
-                        var tapCenter: Offset? = null
-                        while (true) {
-                            val event = awaitPointerEvent()
-                            when (event.type) {
-                                PointerEventType.Press -> {
-                                    tapCenter = event.changes.first().position
-                                    println("测试:点击坐标 $tapCenter")
-                                    val currentTime = System.currentTimeMillis()
-                                    pressTimer = currentTime
-                                    // 判断是否为双击
-                                    doubleClick = if (previousClickTimer == 0L) {
-                                        previousClickTimer = currentTime
-                                        false
-                                    } else {
-                                        val doubleTimer = currentTime - previousClickTimer
-                                        doubleTimer < 400
-                                    }
-                                    // 启动一个协程重置双击计时器
-                                    scope.launch {
-                                        delay(400)
-                                        previousClickTimer = 0L
-                                    }
-                                }
-
-                                PointerEventType.Release -> {
-                                    // 如果是双击，消费事件
-                                    if (doubleClick) {
-                                        doubleClick = false
-                                        //以点击的位置为中心，计算缩放时的偏移量
-                                        val translationX: Float = tapCenter?.x?.let {
-                                            if (it.toInt() in 0..widthPx.toInt() / 2) {
-                                                //左半屏幕，最终值要* 缩放倍率-1
-                                                abs(it - widthPx / 2) * (maxScale - 1)
-                                            } else {
-                                                //右半屏幕
-                                                -(it - widthPx / 2) * (maxScale - 1)
-                                            }
-                                        } ?: 0f
-                                        scale = if (scale == maxScale) 1f else maxScale
-                                        offset =
-                                            if (scale == maxScale) Offset(
-                                                translationX,
-                                                0f
-                                            ) else Offset(0f, 0f)
-                                        event.changes.forEach { it.consume() }
-                                    }
-                                    // 如果长按超过400ms，消费事件
-                                    if (System.currentTimeMillis() - pressTimer > 400
-                                    ) {
-                                        event.changes.forEach { it.consume() }
-                                    }
-                                }
-
-                                PointerEventType.Move -> {
-
-                                }
-                            }
-                        }
-                    }
-                }) {
+        ) {
             if (isRow) {
                 HorizontalPager(
                     state = state,
                     verticalAlignment = Alignment.CenterVertically,
-                    pageSize = PageSize.Fixed(screenWidth),
                     modifier = modifier
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                var tapCenter: Offset? = null
+                                var onePointerDrag = false
+                                while (true) {
+                                    val event = awaitPointerEvent()
+                                    when (event.type) {
+                                        PointerEventType.Press -> {
+                                            tapCenter = event.changes.first().position
+                                        }
+
+                                        PointerEventType.Release -> {
+                                            if (onePointerDrag) {
+                                                event.changes.first().consume()
+                                                onePointerDrag = false
+                                            }
+                                        }
+
+                                        PointerEventType.Move -> {
+                                            if (event.changes.size == 1) {
+                                                val pointer = event.changes.first()
+                                                val move = (tapCenter!! - pointer.position).getDistance()
+                                                if (move >= 5f) {
+                                                    onePointerDrag = true
+                                                }
+                                            }
+                                            if (event.changes.size == 2) {
+                                                event.changes.forEach { pointer ->
+                                                    pointer.consume()
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         .fillMaxHeight()
                 ) { page ->
                     items[page].let {
@@ -582,7 +557,140 @@ fun ZoomViewImage(
                         //println("测试:大图重组$page $image")
                         Box(
                             contentAlignment = Alignment.Center,
-                            modifier = Modifier.fillMaxSize()
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .pointerInput(Unit) {
+                                    awaitPointerEventScope {
+                                        var doubleClick = false
+                                        var multiTouch = false
+                                        var onePointerDrag = false
+                                        var tapCenter: Offset? = null
+                                        var pressTimer = 0L
+                                        var previousClickTimer = 0L
+                                        var pointerNum = 0
+                                        var initialSpan = 0f
+                                        var maxSpan = 0f
+
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            when (event.type) {
+                                                PointerEventType.Press -> {
+                                                    pointerNum++
+                                                    multiTouch = pointerNum > 1
+                                                    tapCenter = event.changes.first().position
+                                                    println("测试:点击坐标 $tapCenter 触摸点$pointerNum")
+                                                    val currentTime = System.currentTimeMillis()
+                                                    pressTimer = currentTime
+                                                    // 判断是否为双击
+                                                    doubleClick = if (previousClickTimer == 0L) {
+                                                        previousClickTimer = currentTime
+                                                        // 启动一个协程重置双击计时器，且可以限制双击缩放的频率400ms内最多一次
+                                                        scope.launch {
+                                                            delay(400)
+                                                            previousClickTimer = 0L
+                                                        }
+                                                        false
+                                                    } else if (!multiTouch) {
+                                                        val doubleTimer = currentTime - previousClickTimer
+                                                        doubleTimer < 400
+                                                    } else {
+                                                        //如果是多点触控或400ms内点击频率过高，则不予处理
+                                                        false
+                                                    }
+                                                    //计算两个触摸点之间的间隔
+                                                    if (pointerNum == 2) {
+                                                        initialSpan = event.changes.let { touchPoint ->
+                                                            (touchPoint[0].position - touchPoint[1].position).getDistance()
+                                                        }
+                                                        maxSpan = initialSpan
+                                                    }
+                                                }
+
+                                                PointerEventType.Release -> {
+                                                    // 如果是双击，消费事件
+                                                    if (doubleClick) {
+                                                        doubleClick = false
+                                                        //以点击的位置为中心，计算缩放时的偏移量
+                                                        val translationX: Float = tapCenter?.x?.let { tap ->
+                                                            if (tap.toInt() in 0..widthPx.toInt() / 2) {
+                                                                //左半屏幕，最终值要* 缩放倍率-1
+                                                                abs(tap - widthPx / 2) * (doubleScale - 1)
+                                                            } else {
+                                                                //右半屏幕
+                                                                -(tap - widthPx / 2) * (doubleScale - 1)
+                                                            }
+                                                        } ?: 0f
+                                                        scale = if (scale != 1f) 1f else doubleScale
+                                                        offset =
+                                                            if (scale == doubleScale) Offset(
+                                                                translationX,
+                                                                0f
+                                                            ) else Offset(0f, 0f)
+                                                        event.changes.forEach { change -> change.consume() }
+                                                    }
+                                                    // 如果长按超过400ms，消费事件
+                                                    if (System.currentTimeMillis() - pressTimer > 400 || multiTouch) {
+                                                        event.changes.forEach { change ->
+                                                            change.consume()
+                                                        }
+                                                    }
+                                                    pointerNum--
+                                                    if (pointerNum == 0) {
+                                                        onePointerDrag = false
+                                                        multiTouch = false
+                                                    }
+                                                    println("释放${event.changes.size}触摸点$pointerNum")
+                                                }
+
+                                                PointerEventType.Move -> {
+                                                    if (event.changes.size == 1) {
+                                                        val pointer = event.changes.first()
+                                                        val move = (tapCenter!! - pointer.position).getDistance()
+                                                        if (move >= 1f) {
+                                                            onePointerDrag = true
+                                                        }
+                                                        if (scale != 1f){
+
+                                                        }
+                                                    }
+                                                    if (pointerNum == 2 && !onePointerDrag) {
+                                                        val pointer1 = event.changes[0]
+                                                        val pointer2 = event.changes[1]
+
+                                                        // 计算当前两点间的距离（span）
+                                                        val currentSpan =
+                                                            (pointer1.position - pointer2.position).getDistance()
+
+                                                        // 计算缩放比例
+                                                        val multiTouchScale =
+                                                            if (currentSpan > initialSpan && currentSpan >= maxSpan) {
+                                                                maxSpan = currentSpan
+                                                                ((currentSpan - initialSpan) / 100).coerceIn(max(1f, scale), maxScale)
+                                                            } else {
+                                                                ((currentSpan - maxSpan) / 100 + maxScale).coerceIn(1f, scale)
+                                                            }
+
+                                                        println("缩放倍率 $multiTouchScale 初始值$initialSpan 现值$currentSpan 最大$maxSpan")
+
+                                                        scale = multiTouchScale
+
+                                                        // 更新偏移量以适配缩放
+                                                        if (scale == 1f) {
+                                                            val translationX: Float = tapCenter?.x?.let { tap ->
+                                                                if (tap.toInt() in 0..widthPx.toInt() / 2) {
+                                                                    abs(tap - widthPx / 2) * (multiTouchScale - 1)
+                                                                } else {
+                                                                    -(tap - widthPx / 2) * (multiTouchScale - 1)
+                                                                }
+                                                            } ?: 0f
+                                                            offset = Offset(translationX, 0f)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                         ) {
                             val thumbnailAlpha by animateFloatAsState(
                                 targetValue = if (image == null) 1f else 0f,

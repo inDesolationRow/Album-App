@@ -3,6 +3,7 @@ package com.example.photoalbum.model
 import android.graphics.Bitmap
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.unit.IntSize
 import com.example.photoalbum.enums.ItemType
 
 data class MediaItem(
@@ -13,6 +14,8 @@ data class MediaItem(
     val data: String? = null,
 
     val dataBitmap: MutableState<Bitmap?> = mutableStateOf(null),
+
+    var intSize: IntSize? = null,
 
     val thumbnailPath: String? = null,
 

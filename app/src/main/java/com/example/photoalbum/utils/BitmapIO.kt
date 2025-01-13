@@ -17,10 +17,11 @@ import java.io.IOException
 fun decodeBitmap(
     filePath: String,
     orientation: Float,
-    targetWidth: Int = 1080,
+    targetWidth: Int = 4320,
     maxMemorySize: Int = 50 * 1024 * 1024,
 ): Bitmap? {
     try {
+        val start = System.currentTimeMillis()
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true // 只加载图片的元信息，不加载实际内容
         }
@@ -32,8 +33,10 @@ fun decodeBitmap(
             maxMemorySize = maxMemorySize
         )
         options.inJustDecodeBounds = false
-
-        return rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation = orientation)
+        val bitmap =  rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation = orientation)
+        val end = System.currentTimeMillis()
+        println("测试:缩小${options.inSampleSize}倍 宽${bitmap.width}高${bitmap.height}加载时间 ${end - start}")
+        return bitmap
     } catch (e: Exception) {
         println("错误:解析失败 ${e.printStackTrace()}")
         return null
