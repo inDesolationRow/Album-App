@@ -14,6 +14,22 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 
+/*fun getImageRatio(
+    filePath: String,
+    orientation: Float,
+): Float {
+    var ratio = 0f
+    val start = System.currentTimeMillis()
+    val options = BitmapFactory.Options().apply {
+        inJustDecodeBounds = true // 只加载图片的元信息，不加载实际内容
+    }
+    BitmapFactory.decodeFile(filePath, options)
+    ratio = options.outWidth.toFloat() / options.outHeight.toFloat()
+    val end = System.currentTimeMillis()
+    println("测试:尺寸${ratio}加载时间 ${end - start}")
+    return ratio
+}*/
+
 fun decodeBitmap(
     filePath: String,
     orientation: Float,
@@ -33,7 +49,7 @@ fun decodeBitmap(
             maxMemorySize = maxMemorySize
         )
         options.inJustDecodeBounds = false
-        val bitmap =  rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation = orientation)
+        val bitmap = rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation = orientation)
         val end = System.currentTimeMillis()
         println("测试:缩小${options.inSampleSize}倍 宽${bitmap.width}高${bitmap.height}加载时间 ${end - start}")
         return bitmap

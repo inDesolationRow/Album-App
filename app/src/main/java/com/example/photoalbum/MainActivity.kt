@@ -18,7 +18,6 @@ import com.example.photoalbum.ui.screen.BaseViewModel
 import com.example.photoalbum.ui.theme.PhotoAlbumTheme
 import com.example.photoalbum.ui.screen.MainScreen
 import com.example.photoalbum.ui.screen.MainScreenViewModel
-import com.example.photoalbum.utils.decodeBitmap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -76,8 +75,9 @@ class MainActivity : ComponentActivity() {
                 viewModel.settings.gridColumnNumState.intValue = settings?.gridColumnNum ?: 3
             }
             viewModel.settings.phoneSize = getPhysicalResolution(this@MainActivity)
+            println("屏幕参数${viewModel.settings.phoneSize}")
         }
-        //decodeBitmap("/storage/emulated/0/DCIM/Camera/20231008_154438.jpg")
+        //getImageRatio("/storage/emulated/0/DCIM/Camera/20231008_154438.jpg", 0f)
         setContent {
             PhotoAlbumTheme {
                 MainScreen(viewModel)
@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@Suppress("DEPRECATION")
 fun getPhysicalResolution(activity: Activity): Size {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
         // Android 11 (API 30)及以上

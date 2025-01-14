@@ -269,7 +269,6 @@ class LocalDataSource(
             previousLoadItem?.dataBitmap?.value = null
             val item = allData[position]
             decodeBitmap(filePath = item.data!!, orientation = item.orientation.toFloat())?.let {
-                item.intSize = IntSize(it.width, it.height)
                 item.dataBitmap.value = it
                 previousLoadItem = item
             }

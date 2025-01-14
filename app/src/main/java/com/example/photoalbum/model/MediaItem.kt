@@ -15,7 +15,7 @@ data class MediaItem(
 
     val dataBitmap: MutableState<Bitmap?> = mutableStateOf(null),
 
-    var intSize: IntSize? = null,
+    var imageRatio: Float? = null,
 
     val thumbnailPath: String? = null,
 
