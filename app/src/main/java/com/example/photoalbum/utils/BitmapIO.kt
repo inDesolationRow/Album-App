@@ -14,9 +14,9 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
 
-/*fun getImageRatio(
+fun getImageRatio(
     filePath: String,
-    orientation: Float,
+    orientation: Int = 0,
 ): Float {
     var ratio = 0f
     val start = System.currentTimeMillis()
@@ -24,11 +24,15 @@ import java.io.IOException
         inJustDecodeBounds = true // 只加载图片的元信息，不加载实际内容
     }
     BitmapFactory.decodeFile(filePath, options)
-    ratio = options.outWidth.toFloat() / options.outHeight.toFloat()
+    ratio =
+        if (orientation == 90 || orientation == 270)
+            options.outHeight.toFloat() / options.outWidth.toFloat()
+        else
+            options.outWidth.toFloat() / options.outHeight.toFloat()
     val end = System.currentTimeMillis()
     println("测试:尺寸${ratio}加载时间 ${end - start}")
     return ratio
-}*/
+}
 
 fun decodeBitmap(
     filePath: String,

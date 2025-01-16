@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.PageSize
 import androidx.compose.foundation.pager.PagerState
@@ -59,7 +60,6 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -280,7 +280,7 @@ private fun BottomBar(
             .pointerInput(Unit) {
                 val velocityTracker = VelocityTracker() // 记录滑动速度
                 var isDragging = false // 用于标记是否正在拖动
-                var addup = 0f
+                var addUp = 0f
                 detectHorizontalDragGestures(
                     onDragStart = {
                         // 拖动开始，初始化状态
@@ -295,20 +295,18 @@ private fun BottomBar(
                                 change.uptimeMillis,
                                 change.position
                             ) // 记录位置和时间
-                            addup += dragAmount
-                            if (abs(addup) >= itemWidth.toPx() / 2 && !animation.isRunning) {
-                                if (addup < 0) {
-                                    addup = 0f
+                            addUp += dragAmount
+                            if (abs(addUp) >= itemWidth.toPx() / 2 && !animation.isRunning) {
+                                if (addUp < 0) {
+                                    addUp = 0f
                                     scrollPage = min(
                                         1f,
                                         items.size() - selectItemIndex.intValue.toFloat() - 1
                                     )
-                                    println("测试:滚动 $scrollPage")
                                     animateFlag.intValue += 1
                                 } else {
-                                    addup = 0f
+                                    addUp = 0f
                                     scrollPage = max(-1f, -selectItemIndex.intValue.toFloat())
-                                    println("测试:滚动 $scrollPage")
                                     animateFlag.intValue += 1
                                 }
                             }
@@ -317,7 +315,7 @@ private fun BottomBar(
                     onDragEnd = {
                         // 拖动结束，切换到滑动逻辑
                         isDragging = false
-                        addup = 0f
+                        addUp = 0f
                         val velocity = velocityTracker.calculateVelocity() // 计算滑动速度
                         val speed = velocity.x // 水平方向的速度
                         if (abs(speed) > 2000) { // 自定义滑动速度阈值
@@ -326,18 +324,16 @@ private fun BottomBar(
                                     10f,
                                     items.size() - selectItemIndex.intValue.toFloat()
                                 )
-                                println("测试:滚动 $scrollPage")
                                 animateFlag.intValue += 1
                             } else {
                                 scrollPage = max(-10f, -selectItemIndex.intValue.toFloat())
-                                println("测试:滚动 $scrollPage")
                                 animateFlag.intValue += 1
                             }
                         }
                     },
                     onDragCancel = {
                         // 拖动取消的处理
-                        addup = 0f
+                        addUp = 0f
                         scope.launch {
                             animation.stop()
                         }
@@ -403,10 +399,18 @@ fun View(
     }
     val density = LocalDensity.current
     val loadBitmap = viewModel.application.loadThumbnailBitmap ?: viewModel.notPreviewIcon
+    val imageWidthPx = loadBitmap.width.toFloat()
+    val imageHeightPx = loadBitmap.height.toFloat()
+    val heightAdapter = screenWidth / imageWidthPx * imageHeightPx > screenHeight
     LaunchedEffect(Unit) {
         with(density) {
-            val imageWidthPx = loadBitmap.width.toFloat()
-            val targetScale = screenWidth.toPx() / imageWidthPx
+            val targetScale = screenWidth.toPx().let { width ->
+                if (heightAdapter)
+                    screenHeight.toPx() / imageHeightPx
+                else
+                    width / imageWidthPx
+            }
+
             ani.animateTo(
                 targetValue = targetScale,
                 animationSpec = tween(durationMillis = 700, easing = LinearOutSlowInEasing)
@@ -435,7 +439,6 @@ fun View(
             notPreview = viewModel.notPreviewIcon,
             screenWidth = screenWidth,
             screenHeight = screenHeight,
-            density = density,
             source = viewModel.source,
             pageState = pagerState.value,
             selectItemIndex = viewModel.itemIndex,
@@ -448,7 +451,7 @@ fun View(
         DisplayImage(
             bitmap = loadBitmap,
             context = context,
-            contentScale = ContentScale.None,
+            contentScale = if (heightAdapter) ContentScale.FillHeight else ContentScale.FillWidth,
             modifier = Modifier.graphicsLayer(
                 scaleX = ani.value,
                 scaleY = ani.value,
@@ -458,7 +461,6 @@ fun View(
     }
 }
 
-/*
 @Composable
 fun ZoomViewImage(
     isRow: Boolean,
@@ -466,7 +468,6 @@ fun ZoomViewImage(
     notPreview: Bitmap,
     screenWidth: Dp,
     screenHeight: Dp,
-    density: Density,
     source: DataService<*>,
     pageState: PagerState?,
     selectItemIndex: MutableIntState,
@@ -479,340 +480,88 @@ fun ZoomViewImage(
         val doubleScale = 2f
         val maxScale = 4f
         var expand by remember { mutableStateOf(false) }
-        var aniStartValue by remember { mutableFloatStateOf(1f) }
-        var aniEndValue by remember { mutableFloatStateOf(1f) }
-        var aniDuration by remember { mutableIntStateOf(300) }
-        val aniScale = animateFloatAsState(
-            targetValue = if (expand) aniEndValue else aniStartValue,
-            tween(durationMillis = aniDuration, easing = LinearEasing),
-            label = "缩放动画"
-        )
+        var aniScaleStartValue by remember { mutableFloatStateOf(1f) }
+        var aniScaleEndValue by remember { mutableFloatStateOf(1f) }
+        var aniScaleDuration by remember { mutableIntStateOf(300) }
+        val aniScaleFlag = remember { mutableIntStateOf(0) }
+        val aniScale = remember { Animatable(initialValue = aniScaleStartValue) }
 
-        LaunchedEffect(Unit) {
-            source.loadImage(selectItemIndex.intValue)
+        var aniTransOriginXStartVal by remember { mutableFloatStateOf(-1f) }
+        var aniTransOriginXEndVal by remember { mutableFloatStateOf(-1f) }
+        var aniTransOriginXDuration by remember { mutableIntStateOf(200) }
+        val aniTransOriginX = remember(aniTransOriginXStartVal) { Animatable(aniTransOriginXStartVal) }
+        val aniTransOriginXFlag = remember { mutableIntStateOf(0) }
+
+        var aniTransOriginYStartVal by remember { mutableFloatStateOf(-1f) }
+        var aniTransOriginYEndVal by remember { mutableFloatStateOf(-1f) }
+        var aniTransOriginYDuration by remember { mutableIntStateOf(200) }
+        val aniTransOriginY = remember(aniTransOriginYStartVal) { Animatable(aniTransOriginYStartVal) }
+        val aniTransOriginYFlag = remember { mutableIntStateOf(0) }
+
+        val screenWidthPx: Float
+        val screenHeightPx: Float
+        with(LocalDensity.current) {
+            screenWidthPx = screenWidth.toPx()
+            screenHeightPx = screenHeight.toPx()
         }
 
-        LaunchedEffect(state.currentPage) {
-            if (state.currentPage != selectItemIndex.intValue) {
-                selectItemIndex.intValue = state.currentPage
-                source.loadImage(selectItemIndex.intValue)
-            }
+        val clearParams = {
+            transformOrigin = Offset(0.5f, 0.5f)
+            aniScaleStartValue = 1f
+            aniScaleEndValue = 1f
+            aniScaleDuration = 0
+            aniScaleFlag.intValue += 1
+            expand = false
         }
 
-        LaunchedEffect(selectItemIndex.intValue) {
-            if (selectItemIndex.intValue != state.currentPage) {
-                state.scrollToPage(selectItemIndex.intValue)
-                source.loadImage(selectItemIndex.intValue)
-            }
-        }
-
-        val scope = rememberCoroutineScope()
-
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = modifier
-        ) {
-            if (isRow) {
-                HorizontalPager(
-                    state = state,
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = modifier
-                        .pointerInput(Unit) {
-                            awaitPointerEventScope {
-                                var tapCenter: Offset? = null
-                                var onePointerDrag = false
-                                while (true) {
-                                    val event = awaitPointerEvent()
-                                    when (event.type) {
-                                        PointerEventType.Press -> {
-                                            tapCenter = event.changes.first().position
-                                        }
-
-                                        PointerEventType.Release -> {
-                                            if (onePointerDrag) {
-                                                event.changes
-                                                    .first()
-                                                    .consume()
-                                                onePointerDrag = false
-                                            }
-                                        }
-
-                                        PointerEventType.Move -> {
-                                            if (event.changes.size == 1 && tapCenter != null) {
-                                                val pointer = event.changes.first()
-                                                val move = (tapCenter - pointer.position).getDistance()
-                                                if (move >= 5f) {
-                                                    onePointerDrag = true
-                                                }
-                                            }
-                                            if (event.changes.size == 2) {
-                                                event.changes.forEach { pointer ->
-                                                    pointer.consume()
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .fillMaxHeight()
-                ) { page ->
-                    items[page].let {
-                        val image = it.dataBitmap.value
-                        val thumbnail = it.thumbnailState.value?.let { bitmap ->
-                            if (bitmap.isRecycled) it.thumbnail
-                            else bitmap
-                        } ?: it.thumbnail
-                        imageRatio = thumbnail?.let { t ->
-                            t.width.toFloat() / t.height.toFloat()
-                        } ?: 0f
-                        Box(
-                            contentAlignment = Alignment.Center,
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .pointerInput(Unit) {
-                                    awaitPointerEventScope {
-                                        var doubleClick = false
-                                        var multiTouch = false
-                                        var tapCenter: Offset? = null
-                                        var pressTimer = 0L
-                                        var previousClickTimer = 0L
-                                        var pointerNum = 0
-                                        var initialSpan = 0f
-                                        var maxSpan = 0f
-                                        var previousSpan = 0f
-
-                                        while (true) {
-                                            val event = awaitPointerEvent()
-                                            when (event.type) {
-                                                PointerEventType.Press -> {
-                                                    pointerNum++
-                                                    multiTouch = pointerNum > 1
-                                                    tapCenter = event.changes.first().position
-                                                    val currentTime = System.currentTimeMillis()
-                                                    pressTimer = currentTime
-                                                    // 判断是否为双击
-                                                    doubleClick = if (previousClickTimer == 0L) {
-                                                        previousClickTimer = currentTime
-                                                        // 启动一个协程重置双击计时器，且可以限制双击缩放的频率400ms内最多一次
-                                                        scope.launch {
-                                                            delay(400)
-                                                            previousClickTimer = 0L
-                                                        }
-                                                        false
-                                                    } else if (!multiTouch) {
-                                                        val doubleTimer = currentTime - previousClickTimer
-                                                        doubleTimer < 400
-                                                    } else {
-                                                        //如果是多点触控或400ms内点击频率过高，则不予处理
-                                                        false
-                                                    }
-                                                    //计算两个触摸点之间的间隔
-                                                    if (event.changes.size == 2) {
-                                                        initialSpan = event.changes.let { touchPoint ->
-                                                            (touchPoint[0].position - touchPoint[1].position).getDistance()
-                                                        }
-                                                        maxSpan = initialSpan
-                                                    }
-                                                }
-
-                                                PointerEventType.Move -> {
-                                                    if (event.changes.size == 1 && tapCenter != null) {
-                                                        val pointer = event.changes.first()
-                                                        val move = (tapCenter!! - pointer.position).getDistance()
-                                                        if (move >= 1f) {
-
-                                                        }
-                                                    }
-
-                                                    if (event.changes.size == 2) {
-                                                        val pointer1 = event.changes[0]
-                                                        val pointer2 = event.changes[1]
-
-                                                        //计算缩放中心
-                                                        if (aniScale.value != maxScale){
-                                                            val originX: Float = event.changes.first().position.x.let { tap ->
-                                                                if (aniScale.value == 1f)
-                                                                    tap / screenWidth.toPx()
-                                                                else {
-                                                                    val ratio = tap / screenWidth.toPx()
-                                                                    val span = ratio - transformOrigin.x
-                                                                    if (span<0){
-                                                                        transformOrigin.x - abs(span) / aniScale.value
-                                                                    }else{
-                                                                        transformOrigin.x + abs(span) / aniScale.value
-                                                                    }
-                                                                }
-                                                            }
-                                                            transformOrigin = Offset(originX, 0.5f)
-                                                        }
-
-                                                        // 计算当前两点间的距离（span）
-                                                        val currentSpan =
-                                                            (pointer1.position - pointer2.position).getDistance()
-
-                                                        // 计算缩放比例
-                                                        val multiTouchScale = if (currentSpan > previousSpan) {
-                                                            previousSpan = currentSpan
-                                                            maxSpan = currentSpan
-                                                            ((currentSpan - initialSpan) / 100).coerceIn(max(1f, aniScale.value), maxScale)
-                                                        } else {
-                                                            previousSpan = currentSpan
-                                                            ((currentSpan - maxSpan) / 100 + maxScale).coerceIn(1f, aniScale.value)
-                                                        }
-
-                                                        aniStartValue = multiTouchScale
-                                                        aniEndValue = multiTouchScale
-                                                        aniDuration = 0
-                                                        expand = multiTouchScale != 1f
-                                                        // 更新偏移量以适配缩放
-                                                    }
-                                                }
-
-                                                PointerEventType.Release -> {
-                                                    // 如果是双击，消费事件
-                                                    if (doubleClick) {
-                                                        doubleClick = false
-                                                        if (!expand) {
-                                                            val originX: Float = tapCenter?.x?.let { tap ->
-                                                                tap / screenWidth.toPx()
-                                                            } ?: 0.5f
-
-                                                            val originY: Float = tapCenter?.y?.let { tap ->
-                                                                val imageHeight = screenWidth.toPx() / imageRatio
-                                                                val halfScreenHeight = screenHeight.toPx() / 2
-                                                                if (imageHeight * doubleScale <= screenHeight.toPx()) {
-                                                                    0.5f
-                                                                } else {
-                                                                    val pointerY = tap.coerceIn(
-                                                                        halfScreenHeight - imageHeight / 2,
-                                                                        halfScreenHeight + imageHeight / 2
-                                                                    )
-                                                                    val tapRatio =
-                                                                        if (imageHeight <= screenHeight.toPx())
-                                                                            (pointerY - (halfScreenHeight - imageHeight / 2)) / imageHeight
-                                                                        else {
-                                                                            val overflow = (imageHeight - screenHeight.toPx()) / 2
-                                                                            (overflow + pointerY) / imageHeight
-                                                                        }
-                                                                    var topEdge =
-                                                                        (screenHeight.toPx() - imageHeight) / (2 * imageHeight * (doubleScale - 1))
-                                                                    var bottomEdge = 1 - topEdge
-                                                                    if (topEdge < 0f) {
-                                                                        topEdge = 0f
-                                                                        bottomEdge = 1f
-                                                                        //tapRatio = if (tapRatio >= 0.95) 1f else if (tapRatio <= 0.5) 0f else tapRatio
-                                                                    }
-                                                                    tapRatio.coerceIn(topEdge, bottomEdge)
-                                                                }
-                                                            } ?: 0.5f
-                                                            transformOrigin = Offset(originX, originY)
-                                                        }
-
-                                                        if (expand) {
-                                                            aniStartValue = 1f
-                                                            aniDuration = 300
-                                                            expand = false
-                                                        } else {
-                                                            aniStartValue = 1f
-                                                            aniEndValue = doubleScale
-                                                            aniDuration = 300
-                                                            expand = true
-                                                        }
-                                                        event.changes.forEach { change -> change.consume() }
-                                                    }
-                                                    // 如果长按超过400ms，消费事件
-                                                    if (System.currentTimeMillis() - pressTimer > 400 || multiTouch) {
-                                                        event.changes.forEach { change ->
-                                                            change.consume()
-                                                        }
-                                                    }
-                                                    pointerNum--
-                                                    if (pointerNum == 0) {
-                                                        multiTouch = false
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                        ) {
-                            val thumbnailAlpha by animateFloatAsState(
-                                targetValue = if (image == null) 1f else 0f,
-                                animationSpec = tween(durationMillis = 10), label = "" // 淡出动画
-                            )
-                            DisplayImage(
-                                bitmap = thumbnail ?: notPreview, context = context,
-                                contentScale = ContentScale.FillWidth,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .graphicsLayer(
-                                        alpha = thumbnailAlpha
-                                    )
-                            )
-                            DisplayImage(
-                                bitmap = image ?: notPreview, context = context,
-                                contentScale = ContentScale.FillWidth,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .graphicsLayer(
-                                        alpha = if (image == null) 0f else 1f,
-                                        scaleX = aniScale.value,
-                                        scaleY = aniScale.value,
-                                        transformOrigin = TransformOrigin(transformOrigin.x, transformOrigin.y)
-                                    )
-                            )
-                        }
-                    }
+        LaunchedEffect(aniScaleFlag.intValue) {
+            if (!aniScale.isRunning && aniScaleFlag.intValue > 0) {
+                if (aniScaleStartValue == aniScaleEndValue)
+                    aniScale.snapTo(aniScaleStartValue)
+                else {
+                    aniScale.snapTo(aniScaleStartValue)
+                    aniScale.animateTo(
+                        targetValue = aniScaleEndValue,
+                        animationSpec = tween(durationMillis = aniScaleDuration, easing = LinearEasing)
+                    )
                 }
-            } else {
-                VerticalPager(state = state) { }
             }
         }
-    }
-}
-*/
-@Composable
-fun ZoomViewImage(
-    isRow: Boolean,
-    items: DataList,
-    notPreview: Bitmap,
-    screenWidth: Dp,
-    screenHeight: Dp,
-    density: Density,
-    source: DataService<*>,
-    pageState: PagerState?,
-    selectItemIndex: MutableIntState,
-    context: Context,
-    modifier: Modifier = Modifier,
-) {
-    pageState?.let { state ->
-        var transformOrigin by remember { mutableStateOf(Offset(0.5f, 0.5f)) }
-        var imageRatio by remember { mutableFloatStateOf(0f) }
-        val doubleScale = 2f
-        val maxScale = 4f
-        var expand by remember { mutableStateOf(false) }
-        var aniStartValue by remember { mutableFloatStateOf(1f) }
-        var aniEndValue by remember { mutableFloatStateOf(1f) }
-        var aniDuration by remember { mutableIntStateOf(300) }
-        var aniFlag = remember { mutableStateOf(0) }
-        val aniScale = remember { Animatable(initialValue = aniStartValue) }
 
-        LaunchedEffect(aniFlag.value) {
-            if (!aniScale.isRunning && aniFlag.value > 0) {
-                aniScale.animateTo(
-                    targetValue = aniEndValue,
-                    animationSpec = tween(durationMillis = aniDuration, easing = LinearEasing)
+        LaunchedEffect(aniTransOriginXFlag.intValue) {
+            if (aniTransOriginXFlag.intValue != 0) {
+                aniTransOriginX.animateTo(
+                    targetValue = aniTransOriginXEndVal,
+                    tween(durationMillis = aniTransOriginXDuration, easing = LinearEasing)
                 )
             }
         }
 
+        LaunchedEffect(aniTransOriginYFlag.intValue) {
+            if (aniTransOriginYFlag.intValue != 0) {
+                aniTransOriginY.animateTo(
+                    targetValue = aniTransOriginYEndVal,
+                    tween(durationMillis = aniTransOriginYDuration, easing = LinearEasing)
+                )
+            }
+        }
+
+        LaunchedEffect(aniTransOriginX.value, aniTransOriginY.value) {
+            if (aniTransOriginX.value >= 0f) {
+                transformOrigin = Offset(aniTransOriginX.value, transformOrigin.y)
+            }
+            if (aniTransOriginY.value >= 0f) {
+                transformOrigin = Offset(transformOrigin.x, aniTransOriginY.value)
+            }
+        }
+
         LaunchedEffect(Unit) {
             source.loadImage(selectItemIndex.intValue)
         }
 
         LaunchedEffect(state.currentPage) {
             if (state.currentPage != selectItemIndex.intValue) {
+                clearParams()
                 selectItemIndex.intValue = state.currentPage
                 source.loadImage(selectItemIndex.intValue)
             }
@@ -820,6 +569,7 @@ fun ZoomViewImage(
 
         LaunchedEffect(selectItemIndex.intValue) {
             if (selectItemIndex.intValue != state.currentPage) {
+                clearParams()
                 state.scrollToPage(selectItemIndex.intValue)
                 source.loadImage(selectItemIndex.intValue)
             }
@@ -838,30 +588,25 @@ fun ZoomViewImage(
                     modifier = modifier
                         .pointerInput(Unit) {
                             awaitPointerEventScope {
-                                var tapCenter: Offset? = null
                                 var onePointerDrag = false
                                 while (true) {
                                     val event = awaitPointerEvent()
                                     when (event.type) {
-                                        PointerEventType.Press -> {
-                                            tapCenter = event.changes.first().position
-                                        }
-
                                         PointerEventType.Release -> {
                                             if (onePointerDrag) {
-                                                event.changes
-                                                    .first()
-                                                    .consume()
+                                                event.changes.forEach { pointer ->
+                                                    pointer.consume()
+                                                }
                                                 onePointerDrag = false
                                             }
                                         }
 
                                         PointerEventType.Move -> {
-                                            if (event.changes.size == 1 && tapCenter != null) {
-                                                val pointer = event.changes.first()
-                                                val move = (tapCenter - pointer.position).getDistance()
-                                                if (move >= 5f) {
-                                                    onePointerDrag = true
+                                            if (event.changes.size == 1) {
+                                                event.changes.forEach { pointer ->
+                                                    if (pointer.isConsumed) {
+                                                        onePointerDrag = true
+                                                    }
                                                 }
                                             }
                                             if (event.changes.size == 2) {
@@ -876,39 +621,44 @@ fun ZoomViewImage(
                         }
                         .fillMaxHeight()
                 ) { page ->
-                    items[page].let {
-                        val image = it.dataBitmap.value
-                        val thumbnail = it.thumbnailState.value?.let { bitmap ->
-                            if (bitmap.isRecycled) it.thumbnail
+                    items[page].let { item ->
+                        val image = item.dataBitmap.value
+                        val thumbnail = item.thumbnailState.value?.let { bitmap ->
+                            if (bitmap.isRecycled) item.thumbnail
                             else bitmap
-                        } ?: it.thumbnail
-                        imageRatio = thumbnail?.let { t ->
+                        } ?: item.thumbnail
+
+                        imageRatio = item.imageRatio ?: thumbnail?.let { t ->
                             t.width.toFloat() / t.height.toFloat()
                         } ?: 0f
+
+                        val heightAdapter = thumbnail?.let { t ->
+                            screenWidthPx / t.width * t.height > screenHeightPx
+                        } ?: false
                         Box(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .pointerInput(Unit) {
+                                .pointerInput(page) {
                                     awaitPointerEventScope {
-                                        var doubleClick = false
-                                        var multiTouch = false
-                                        var tapCenter: Offset? = null
+                                        var doubleClick = false //双击
+                                        var multiTouch = false //多指手势
+                                        var tapDrag = false //单指拖动
                                         var pressTimer = 0L
                                         var previousClickTimer = 0L
-                                        var pointerNum = 0
                                         var initialSpan = 0f
                                         var maxSpan = 0f
                                         var previousSpan = 0f
-                                        var pressPointer: Offset? = null
+                                        val imageHeight = screenWidth.toPx() / imageRatio
+                                        val halfScreenHeight = screenHeight.toPx() / 2
+                                        val velocityTracker = VelocityTracker()
 
                                         while (true) {
                                             val event = awaitPointerEvent()
                                             when (event.type) {
                                                 PointerEventType.Press -> {
-                                                    pointerNum++
-                                                    multiTouch = pointerNum > 1
-                                                    tapCenter = event.changes.first().position
+                                                    velocityTracker.resetTracking()
+                                                    multiTouch = event.changes.size > 1
                                                     val currentTime = System.currentTimeMillis()
                                                     pressTimer = currentTime
                                                     // 判断是否为双击
@@ -937,38 +687,92 @@ fun ZoomViewImage(
                                                 }
 
                                                 PointerEventType.Move -> {
-                                                    if (event.changes.size == 1 && tapCenter != null) {
+                                                    if (event.changes.size == 1) {
                                                         val pointer = event.changes.first()
-                                                        val move = (tapCenter!! - pointer.position).getDistance()
-                                                        if (move >= 1f) {
-
+                                                        val oldPointer = pointer.previousPosition
+                                                        val deltaX = pointer.position.x - oldPointer.x
+                                                        val deltaY = pointer.position.y - oldPointer.y
+                                                        val move = (pointer.position - oldPointer).getDistance()
+                                                        if (move > 5f)
+                                                            tapDrag = true
+                                                        if (aniScale.value > 1f && tapDrag) {
+                                                            event.changes.forEach { change ->
+                                                                change.consume()
+                                                            }
                                                         }
+                                                        velocityTracker.addPosition(pointer.uptimeMillis, pointer.position)
+                                                        val ratioX = deltaX / 1000 / aniScale.value
+                                                        val ratioY = deltaY / 1000 / aniScale.value
+                                                        val transformOriginX = ratioX.let { x ->
+                                                            if (x < 0) {
+                                                                if (abs(x) + transformOrigin.x <= 1f) transformOrigin.x + abs(x) else 1f
+                                                            } else {
+                                                                if (transformOrigin.x - x >= 0f) transformOrigin.x - x else 0f
+                                                            }
+                                                        }
+                                                        val transformOriginY = ratioY.let { y ->
+                                                            if (imageHeight * aniScale.value <= screenHeight.toPx()) {
+                                                                0.5f
+                                                            } else {
+                                                                var topEdge = imageHeight.let { height ->
+                                                                    if (height > screenHeight.toPx() && aniScale.value == 1f)
+                                                                        1f
+                                                                    else
+                                                                        (screenHeight.toPx() - height) / (2 * height * (aniScale.value - 1))
+                                                                }
+                                                                var bottomEdge = 1 - topEdge
+                                                                if (topEdge < 0f) {
+                                                                    topEdge = 0f
+                                                                    bottomEdge = 1f
+                                                                }
+                                                                if (y < 0) {
+                                                                    if (abs(y) + transformOrigin.y <= bottomEdge) transformOrigin.y + abs(y) else bottomEdge
+                                                                } else {
+                                                                    if (transformOrigin.y - y >= topEdge) transformOrigin.y - y else topEdge
+                                                                }
+                                                            }
+                                                        }
+                                                        transformOrigin = Offset(transformOriginX, transformOriginY)
                                                     }
 
                                                     if (event.changes.size == 2) {
                                                         val pointer1 = event.changes[0]
                                                         val pointer2 = event.changes[1]
-                                                        if (pressPointer == null) pressPointer = pointer1.position
 
                                                         //计算缩放中心
                                                         if (aniScale.value != maxScale) {
-                                                            val originX: Float = event.changes.first().position.x.let { tap ->
-                                                                if (aniScale.value == 1f)
-                                                                    tap / screenWidth.toPx()
-                                                                else {
-                                                                    if (abs(pressPointer!!.x - tap) < 10f) {
-                                                                        transformOrigin.x
-                                                                    } else {
+                                                            val originX: Float = event.changes
+                                                                .first()
+                                                                .let { pointer ->
+                                                                    //val old = pointer.position
+                                                                    //val move = (pointer.position - old).getDistance()
+                                                                    val tap = pointer.position.x
+                                                                    if (aniScale.value == 1f)
+                                                                        tap / screenWidth.toPx()
+                                                                    else {
                                                                         val ratio = tap / screenWidth.toPx()
                                                                         val span = ratio - transformOrigin.x
+                                                                        println("返回新缩放中心")
                                                                         if (span < 0) {
                                                                             transformOrigin.x - abs(span) / aniScale.value
                                                                         } else {
                                                                             transformOrigin.x + abs(span) / aniScale.value
                                                                         }
+                                                                        /*if (move < 10f) {
+                                                                        println("返回原缩放中心")
+                                                                        transformOrigin.x
+                                                                    } else {
+                                                                        val ratio = tap / screenWidth.toPx()
+                                                                        val span = ratio - transformOrigin.x
+                                                                        println("返回新缩放中心")
+                                                                        if (span < 0) {
+                                                                            transformOrigin.x - abs(span) / aniScale.value
+                                                                        } else {
+                                                                            transformOrigin.x + abs(span) / aniScale.value
+                                                                        }
+                                                                    }*/
                                                                     }
                                                                 }
-                                                            }
                                                             transformOrigin = Offset(originX, 0.5f)
                                                         }
 
@@ -980,19 +784,18 @@ fun ZoomViewImage(
                                                         val multiTouchScale = if (currentSpan > previousSpan) {
                                                             previousSpan = currentSpan
                                                             maxSpan = currentSpan
-                                                            ((currentSpan - initialSpan) / 100).coerceIn(max(1f, aniScale.value), maxScale)
-
+                                                            ((currentSpan - initialSpan) / 150).coerceIn(max(1f, aniScale.value), maxScale)
                                                         } else {
                                                             previousSpan = currentSpan
-                                                            val result = ((currentSpan - maxSpan) / 100 + maxScale).coerceIn(1f, aniScale.value)
+                                                            val result = ((currentSpan - maxSpan) / 150 + maxScale).coerceIn(1f, aniScale.value)
                                                             if (result == 1f) initialSpan = currentSpan
                                                             result
                                                         }
 
-                                                        aniStartValue = multiTouchScale
-                                                        aniEndValue = multiTouchScale
-                                                        aniDuration = 0
-                                                        aniFlag.value += 1
+                                                        aniScaleStartValue = multiTouchScale
+                                                        aniScaleEndValue = multiTouchScale
+                                                        aniScaleDuration = 0
+                                                        aniScaleFlag.intValue += 1
                                                         expand = multiTouchScale != 1f
                                                         // 更新偏移量以适配缩放
                                                     }
@@ -1000,16 +803,14 @@ fun ZoomViewImage(
 
                                                 PointerEventType.Release -> {
                                                     // 如果是双击，消费事件
-                                                    if (doubleClick) {
+                                                    if (doubleClick && !tapDrag) {
                                                         doubleClick = false
                                                         if (!expand) {
-                                                            val originX: Float = tapCenter?.x?.let { tap ->
+                                                            val originX: Float = event.changes.first().position.x.let { tap ->
                                                                 tap / screenWidth.toPx()
-                                                            } ?: 0.5f
+                                                            }
 
-                                                            val originY: Float = tapCenter?.y?.let { tap ->
-                                                                val imageHeight = screenWidth.toPx() / imageRatio
-                                                                val halfScreenHeight = screenHeight.toPx() / 2
+                                                            val originY: Float = event.changes.first().position.y.let { tap ->
                                                                 if (imageHeight * doubleScale <= screenHeight.toPx()) {
                                                                     0.5f
                                                                 } else {
@@ -1030,40 +831,110 @@ fun ZoomViewImage(
                                                                     if (topEdge < 0f) {
                                                                         topEdge = 0f
                                                                         bottomEdge = 1f
-                                                                        //tapRatio = if (tapRatio >= 0.95) 1f else if (tapRatio <= 0.5) 0f else tapRatio
                                                                     }
                                                                     tapRatio.coerceIn(topEdge, bottomEdge)
                                                                 }
-                                                            } ?: 0.5f
+                                                            }
                                                             transformOrigin = Offset(originX, originY)
                                                         }
-                                                        println("动画运行状态 ${aniScale.isRunning} 展开状态$expand")
+
                                                         if (!aniScale.isRunning) {
                                                             if (expand) {
-                                                                aniEndValue = 1f
-                                                                aniDuration = 300
-                                                                aniFlag.value += 1
+                                                                if (aniScaleStartValue == 1f)
+                                                                    aniScaleStartValue = doubleScale
+                                                                aniScaleEndValue = 1f
+                                                                aniScaleDuration = 300
+                                                                aniScaleFlag.intValue += 1
                                                                 expand = false
                                                             } else {
-                                                                aniStartValue = 1f
-                                                                aniEndValue = doubleScale
-                                                                aniDuration = 300
-                                                                aniFlag.value += 1
+                                                                aniScaleStartValue = 1f
+                                                                aniScaleEndValue = doubleScale
+                                                                aniScaleDuration = 300
+                                                                aniScaleFlag.intValue += 1
                                                                 expand = true
                                                             }
                                                         }
                                                         event.changes.forEach { change -> change.consume() }
                                                     }
                                                     // 如果长按超过400ms，消费事件
+                                                    if (tapDrag && !doubleClick && !multiTouch && aniScale.value > 1f) {
+                                                        val velocity = velocityTracker.calculateVelocity()
+                                                        val speedX = velocity.x // 水平方向的速度
+                                                        val speedY = velocity.y
+                                                        var topEdge = imageHeight.let { height ->
+                                                            if (heightAdapter && aniScale.value == 1f)
+                                                                0.5f
+                                                            else if (heightAdapter && aniScale.value > 1f)
+                                                                1f
+                                                            else if (!heightAdapter && height * aniScale.value > screenHeightPx)
+                                                                (screenHeight.toPx() - height) / (2 * height * (aniScale.value - 1))
+                                                            else
+                                                                0.5f
+                                                        }
+                                                        var bottomEdge = 1 - topEdge
+                                                        if (topEdge < 0f) {
+                                                            topEdge = 0f
+                                                            bottomEdge = 1f
+                                                        }
+                                                        val transformOriginX = speedX.let {
+                                                            if (abs(speedX) > 2000) {
+                                                                val ratio = speedX / 10000
+                                                                if (ratio < 0) {
+                                                                    if (abs(ratio) + transformOrigin.x < 1f)
+                                                                        abs(ratio) + transformOrigin.x
+                                                                    else
+                                                                        1f
+                                                                } else {
+                                                                    if (transformOrigin.x - ratio > 0f)
+                                                                        transformOrigin.x - ratio
+                                                                    else
+                                                                        0f
+                                                                }
+                                                            } else
+                                                                transformOrigin.x
+                                                        }
+
+                                                        val transformOriginY = speedY.let {
+                                                            if (abs(speedY) > 2000) {
+                                                                val ratio = speedY / 10000
+                                                                if (ratio < 0) {
+                                                                    if (abs(ratio) + transformOrigin.y <= topEdge)
+                                                                        transformOrigin.y + abs(ratio)
+                                                                    else
+                                                                        topEdge
+                                                                } else {
+                                                                    if (transformOrigin.y - ratio >= bottomEdge)
+                                                                        transformOrigin.y - ratio
+                                                                    else
+                                                                        bottomEdge
+                                                                }
+                                                            } else
+                                                                transformOrigin.y
+                                                        }
+                                                        if (transformOriginX != transformOrigin.x) {
+                                                            aniTransOriginXStartVal = transformOrigin.x
+                                                            aniTransOriginXEndVal = transformOriginX
+                                                            aniTransOriginXDuration = (abs(transformOriginX - transformOrigin.x) * 300).toInt()
+                                                            aniTransOriginXFlag.intValue += 1
+                                                        }
+                                                        if (transformOriginY != transformOrigin.y) {
+                                                            aniTransOriginYStartVal = transformOrigin.y
+                                                            aniTransOriginYEndVal = transformOriginY
+                                                            aniTransOriginYDuration = (abs(transformOriginY - transformOrigin.y) * 300).toInt()
+                                                            aniTransOriginYFlag.intValue += 1
+                                                        }
+                                                    }
                                                     if (System.currentTimeMillis() - pressTimer > 400 || multiTouch) {
                                                         event.changes.forEach { change ->
                                                             change.consume()
                                                         }
                                                     }
-                                                    pointerNum--
-                                                    if (pointerNum == 0) {
+                                                    if (event.changes.size == 1) {
                                                         multiTouch = false
-                                                        pressPointer = null
+                                                        tapDrag = false
+                                                        initialSpan = 0f
+                                                        maxSpan = 0f
+                                                        previousSpan = 0f
                                                     }
                                                 }
                                             }
@@ -1076,8 +947,9 @@ fun ZoomViewImage(
                                 animationSpec = tween(durationMillis = 10), label = "" // 淡出动画
                             )
                             DisplayImage(
-                                bitmap = thumbnail ?: notPreview, context = context,
-                                contentScale = ContentScale.FillWidth,
+                                bitmap = thumbnail ?: notPreview,
+                                context = context,
+                                contentScale = if (heightAdapter) ContentScale.FillHeight else ContentScale.FillWidth,
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .graphicsLayer(
@@ -1085,10 +957,12 @@ fun ZoomViewImage(
                                     )
                             )
                             DisplayImage(
-                                bitmap = image ?: notPreview, context = context,
-                                contentScale = ContentScale.FillWidth,
+                                bitmap = image ?: notPreview,
+                                context = context,
+                                contentScale = if (heightAdapter) ContentScale.FillHeight else ContentScale.FillWidth,
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .wrapContentHeight()
                                     .graphicsLayer(
                                         alpha = if (image == null) 0f else 1f,
                                         scaleX = aniScale.value,

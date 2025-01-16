@@ -13,6 +13,7 @@ import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.smb.SmbClient
 import com.example.photoalbum.utils.decodeBitmap
 import com.example.photoalbum.utils.decodeSampledBitmap
+import com.example.photoalbum.utils.getImageRatio
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.CoroutineScope
