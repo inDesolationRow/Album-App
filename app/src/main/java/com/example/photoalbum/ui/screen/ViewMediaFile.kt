@@ -516,9 +516,9 @@ fun ZoomViewImage(
 
         LaunchedEffect(aniScaleFlag.intValue) {
             if (!aniScale.isRunning && aniScaleFlag.intValue > 0) {
-                if (aniScaleStartValue == aniScaleEndValue)
+                if (aniScaleStartValue == aniScaleEndValue) {
                     aniScale.snapTo(aniScaleStartValue)
-                else {
+                } else {
                     aniScale.snapTo(aniScaleStartValue)
                     aniScale.animateTo(
                         targetValue = aniScaleEndValue,
@@ -644,6 +644,8 @@ fun ZoomViewImage(
                                         var doubleClick = false //双击
                                         var multiTouch = false //多指手势
                                         var tapDrag = false //单指拖动
+                                        var pointer1Id = -1L
+                                        var pointer2Id = -2L
                                         var pressTimer = 0L
                                         var previousClickTimer = 0L
                                         var initialSpan = 0f
@@ -700,6 +702,7 @@ fun ZoomViewImage(
                                                                 change.consume()
                                                             }
                                                         }
+                                                        println("当前坐标 ${pointer.position}")
                                                         velocityTracker.addPosition(pointer.uptimeMillis, pointer.position)
                                                         val ratioX = deltaX / 1000 / aniScale.value
                                                         val ratioY = deltaY / 1000 / aniScale.value
@@ -716,7 +719,7 @@ fun ZoomViewImage(
                                                             } else {
                                                                 var topEdge = imageHeight.let { height ->
                                                                     if (height > screenHeight.toPx() && aniScale.value == 1f)
-                                                                        1f
+                                                                        0f
                                                                     else
                                                                         (screenHeight.toPx() - height) / (2 * height * (aniScale.value - 1))
                                                                 }
@@ -736,44 +739,16 @@ fun ZoomViewImage(
                                                     }
 
                                                     if (event.changes.size == 2) {
-                                                        val pointer1 = event.changes[0]
-                                                        val pointer2 = event.changes[1]
+                                                        var transOriginChange = false
 
-                                                        //计算缩放中心
-                                                        if (aniScale.value != maxScale) {
-                                                            val originX: Float = event.changes
-                                                                .first()
-                                                                .let { pointer ->
-                                                                    //val old = pointer.position
-                                                                    //val move = (pointer.position - old).getDistance()
-                                                                    val tap = pointer.position.x
-                                                                    if (aniScale.value == 1f)
-                                                                        tap / screenWidth.toPx()
-                                                                    else {
-                                                                        val ratio = tap / screenWidth.toPx()
-                                                                        val span = ratio - transformOrigin.x
-                                                                        println("返回新缩放中心")
-                                                                        if (span < 0) {
-                                                                            transformOrigin.x - abs(span) / aniScale.value
-                                                                        } else {
-                                                                            transformOrigin.x + abs(span) / aniScale.value
-                                                                        }
-                                                                        /*if (move < 10f) {
-                                                                        println("返回原缩放中心")
-                                                                        transformOrigin.x
-                                                                    } else {
-                                                                        val ratio = tap / screenWidth.toPx()
-                                                                        val span = ratio - transformOrigin.x
-                                                                        println("返回新缩放中心")
-                                                                        if (span < 0) {
-                                                                            transformOrigin.x - abs(span) / aniScale.value
-                                                                        } else {
-                                                                            transformOrigin.x + abs(span) / aniScale.value
-                                                                        }
-                                                                    }*/
-                                                                    }
-                                                                }
-                                                            transformOrigin = Offset(originX, 0.5f)
+                                                        val pointer1 = event.changes.first()
+                                                        val pointer2 = event.changes.last()
+
+                                                        val set = event.changes
+                                                            .map { it.id.value }
+                                                            .toSet()
+                                                        if (pointer1Id !in set || pointer2Id !in set) {
+                                                            transOriginChange = true
                                                         }
 
                                                         // 计算当前两点间的距离（span）
@@ -782,16 +757,70 @@ fun ZoomViewImage(
 
                                                         // 计算缩放比例
                                                         val multiTouchScale = if (currentSpan > previousSpan) {
-                                                            previousSpan = currentSpan
-                                                            maxSpan = currentSpan
-                                                            ((currentSpan - initialSpan) / 150).coerceIn(max(1f, aniScale.value), maxScale)
+                                                            val result =
+                                                                ((currentSpan - initialSpan) / 150).coerceIn(max(1f, aniScale.value), maxScale)
+                                                            if (abs(result - aniScale.value) < maxScale / 10) {
+                                                                previousSpan = currentSpan
+                                                                maxSpan = currentSpan
+                                                                result
+                                                            } else {
+                                                                aniScale.value
+                                                            }
                                                         } else {
-                                                            previousSpan = currentSpan
                                                             val result = ((currentSpan - maxSpan) / 150 + maxScale).coerceIn(1f, aniScale.value)
-                                                            if (result == 1f) initialSpan = currentSpan
-                                                            result
+                                                            if (abs(result - aniScale.value) < maxScale / 10) {
+                                                                previousSpan = currentSpan
+                                                                if (result == 1f) initialSpan = currentSpan
+                                                                result
+                                                            } else {
+                                                                aniScale.value
+                                                            }
                                                         }
+                                                        if (multiTouchScale > aniScale.value) {
+                                                            pointer1Id = pointer1.id.value
+                                                            pointer2Id = pointer2.id.value
+                                                            var topEdge = imageHeight.let { height ->
+                                                                if (heightAdapter && aniScale.value == 1f)
+                                                                    0.5f
+                                                                else if (heightAdapter && aniScale.value > 1f)
+                                                                    0f
+                                                                else if (!heightAdapter && height * aniScale.value > screenHeightPx)
+                                                                    (screenHeight.toPx() - height) / (2 * height * (aniScale.value - 1))
+                                                                else
+                                                                    0.5f
+                                                            }
+                                                            var bottomEdge = 1 - topEdge
+                                                            if (topEdge < 0f) {
+                                                                topEdge = 0f
+                                                                bottomEdge = 1f
+                                                            }
 
+                                                            val p1 = event.changes.first().position
+                                                            val p2 = event.changes.last().position
+                                                            if (aniScale.value == 1f && multiTouchScale > aniScale.value) {
+                                                                val x = ((p1.x + p2.x) / 2) / screenWidthPx
+                                                                val y = (((p1.y + p2.y) / 2) / screenHeightPx).coerceIn(topEdge, bottomEdge)
+                                                                transformOrigin = Offset(x, y)
+                                                            }
+                                                            if (multiTouchScale > aniScale.value && transOriginChange) {
+                                                                val x =
+                                                                    (((p1.x + p2.x) / 2 / screenWidthPx) - transformOrigin.x) / aniScale.value + transformOrigin.x
+                                                                val y =
+                                                                    ((((p1.y + p2.y) / 2 / screenHeightPx) - transformOrigin.y) / aniScale.value + transformOrigin.y).coerceIn(
+                                                                        topEdge,
+                                                                        bottomEdge
+                                                                    )
+                                                                aniTransOriginXStartVal = transformOrigin.x
+                                                                aniTransOriginXEndVal = x
+                                                                aniTransOriginXDuration = (abs(x - transformOrigin.x) * 300).toInt()
+                                                                aniTransOriginXFlag.intValue += 1
+
+                                                                aniTransOriginYStartVal = transformOrigin.y
+                                                                aniTransOriginYEndVal = y
+                                                                aniTransOriginYDuration = (abs(y - transformOrigin.y) * 300).toInt()
+                                                                aniTransOriginYFlag.intValue += 1
+                                                            }
+                                                        }
                                                         aniScaleStartValue = multiTouchScale
                                                         aniScaleEndValue = multiTouchScale
                                                         aniScaleDuration = 0
@@ -865,7 +894,7 @@ fun ZoomViewImage(
                                                             if (heightAdapter && aniScale.value == 1f)
                                                                 0.5f
                                                             else if (heightAdapter && aniScale.value > 1f)
-                                                                1f
+                                                                0f
                                                             else if (!heightAdapter && height * aniScale.value > screenHeightPx)
                                                                 (screenHeight.toPx() - height) / (2 * height * (aniScale.value - 1))
                                                             else
@@ -898,15 +927,15 @@ fun ZoomViewImage(
                                                             if (abs(speedY) > 2000) {
                                                                 val ratio = speedY / 10000
                                                                 if (ratio < 0) {
-                                                                    if (abs(ratio) + transformOrigin.y <= topEdge)
-                                                                        transformOrigin.y + abs(ratio)
-                                                                    else
-                                                                        topEdge
-                                                                } else {
-                                                                    if (transformOrigin.y - ratio >= bottomEdge)
-                                                                        transformOrigin.y - ratio
+                                                                    if (transformOrigin.y - abs(ratio) >= bottomEdge)
+                                                                        transformOrigin.y - abs(ratio)
                                                                     else
                                                                         bottomEdge
+                                                                } else {
+                                                                    if (transformOrigin.y + ratio <= topEdge)
+                                                                        transformOrigin.y + ratio
+                                                                    else
+                                                                        topEdge
                                                                 }
                                                             } else
                                                                 transformOrigin.y
@@ -929,12 +958,15 @@ fun ZoomViewImage(
                                                             change.consume()
                                                         }
                                                     }
+
                                                     if (event.changes.size == 1) {
                                                         multiTouch = false
                                                         tapDrag = false
                                                         initialSpan = 0f
                                                         maxSpan = 0f
                                                         previousSpan = 0f
+                                                        pointer1Id = -1L
+                                                        pointer2Id = -1L
                                                     }
                                                 }
                                             }

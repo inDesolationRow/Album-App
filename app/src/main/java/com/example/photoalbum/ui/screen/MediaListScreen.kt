@@ -263,6 +263,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                     id
                                 else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
                                     viewModel.application.loadThumbnailBitmap = image
+                                    viewModel.userAction.value = UserAction.ExpandStatusBarAction(false)
                                     viewModel.userAction.value =
                                         UserAction.OpenImage(viewModel.currentDirectoryId.value, id)
                                 }
@@ -367,6 +368,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                                             name
                                         ) else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
                                             viewModel.application.loadThumbnailBitmap = image
+                                            viewModel.userAction.value = UserAction.ExpandStatusBarAction(false)
                                             viewModel.userAction.value =
                                                 UserAction.OpenImage(
                                                     viewModel.smbClient.getPath().dropLast(1),
@@ -606,7 +608,8 @@ fun MediaList(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-    expand(!invisibleStatusBar && lifecycle)
+    if (lifecycle)
+        expand(!invisibleStatusBar)
 }
 
 @Composable
