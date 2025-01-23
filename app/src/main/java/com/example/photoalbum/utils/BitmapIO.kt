@@ -107,7 +107,8 @@ fun decodeSampledBitmap(
         options.inPreferredConfig = Bitmap.Config.RGB_565
         return rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation)
     } catch (e: Exception) {
-        println("错误:解析失败 ${e.printStackTrace()}")
+        e.printStackTrace()
+        println("错误:失败图片地址 $filePath")
         return null
     }
 }

@@ -81,3 +81,8 @@ enum class Direction(val value: Int){
     RIGHT(1),
     NULL(-10)
 }
+
+enum class WorkTag(val value: String){
+    SYNC_DATABASE("sync_database"),
+    CREATE_THUMBNAILS("create_thumbnails")
+}

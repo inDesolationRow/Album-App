@@ -27,6 +27,7 @@ import com.example.photoalbum.data.MediaItemPagingSource
 import com.example.photoalbum.data.LocalStorageThumbnailService
 import com.example.photoalbum.data.model.LocalNetStorageInfo
 import com.example.photoalbum.data.model.Settings
+import com.example.photoalbum.enums.ScanResult
 import com.example.photoalbum.enums.StorageType
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.model.MediaListDialogEntity
@@ -44,7 +45,7 @@ import kotlinx.coroutines.launch
 class MediaListScreenViewModel(
     application: MediaApplication,
     userAction: MutableStateFlow<UserAction>,
-    settings: Settings
+    settings: Settings,
 ) : BaseViewModel(application, userAction, settings) {
 
     /**
@@ -141,7 +142,7 @@ class MediaListScreenViewModel(
         viewModelScope.launch {
             super.userAction.collect {
                 if (it is UserAction.ScanAction) {
-                    if (it.end) {
+                    if (it.scanState == ScanResult.SUCCESS) {
                         recomposeLocalStorageListKey.value += 1
                     }
                 }
@@ -311,7 +312,7 @@ class MediaListScreenViewModel(
         user: String,
         pwd: String?,
         shared: String,
-        reconnection: Boolean = false
+        reconnection: Boolean = false,
     ): ConnectResult {
         return viewModelScope.async(Dispatchers.IO) {
             val result = smbClient.connect(ip, user, pwd, shared, reconnection)

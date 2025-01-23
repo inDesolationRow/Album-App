@@ -36,10 +36,8 @@ import java.io.File
 abstract class BaseViewModel(
     val application: MediaApplication,
     val userAction: MutableStateFlow<UserAction>,
-    var settings: Settings
+    var settings: Settings,
 ) : ViewModel() {
-
-    var scanResult by mutableStateOf(ScanResult.NONE)
 
     var expand by mutableStateOf(true)
 
@@ -78,7 +76,7 @@ abstract class BaseViewModel(
                 ThumbnailsPath.LOCAL_STORAGE.path
             )
             if (checkPermissions()) {
-                userAction.value = UserAction.ScanAction(false)
+                userAction.value = UserAction.ScanAction(ScanResult.SCANNING)
                 val startTime = System.currentTimeMillis()
                 val lists =
                     application.mediaStoreContainer.imageStoreRepository.getMediaList().chunked(600)
@@ -127,7 +125,7 @@ abstract class BaseViewModel(
                                         )
 
                                         //文件信息插入media_file表 文件大于5242880字节(5m 4k无损压缩图标准大小)生成缩略图
-                                        if (item.size > ImageSize.M_2.size) {
+                                        if (item.size > ImageSize.M_5.size) {
                                             bigImage += 1
                                             val job = viewModelScope.launch(Dispatchers.IO) {
                                                 semaphore4k.acquire()
@@ -166,13 +164,12 @@ abstract class BaseViewModel(
                             }
                             val endTime = System.currentTimeMillis()
                             val duration = endTime - startTime
-                            userAction.value = UserAction.ScanAction(true)
                             println("Test testSQL took $duration ms")
                             println("测试:大文件 $bigImage 个")
-                            scanResult = ScanResult.SUCCESS
+                            userAction.value = UserAction.ScanAction(ScanResult.SUCCESS)
                         } catch (e: Exception) {
                             e.printStackTrace()
-                            scanResult = ScanResult.FAILED
+                            userAction.value = UserAction.ScanAction(ScanResult.FAILED)
                         }
                     }
                 }
@@ -186,7 +183,7 @@ abstract class BaseViewModel(
             private val application: MediaApplication,
             private val userAction: MutableStateFlow<UserAction>,
             private val settings: Settings,
-            private val activity: MainActivity? = null
+            private val activity: MainActivity? = null,
         ) : ViewModelProvider.Factory {
             override fun <T : ViewModel> create(modelClass: Class<T>): T {
                 @Suppress("UNCHECKED_CAST")

@@ -72,6 +72,10 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.paging.compose)
     implementation(libs.androidx.paging.runtime)
+    implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.kotlinx.coroutines.guava)
+    implementation(libs.google.guava)
+    implementation(libs.androidx.concurrent)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

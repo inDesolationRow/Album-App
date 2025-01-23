@@ -1,7 +1,9 @@
 package com.example.photoalbum.ui.action
 
+import com.example.photoalbum.enums.ScanResult
+
 sealed class UserAction {
-    data class ScanAction(val end: Boolean) : UserAction()
+    data class ScanAction(val scanState: ScanResult) : UserAction()
     data class ExpandStatusBarAction(val expand: Boolean, val recomposeKey: Int = 0, val duration: Int = 400) : UserAction()
     data class OpenImage(val directory: Any, val imageId: Long, val localNetId: Int? = null) : UserAction()
     data object Back : UserAction()

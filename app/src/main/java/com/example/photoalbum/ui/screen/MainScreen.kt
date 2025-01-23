@@ -118,6 +118,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                     label = { Text(text = stringResource(R.string.bar_title_media_list)) },
                     selected = viewModel.selectPage == NavType.MEDIA_LIST,
                     onClick = {
+                        navHost.popBackStack()
                         viewModel.selectPage = NavType.MEDIA_LIST
                         navHost.navigate(route = NavType.MEDIA_LIST.name)
                     }
@@ -132,6 +133,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                     label = { Text(text = stringResource(R.string.bar_title_my_favorite)) },
                     selected = viewModel.selectPage == NavType.FAVORITE,
                     onClick = {
+                        navHost.popBackStack()
                         viewModel.selectPage = NavType.FAVORITE
                         navHost.navigate(route = NavType.FAVORITE.name)
                     }
@@ -146,6 +148,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                     label = { Text(text = stringResource(R.string.bar_title_settings)) },
                     selected = viewModel.selectPage == NavType.SETTINGS,
                     onClick = {
+                        navHost.popBackStack()
                         viewModel.selectPage = NavType.SETTINGS
                         navHost.navigate(route = NavType.SETTINGS.name)
                     }
