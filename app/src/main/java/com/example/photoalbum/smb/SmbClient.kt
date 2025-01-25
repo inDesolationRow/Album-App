@@ -172,7 +172,7 @@ class SmbClient {
                             displayName = temp.fileName,
                             data = "$path/${temp.fileName}",
                             thumbnailPath = "${ThumbnailsPath.LOCAL_NET_STORAGE.path}/${
-                                getThumbnailName(temp.fileName)
+                                getThumbnailName(temp.fileName, otherStr = temp.fileId.toString())
                             }",
                             type = ItemType.IMAGE,
                             mimeType = "image/*",

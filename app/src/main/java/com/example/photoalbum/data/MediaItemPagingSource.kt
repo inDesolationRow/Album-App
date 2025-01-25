@@ -2,7 +2,6 @@ package com.example.photoalbum.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import androidx.compose.runtime.MutableState
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.example.photoalbum.MediaApplication
@@ -12,8 +11,6 @@ import com.example.photoalbum.enums.SystemFolder
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.smb.SmbClient
-import com.example.photoalbum.utils.blurBitmap
-import com.example.photoalbum.utils.decodeBitmap
 import com.example.photoalbum.utils.decodeSampledBitmap
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
@@ -253,7 +250,7 @@ class LocalStorageThumbnailService(
             ) ?: BitmapFactory.decodeFile(
                 File(
                     thumbnailsPath,
-                    getThumbnailName(mediaItem.displayName)
+                    getThumbnailName(mediaItem.displayName, mediaItem.id.toString())
                 ).absolutePath
             )
         } else BitmapFactory.decodeFile(mediaItem.thumbnailPath)
@@ -271,7 +268,7 @@ class LocalStorageThumbnailService(
         return coroutineScope.async(context = Dispatchers.IO) {
             var image: Bitmap? = null
             try {
-                val thumbnailName = getThumbnailName(fileName)
+                val thumbnailName = getThumbnailName(fileName, mediaFileId.toString())
                 val testFile = File(thumbnailsPath, thumbnailName)
 
                 if (testFile.exists()) {
@@ -303,240 +300,6 @@ class LocalStorageThumbnailService(
     }
 }
 
-class LocalStorageMediaFileService(
-    private val application: MediaApplication,
-    override var initialLoadSize: Int,
-    override var maxSize: Int,
-) :
-    MediaFileService<Long> {
-
-    override var allData: MutableList<MediaItem> = mutableListOf()
-
-    override val thumbnailsPath: String = (application.applicationContext.getExternalFilesDir(null)
-        ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
-    override var selectItemIndex: Int
-        get() = TODO("Not yet implemented")
-        set(value) {}
-
-    override fun sharedAllData(allData: MutableList<MediaItem>?): MutableList<MediaItem> {
-        allData?.let {
-            this.allData = it
-        }
-        return this.allData
-    }
-
-    override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Int {
-        allData.clear()
-        var index = -1
-        val mediaList =
-            application.mediaDatabase.directoryDao.querySortedMediaFilesByDirectoryId(param)
-        if (mediaList.isNullOrEmpty()) return index
-        for (mediaFile in mediaList) {
-            val item = MediaItem(
-                id = mediaFile.mediaFileId,
-                type = mediaFile.mimeType.let {
-                    val test = it.lowercase()
-                    return@let when {
-                        test.contains("image") -> {
-                            ItemType.IMAGE
-                        }
-
-                        test.contains("video") -> {
-                            ItemType.VIDEO
-                        }
-
-                        else -> {
-                            ItemType.ERROR
-                        }
-                    }
-                },
-                data = mediaFile.data,
-                thumbnailPath = mediaFile.thumbnail,
-                displayName = mediaFile.displayName,
-                mimeType = mediaFile.mimeType,
-                orientation = mediaFile.orientation,
-                fileSize = mediaFile.size
-            )
-            if (mediaFile.mediaFileId == selectItemId) index = allData.size
-            allData.add(item)
-        }
-        return index
-    }
-
-    override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
-        if (page == 1) initialLoadSize = loadSize
-        val start = (page - 1) * page.let {
-            return@let if (it == 2) initialLoadSize else loadSize
-        }
-        var end = page.let {
-            return@let if (page == 2) start + loadSize else page * loadSize
-        } - 1
-
-        if (end > allData.size - 1)
-            end = allData.size - 1
-        val items = allData.slice(IntRange(start, end))
-
-        val coroutineScope = CoroutineScope(Dispatchers.IO)
-        val jobs: MutableList<Job> = mutableListOf()
-        for (item in items) {
-            if (item.type == ItemType.IMAGE) {
-                item.thumbnail = loadThumbnail(mediaItem = item)
-                coroutineScope.launch(Dispatchers.IO) {
-                    loadData(item.data!!, item.dataBitmap, item.orientation.toFloat())
-                }
-            }
-        }
-        jobs.forEach {
-            it.join()
-        }
-        return items
-    }
-
-    override fun next(page: Int, loadSize: Int): Int? {
-        val start = page * loadSize
-        if (start > allData.size - 1) return null
-        return page + 1
-    }
-
-    override fun getItemIndex(id: Long): Int {
-        return allData.indexOfFirst { id == it.id }
-    }
-
-    private fun loadData(path: String, state: MutableState<Bitmap?>, orientation: Float) {
-        val coroutineScope = CoroutineScope(Dispatchers.IO)
-        coroutineScope.launch {
-            state.value = decodeBitmap(path, orientation)
-        }
-    }
-
-    private fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
-        return BitmapFactory.decodeFile(
-            mediaItem.thumbnailPath ?: File(
-                thumbnailsPath,
-                getThumbnailName(mediaItem.displayName)
-            ).absolutePath
-        )?.let {
-            return@let blurBitmap(
-                bitmap = it,
-                context = application.applicationContext,
-                radius = 5f
-            )
-        }
-    }
-
-}
-
-class LocalNetStorageMediaFileService(
-    val application: MediaApplication,
-    private val smbClient: SmbClient, override var initialLoadSize: Int, override var maxSize: Int,
-) :
-    MediaFileService<String> {
-
-    override var allData: MutableList<MediaItem> = mutableListOf()
-
-    override val thumbnailsPath: String = (application.applicationContext.getExternalFilesDir(null)
-        ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
-
-    override var selectItemIndex: Int
-        get() = TODO("Not yet implemented")
-        set(value) {}
-
-    override fun sharedAllData(allData: MutableList<MediaItem>?): MutableList<MediaItem> {
-        allData?.let {
-            this.allData = it
-        }
-        return this.allData
-    }
-
-    override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
-        if (page == 1) initialLoadSize = loadSize
-        val start = (page - 1) * page.let {
-            return@let if (it == 2) initialLoadSize else loadSize
-        }
-        var end = page.let {
-            return@let if (page == 2) start + loadSize else page * loadSize
-        } - 1
-        if (end > allData.size - 1)
-            end = allData.size - 1
-        val items = allData.slice(IntRange(start, end))
-
-        val coroutineScope = CoroutineScope(Dispatchers.IO)
-        val jobs: MutableList<Job> = mutableListOf()
-        for (item in items) {
-            if (item.type == ItemType.IMAGE) {
-                loadThumbnail(item)?.let {
-                    item.thumbnail = blurBitmap(
-                        context = application.applicationContext,
-                        bitmap = it,
-                        radius = 5f
-                    )
-                }
-                coroutineScope.launch {
-                    loadData(
-                        mediaItem = item,
-                        smbClient = smbClient,
-                        mutableState = item.dataBitmap
-                    )
-                }
-            }
-        }
-        jobs.forEach {
-            it.join()
-        }
-        return items
-    }
-
-    private fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
-        return try {
-            BitmapFactory.decodeFile(
-                File(
-                    thumbnailsPath,
-                    getThumbnailName(mediaItem.displayName, otherStr = mediaItem.id.toString())
-                ).absolutePath
-            )
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    private fun loadData(
-        mediaItem: MediaItem,
-        smbClient: SmbClient,
-        mutableState: MutableState<Bitmap?>,
-    ) {
-        try {
-            mutableState.value = smbClient.getImage(
-                getThumbnailName(
-                    name = mediaItem.displayName,
-                    otherStr = mediaItem.id.toString()
-                ), mediaItem.id
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-    }
-
-    override fun next(page: Int, loadSize: Int): Int? {
-        val start = page * loadSize
-        if (start > allData.size) return null
-        val result = page + 1
-        return result
-    }
-
-    override fun getItemIndex(id: Long): Int {
-        return allData.indexOfFirst { id == it.id }
-    }
-
-    override suspend fun getAllData(
-        param: String,
-        onlyMediaFile: Boolean,
-        selectItemId: Long,
-    ): Int {
-        TODO("Not yet implemented")
-    }
-
-}
-
 class LocalNetStorageThumbnailService(
     val application: MediaApplication,
     private val smbClient: SmbClient, override var maxSize: Int, override var initialLoadSize: Int,
@@ -548,9 +311,7 @@ class LocalNetStorageThumbnailService(
     override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_NET_STORAGE.path)
 
-    override var selectItemIndex: Int
-        get() = TODO("Not yet implemented")
-        set(value) {}
+    override var selectItemIndex: Int = 0
 
     override fun sharedAllData(allData: MutableList<MediaItem>?): MutableList<MediaItem> {
         allData?.let {

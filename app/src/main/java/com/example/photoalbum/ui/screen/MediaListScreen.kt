@@ -1,11 +1,11 @@
 package com.example.photoalbum.ui.screen
 
+import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -27,12 +27,15 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AdsClick
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Dehaze
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
 import androidx.compose.material3.ModalNavigationDrawer
@@ -60,13 +63,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -92,36 +100,44 @@ import com.example.photoalbum.ui.theme.MediumPadding
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.min
 
 @Composable
 fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val activity = context as? Activity
     viewModel.selectedItem.value?.let {
-        //本地文件列表的后退逻辑
-        BackHandler(it.id == viewModel.menuLocalStorage && viewModel.localLevelStack.size >= 2) {
-            viewModel.localMediaFileStackBack()
-        }
-        //本地网络文件列表的后退逻辑
-        BackHandler(it.id >= viewModel.menuLocalNetMinimumId && viewModel.localNetLevelStack.size >= 2) {
-            val path = viewModel.localNetStackBack()
-            //每次操作时判断连接是否有效
-            viewModel.viewModelScope.launch(Dispatchers.IO) {
-                val result = if (viewModel.isConnect())
-                    ConnectResult.Success
+        BackHandler {
+            if (viewModel.localLevelStack.size == 1 && it.id == viewModel.menuLocalStorage ) {
+                if (viewModel.multipleChoiceMode.value)
+                    viewModel.multipleChoiceMode.value = false
                 else
-                    viewModel.connectSmb(
-                        id = it.id,
-                        reconnection = true
-                    )
-                if (result is ConnectResult.Success) {
-                    viewModel.initLocalNetMediaFilePaging(path)
-                } else {
-                    viewModel.smbClient.rollback()
-                    viewModel.showDialog = MediaListDialogEntity(
-                        mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
-                        isShow = true
-                    )
+                    activity?.moveTaskToBack(true)
+            } else if (it.id == viewModel.menuLocalStorage && viewModel.localLevelStack.size >= 2) {
+                if (viewModel.multipleChoiceMode.value)
+                    viewModel.multipleChoiceMode.value = false
+                else
+                    viewModel.localMediaFileStackBack()
+            } else if (it.id >= viewModel.menuLocalNetMinimumId && viewModel.localNetLevelStack.size >= 2) {
+                val path = viewModel.localNetStackBack()
+                //每次操作时判断连接是否有效
+                viewModel.viewModelScope.launch(Dispatchers.IO) {
+                    val result = if (viewModel.isConnect())
+                        ConnectResult.Success
+                    else
+                        viewModel.connectSmb(id = it.id, reconnection = true)
+                    if (result is ConnectResult.Success) {
+                        viewModel.initLocalNetMediaFilePaging(path)
+                    } else {
+                        viewModel.smbClient.rollback()
+                        viewModel.showDialog = MediaListDialogEntity(
+                            mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
+                            isShow = true
+                        )
+                    }
                 }
             }
         }
@@ -254,11 +270,12 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
                             gridColumn = viewModel.settings.gridColumnNumState.intValue,
+                            multipleChoiceMode = viewModel.multipleChoiceMode,
                             context = viewModel.application.applicationContext,
                             onClear = { start, end ->
                                 viewModel.clearCache(start, end, StorageType.LOCAL)
                             },
-                            clickId = { id, type, image ->
+                            onLocalFileOpen = { id, type, image ->
                                 if (type == ItemType.DIRECTORY) viewModel.currentDirectoryId.value =
                                     id
                                 else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
@@ -352,7 +369,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             onClear = { start, end ->
                                 viewModel.clearCache(start, end, StorageType.CLOUD)
                             },
-                            clickString = { id, name, type, image ->
+                            onLocalNetOpen = { id, name, type, image ->
                                 //每次操作时判断连接是否有效
                                 //如果连接失效弹窗提示,并尝试重连
                                 viewModel.viewModelScope.launch(Dispatchers.IO) {
@@ -480,16 +497,19 @@ fun MediaList(
     expand: (Boolean) -> Unit,
     context: Context,
     back: MutableState<Boolean>,
+    multipleChoiceMode: MutableState<Boolean>? = null,
     onClear: (Int, Int) -> Unit,
     onScroll: (Int) -> Unit,
-    clickId: ((Long, ItemType, Bitmap?) -> Unit)? = null,
-    clickString: ((Long, String, ItemType, Bitmap?) -> Unit)? = null,
+    onLocalFileOpen: ((Long, ItemType, Bitmap?) -> Unit)? = null,
+    onLocalNetOpen: ((Long, String, ItemType, Bitmap?) -> Unit)? = null,
 ) {
-
     val topClearIndex = remember { mutableIntStateOf(0) }
     val bottomClearIndex = remember { mutableIntStateOf(0) }
     val farIndex = remember { mutableIntStateOf(0) }
     val preIndex = remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
+    var tapNum by remember { mutableIntStateOf(0) }
+    var checkJob: Job? = null
 
     LaunchedEffect(state, itemCount, back) {
         snapshotFlow { state.firstVisibleItemIndex }
@@ -525,9 +545,22 @@ fun MediaList(
         state = state,
         modifier = modifier
             .padding(start = TinyPadding)
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        if (event.type == PointerEventType.Release) {
+                            if (event.changes.size == 1) {
+                                tapNum = 0
+                            }
+                        }
+                    }
+                }
+            }
     ) {
         items(itemList.itemCount) { index ->
-            itemList[index]?.let {
+            itemList[index]?.let { item ->
+                println("id${item.id} 文件名:${item.displayName} 缩略图地址:${item.thumbnailPath} ")
                 if (index % 10 == 0)
                     LaunchedEffect(state) {
                         snapshotFlow { state.firstVisibleItemIndex }
@@ -537,7 +570,7 @@ fun MediaList(
                                         co.launch {
                                             while (delay.longValue < 100) {
                                                 state.scrollToItem(itemIndex)
-                                                kotlinx.coroutines.delay(10)
+                                                delay(10)
                                                 delay.longValue += 10
                                             }
                                             delay.longValue = 0
@@ -550,32 +583,110 @@ fun MediaList(
                                 }
                             }
                     }
-                val image = it.thumbnailState.value?.let { bitmap ->
-                    if (bitmap.isRecycled) it.thumbnail
+                val image = item.thumbnailState.value?.let { bitmap ->
+                    if (bitmap.isRecycled) item.thumbnail
                     else bitmap
-                } ?: it.thumbnail
-                MediaFilePreview(
-                    image = image,
-                    nullPreviewIcon = nullPreviewIcon,
-                    directoryIcon = directoryIcon,
-                    directoryName = it.displayName,
-                    fileType = it.type,
-                    context = context,
-                    modifier = Modifier
-                        .padding(end = TinyPadding, top = TinyPadding)
-                        .clickable {
-                            if (clickId != null) clickId(
-                                it.id,
-                                it.type,
-                                image
-                            ) else if (clickString != null) clickString(
-                                it.id,
-                                it.displayName,
-                                it.type,
-                                image
-                            )
+                } ?: item.thumbnail
+
+                var checked by remember { mutableStateOf(false) }
+                Box(
+                    contentAlignment = Alignment.TopEnd,
+                    modifier = Modifier.pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            var pressTimer: Long = 0
+                            var canOpen = true
+                            var canMultipleChoice = multipleChoiceMode != null
+                            val openImage = {
+                                if (onLocalFileOpen != null) onLocalFileOpen(
+                                    item.id,
+                                    item.type,
+                                    image
+                                ) else if (onLocalNetOpen != null) onLocalNetOpen(
+                                    item.id,
+                                    item.displayName,
+                                    item.type,
+                                    image
+                                )
+                            }
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                when (event.type) {
+                                    PointerEventType.Press -> {
+                                        tapNum++
+                                        pressTimer = System.currentTimeMillis()
+                                        if (tapNum == 1) {
+                                            if (canMultipleChoice){
+                                                checkJob = scope.launch {
+                                                    delay(1000)
+                                                    multipleChoiceMode?.value = true
+                                                    checked = true
+                                                }
+                                            }
+                                        } else {
+                                            canOpen = false
+                                            checkJob?.cancel()
+                                        }
+                                    }
+
+                                    PointerEventType.Move -> {
+                                        if (event.changes.size > 1) {
+                                            canOpen = false
+                                            checkJob?.cancel()
+                                        } else {
+                                            val pointerEvent = event.changes.last()
+                                            val move = (pointerEvent.position - pointerEvent.previousPosition).getDistance()
+                                            if (move > 5f)
+                                                canOpen = false
+                                            if (move > 20f){
+                                                checkJob?.cancel()
+                                            }
+                                        }
+                                    }
+
+                                    PointerEventType.Release -> {
+                                        if (System.currentTimeMillis() - pressTimer < 1000) {
+                                            checkJob?.cancel()
+                                            canMultipleChoice = false
+                                        }
+                                        if (canOpen && !canMultipleChoice && tapNum == 1) {
+                                            openImage()
+                                        }
+                                        if (event.changes.size == 1) {
+                                            canOpen = true
+                                            pressTimer = 0
+                                        }
+                                    }
+                                }
+
+                            }
                         }
-                )
+                    }
+                ) {
+                    if (multipleChoiceMode != null && multipleChoiceMode.value) {
+                        IconToggleButton(
+                            checked = checked,
+                            onCheckedChange = { c -> checked = c },
+                            modifier = Modifier.zIndex(2f)
+                        ) {
+                            if (checked) {
+                                Icon(Icons.Filled.CheckCircle, contentDescription = "选中", tint = Color.DarkGray)
+                            } else {
+                                Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "未选中", tint = Color.LightGray)
+                            }
+                        }
+                    }
+                    MediaFilePreview(
+                        image = image,
+                        nullPreviewIcon = nullPreviewIcon,
+                        directoryIcon = directoryIcon,
+                        directoryName = item.displayName,
+                        fileType = item.type,
+                        context = context,
+                        modifier = Modifier
+                            .zIndex(1f)
+                            .padding(end = TinyPadding, top = TinyPadding)
+                    )
+                }
             }
         }
     }

@@ -89,7 +89,7 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
                                 if (item.size > ImageSize.M_2.size) {
                                     val job = coroutine.launch(Dispatchers.IO) {
                                         semaphore4k.acquire()
-                                        val fileName = getThumbnailName(item.displayName)
+                                        val fileName = getThumbnailName(item.displayName, itemId.toString())
                                         val testFile = File(path, fileName)
                                         if (!testFile.exists()) {
                                             decodeSampledBitmap(filePath = item.data, orientation = item.orientation.toFloat())?.let {

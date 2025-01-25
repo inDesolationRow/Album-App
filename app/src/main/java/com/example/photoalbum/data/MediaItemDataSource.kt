@@ -2,7 +2,6 @@ package com.example.photoalbum.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import androidx.compose.ui.unit.IntSize
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.enums.Direction
 import com.example.photoalbum.enums.ImageSize
@@ -13,7 +12,6 @@ import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.smb.SmbClient
 import com.example.photoalbum.utils.decodeBitmap
 import com.example.photoalbum.utils.decodeSampledBitmap
-import com.example.photoalbum.utils.getImageRatio
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.CoroutineScope
@@ -211,7 +209,7 @@ class LocalDataSource(
             ) ?: BitmapFactory.decodeFile(
                 File(
                     thumbnailsPath,
-                    getThumbnailName(mediaItem.displayName)
+                    getThumbnailName(mediaItem.displayName, mediaItem.id.toString())
                 ).absolutePath
             )
         } else BitmapFactory.decodeFile(mediaItem.thumbnailPath)
@@ -229,7 +227,7 @@ class LocalDataSource(
         return coroutineScope.async(context = Dispatchers.IO) {
             var image: Bitmap? = null
             try {
-                val thumbnailName = getThumbnailName(fileName)
+                val thumbnailName = getThumbnailName(fileName, mediaFileId.toString())
                 val testFile = File(thumbnailsPath, thumbnailName)
 
                 if (testFile.exists()) {

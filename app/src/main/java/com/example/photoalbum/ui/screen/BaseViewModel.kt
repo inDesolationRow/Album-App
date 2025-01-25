@@ -129,7 +129,7 @@ abstract class BaseViewModel(
                                             bigImage += 1
                                             val job = viewModelScope.launch(Dispatchers.IO) {
                                                 semaphore4k.acquire()
-                                                val fileName = getThumbnailName(item.displayName)
+                                                val fileName = getThumbnailName(item.displayName, otherStr = itemId.toString())
                                                 val testFile = File(path, fileName)
                                                 if (!testFile.exists()) {
                                                     decodeSampledBitmap(

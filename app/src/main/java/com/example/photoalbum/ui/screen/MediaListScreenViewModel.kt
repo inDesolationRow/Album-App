@@ -84,6 +84,8 @@ class MediaListScreenViewModel(
 
     val localState = mutableStateOf(LazyGridState())
 
+    var multipleChoiceMode = mutableStateOf(false)
+
     private var recomposeLocalStorageListKey: MutableStateFlow<Int> = MutableStateFlow(0)
 
     lateinit var localMediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
