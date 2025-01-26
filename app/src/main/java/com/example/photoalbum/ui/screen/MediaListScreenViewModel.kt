@@ -84,13 +84,11 @@ class MediaListScreenViewModel(
 
     val localState = mutableStateOf(LazyGridState())
 
-    var multipleChoiceMode = mutableStateOf(false)
-
     private var recomposeLocalStorageListKey: MutableStateFlow<Int> = MutableStateFlow(0)
 
     lateinit var localMediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
 
-    private var localMediaFileService =
+    var localMediaFileService =
         LocalStorageThumbnailService(
             application,
             maxSize = settings.maxSizeLarge,
@@ -252,20 +250,49 @@ class MediaListScreenViewModel(
     }
 
     fun clearCache(start: Int, end: Int, type: StorageType) {
-        if (type == StorageType.LOCAL) {
-            localMediaFileService.allData.slice(IntRange(start, end)).onEach { item ->
-                item.thumbnail?.recycle()
-                item.thumbnail = null
-                item.thumbnailState.value?.recycle()
-                item.thumbnailState.value = null
+        try {
+            val clearList = localMediaFileService.allData.toList()
+            if (type == StorageType.LOCAL) {
+                clearList.slice(IntRange(start, end)).onEach { item ->
+                    item.thumbnail?.recycle()
+                    item.thumbnail = null
+                    item.thumbnailState.value?.recycle()
+                    item.thumbnailState.value = null
+                }
+            } else{
+                clearList.slice(IntRange(start, end)).onEach { item ->
+                    item.thumbnail?.recycle()
+                    item.thumbnail = null
+                    item.thumbnailState.value?.recycle()
+                    item.thumbnailState.value = null
+                }
             }
-        } else
-            localNetMediaFileService.allData.slice(IntRange(start, end)).onEach { item ->
-                item.thumbnail?.recycle()
-                item.thumbnail = null
-                item.thumbnailState.value?.recycle()
-                item.thumbnailState.value = null
-            }
+        }catch (e :Exception){
+            e.printStackTrace()
+        }
+    }
+
+    fun clearCache(type: StorageType){
+        try {
+            val clearList = localMediaFileService.allData.toList()
+            if (type == StorageType.LOCAL) {
+                clearList.onEach { item ->
+                    item.thumbnail?.recycle()
+                    item.thumbnail = null
+                    item.thumbnailState.value?.recycle()
+                    item.thumbnailState.value = null
+                }
+            } else
+                clearList.onEach { item ->
+                    item.thumbnail?.recycle()
+                    item.thumbnail = null
+                    item.thumbnailState.value?.recycle()
+                    item.thumbnailState.value = null
+                }
+        }catch (e:Exception){
+            e.printStackTrace()
+        }
+
     }
 
     fun localMediaFileStackBack() {

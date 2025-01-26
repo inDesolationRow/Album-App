@@ -46,6 +46,8 @@ interface DataService<T> {
     ): Bitmap?
 
     suspend fun loadImage(position: Int)
+
+    fun clearCache()
 }
 
 class LocalDataSource(
@@ -273,6 +275,14 @@ class LocalDataSource(
             }
         }
     }
+
+    override fun clearCache() {
+        allData.forEach {
+            it.dataBitmap.value?.recycle()
+            it.thumbnailState.value?.recycle()
+            it.thumbnail?.recycle()
+        }
+    }
 }
 
 class LocalNetDataSource(
@@ -409,6 +419,13 @@ class LocalNetDataSource(
         }
     }
 
+    override fun clearCache() {
+        allData.forEach {
+            it.dataBitmap.value?.recycle()
+            it.thumbnailState.value?.recycle()
+            it.thumbnail?.recycle()
+        }
+    }
 }
 
 class DataList(
@@ -485,4 +502,5 @@ class DataList(
     fun size(): Int {
         return list.size
     }
+
 }

@@ -55,12 +55,14 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -109,18 +111,32 @@ import kotlin.math.min
 fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val activity = context as? Activity
+    val naviDrawerGesturesEnabled = remember { mutableStateOf(true) }
+    val multipleChoiceMode = remember { mutableStateOf(false) }
+    val multipleChoiceList: SnapshotStateList<Long> = remember { mutableStateListOf() }
+    val selectAll = remember { mutableStateOf(false) }
+
     viewModel.selectedItem.value?.let {
         BackHandler {
-            if (viewModel.localLevelStack.size == 1 && it.id == viewModel.menuLocalStorage ) {
-                if (viewModel.multipleChoiceMode.value)
-                    viewModel.multipleChoiceMode.value = false
-                else
+            if (viewModel.localLevelStack.size == 1 && it.id == viewModel.menuLocalStorage) {
+                if (multipleChoiceMode.value) {
+                    multipleChoiceMode.value = false
+                    multipleChoiceList.clear()
+                    naviDrawerGesturesEnabled.value = true
+                    selectAll.value = false
+                } else
                     activity?.moveTaskToBack(true)
             } else if (it.id == viewModel.menuLocalStorage && viewModel.localLevelStack.size >= 2) {
-                if (viewModel.multipleChoiceMode.value)
-                    viewModel.multipleChoiceMode.value = false
-                else
+                if (multipleChoiceMode.value) {
+                    multipleChoiceMode.value = false
+                    multipleChoiceList.clear()
+                    naviDrawerGesturesEnabled.value = true
+                    selectAll.value = false
+                } else{
+                    viewModel.clearCache(StorageType.LOCAL)
                     viewModel.localMediaFileStackBack()
+                }
+
             } else if (it.id >= viewModel.menuLocalNetMinimumId && viewModel.localNetLevelStack.size >= 2) {
                 val path = viewModel.localNetStackBack()
                 //每次操作时判断连接是否有效
@@ -143,11 +159,25 @@ fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Mo
         }
     }
 
-    MediaListMainScreen(viewModel, modifier = modifier)
+    MediaListMainScreen(
+        viewModel = viewModel,
+        gesturesEnabled = naviDrawerGesturesEnabled,
+        multipleChoiceMode = multipleChoiceMode,
+        multipleChoiceList = multipleChoiceList,
+        selectAll = selectAll,
+        modifier = modifier
+    )
 }
 
 @Composable
-fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
+fun MediaListMainScreen(
+    viewModel: MediaListScreenViewModel,
+    gesturesEnabled: MutableState<Boolean>,
+    multipleChoiceMode: MutableState<Boolean>,
+    multipleChoiceList: SnapshotStateList<Long>,
+    selectAll: MutableState<Boolean>,
+    modifier: Modifier = Modifier,
+) {
     val scope = rememberCoroutineScope()
     val selectItem = viewModel.selectedItem.value ?: return
 
@@ -160,7 +190,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
     }
     val topBarAnimateDp: State<Dp>? = if (getNavHostHeight) {
         animateDpAsState(
-            targetValue = if (viewModel.expand) hostHeight else 0.dp,
+            targetValue = if (multipleChoiceMode.value || viewModel.expand) hostHeight else 0.dp,
             animationSpec = tween(durationMillis = 300),
             label = "隐藏或显示bottomBar"
         )
@@ -170,6 +200,7 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
 
     ModalNavigationDrawer(
         drawerState = viewModel.drawerState,
+        gesturesEnabled = gesturesEnabled.value,
         drawerContent = {
             ModalDrawerSheet {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
@@ -194,6 +225,9 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                 TopBar(
                     viewModel = viewModel,
                     selectItem = selectItem,
+                    multipleChoiceMode = multipleChoiceMode.value,
+                    multipleChoiceList = multipleChoiceList,
+                    selectAll = selectAll,
                     modifier = Modifier
                         .then(
                             if (topBarAnimateDp != null) {
@@ -270,8 +304,14 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
                             nullPreviewIcon = viewModel.notPreviewIcon,
                             directoryIcon = viewModel.directoryIcon,
                             gridColumn = viewModel.settings.gridColumnNumState.intValue,
-                            multipleChoiceMode = viewModel.multipleChoiceMode,
+                            multipleChoiceMode = multipleChoiceMode,
+                            multipleChoiceList = multipleChoiceList,
+                            selectAll = selectAll,
                             context = viewModel.application.applicationContext,
+                            onMultipleChoice = {
+                                viewModel.userAction.value = UserAction.ExpandStatusBarAction(false)
+                                gesturesEnabled.value = false
+                            },
                             onClear = { start, end ->
                                 viewModel.clearCache(start, end, StorageType.LOCAL)
                             },
@@ -422,61 +462,98 @@ fun MediaListMainScreen(viewModel: MediaListScreenViewModel, modifier: Modifier 
 private fun TopBar(
     viewModel: MediaListScreenViewModel,
     selectItem: Menu,
+    multipleChoiceMode: Boolean,
+    multipleChoiceList: SnapshotStateList<Long>,
+    selectAll: MutableState<Boolean>,
     modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
-    Box(modifier = modifier) {
+    Box(modifier = modifier.padding(bottom = 10.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Box(modifier = Modifier.weight(1f)) {
-                IconButton(onClick = {
-                    coroutineScope.launch(Dispatchers.Main) {
-                        viewModel.drawerState.open()
+            if (!multipleChoiceMode) {
+                Box(modifier = Modifier.weight(1f)) {
+                    IconButton(onClick = {
+                        coroutineScope.launch(Dispatchers.Main) {
+                            viewModel.drawerState.open()
+                        }
+                    }) {
+                        Icon(
+                            painter = rememberVectorPainter(Icons.Filled.Dehaze),
+                            contentDescription = null,
+                        )
                     }
-                }) {
-                    Icon(
-                        painter = rememberVectorPainter(Icons.Filled.Dehaze),
-                        contentDescription = null,
-                    )
                 }
-            }
-            if (selectItem.id == viewModel.menuLocalStorage) {
-                IconButton(onClick = {}) {
-                    Icon(
-                        painter = rememberVectorPainter(Icons.Filled.Search),
-                        contentDescription = null
-                    )
-                }
+                if (selectItem.id == viewModel.menuLocalStorage) {
+                    IconButton(onClick = {}) {
+                        Icon(
+                            painter = rememberVectorPainter(Icons.Filled.Search),
+                            contentDescription = null
+                        )
+                    }
 
-                IconButton(
-                    onClick = {},
-                    modifier = Modifier.padding(end = SmallPadding)
-                ) {
-                    Icon(
-                        painter = rememberVectorPainter(Icons.Filled.AdsClick),
-                        contentDescription = null
-                    )
+                    IconButton(
+                        onClick = {},
+                        modifier = Modifier.padding(end = SmallPadding)
+                    ) {
+                        Icon(
+                            painter = rememberVectorPainter(Icons.Filled.AdsClick),
+                            contentDescription = null
+                        )
+                    }
                 }
-            }
-            if (selectItem.id >= viewModel.menuLocalNetMinimumId) {
-                IconButton(onClick = {
-                    viewModel.editLocalNetStorageInfo = true
-                }) {
-                    Icon(
-                        painter = rememberVectorPainter(Icons.Filled.Edit),
-                        contentDescription = null
-                    )
+                if (selectItem.id >= viewModel.menuLocalNetMinimumId) {
+                    IconButton(onClick = {
+                        viewModel.editLocalNetStorageInfo = true
+                    }) {
+                        Icon(
+                            painter = rememberVectorPainter(Icons.Filled.Edit),
+                            contentDescription = null
+                        )
+                    }
+                    IconButton(onClick = {
+                        viewModel.delLocalNetStorageInfo(selectItem.id)
+                        viewModel.delLocalNetStorageInfoInMenu(selectItem.id)
+                    }) {
+                        Icon(
+                            painter = rememberVectorPainter(Icons.Filled.Delete),
+                            contentDescription = null
+                        )
+                    }
                 }
-                IconButton(onClick = {
-                    viewModel.delLocalNetStorageInfo(selectItem.id)
-                    viewModel.delLocalNetStorageInfoInMenu(selectItem.id)
-                }) {
-                    Icon(
-                        painter = rememberVectorPainter(Icons.Filled.Delete),
-                        contentDescription = null
-                    )
+            } else {
+                Box(contentAlignment = Alignment.BottomCenter) {
+                    IconToggleButton(
+                        checked = selectAll.value,
+                        onCheckedChange = {
+                            selectAll.value = !selectAll.value
+                            if (selectAll.value) {
+                                val all = viewModel.localMediaFileService.allData
+                                val filter = multipleChoiceList.toSet()
+                                all.map { item ->
+                                    if (!filter.contains(item.id)) {
+                                        multipleChoiceList.add(item.id)
+                                    }
+                                }
+                            } else {
+                                multipleChoiceList.clear()
+                            }
+                        },
+                        modifier = Modifier.zIndex(2f)
+                    ) {
+                        println("改变图片 ${selectAll.value}")
+                        if (selectAll.value) {
+                            Icon(Icons.Filled.CheckCircle, contentDescription = "选中", tint = Color.DarkGray)
+                        } else {
+                            Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "未选中", tint = Color.LightGray)
+                        }
+                    }
+                    Text(stringResource(R.string.check_all), style = MaterialTheme.typography.labelSmall)
+                }
+                Row(modifier = Modifier.weight(1f)) {
+                    Text(stringResource(R.string.check_num, multipleChoiceList.size), style = MaterialTheme.typography.titleMedium)
                 }
             }
         }
@@ -498,48 +575,63 @@ fun MediaList(
     context: Context,
     back: MutableState<Boolean>,
     multipleChoiceMode: MutableState<Boolean>? = null,
+    multipleChoiceList: SnapshotStateList<Long>? = null,
+    selectAll: MutableState<Boolean>? = null,
+    onMultipleChoice: (() -> Unit)? = null,
     onClear: (Int, Int) -> Unit,
     onScroll: (Int) -> Unit,
     onLocalFileOpen: ((Long, ItemType, Bitmap?) -> Unit)? = null,
     onLocalNetOpen: ((Long, String, ItemType, Bitmap?) -> Unit)? = null,
 ) {
+    //实现清除缓存
     val topClearIndex = remember { mutableIntStateOf(0) }
     val bottomClearIndex = remember { mutableIntStateOf(0) }
     val farIndex = remember { mutableIntStateOf(0) }
     val preIndex = remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
+
+    //实现多选
     var tapNum by remember { mutableIntStateOf(0) }
     var checkJob: Job? = null
-
-    LaunchedEffect(state, itemCount, back) {
-        snapshotFlow { state.firstVisibleItemIndex }
-            .collect {
-                if (!back.value) {
-                    onScroll(state.firstVisibleItemIndex)
-                }
-
-                //条件1：向下滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
-                if (it > preIndex.intValue && it >= if (topClearIndex.intValue == 0) maxSize * 2 else maxSize * 2 + topClearIndex.intValue) {
-                    val end = topClearIndex.intValue + maxSize
-                    onClear(topClearIndex.intValue, end)
-                    if (topClearIndex.intValue + maxSize <= itemCount - maxSize)
-                        topClearIndex.intValue += maxSize
-                }
-                //条件1：向上滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
-                if (it < preIndex.intValue && it <= bottomClearIndex.intValue - maxSize * 2) {
-                    onClear(it + maxSize, bottomClearIndex.intValue)
-                    bottomClearIndex.intValue -= maxSize
-                }
-                if (it < preIndex.intValue && farIndex.intValue < preIndex.intValue) {
-                    farIndex.intValue = preIndex.intValue
-                    bottomClearIndex.intValue = farIndex.intValue
-                }
-                preIndex.intValue = min(itemCount - 1, it)
-            }
+    val onSelect: (Long) -> Unit = { id: Long ->
+        if (multipleChoiceList?.contains(id) == false) {
+            multipleChoiceList.add(id)
+            if (itemCount == multipleChoiceList.size)
+                selectAll?.value = true
+        } else {
+            if (itemCount == (multipleChoiceList?.size ?: 0))
+                selectAll?.value = false
+            multipleChoiceList?.remove(id)
+        }
     }
 
     val delay = remember { mutableLongStateOf(0L) }
-    val co = rememberCoroutineScope()
+    LaunchedEffect(state, itemCount, back) {
+        snapshotFlow { state.firstVisibleItemIndex }.collect {
+            if (!back.value) {
+                onScroll(state.firstVisibleItemIndex)
+            }
+
+            //条件1：向下滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
+            if (it > preIndex.intValue && it >= if (topClearIndex.intValue == 0) maxSize * 2 else maxSize * 2 + topClearIndex.intValue) {
+                val end = topClearIndex.intValue + maxSize
+                onClear(topClearIndex.intValue, end)
+                if (topClearIndex.intValue + maxSize <= itemCount - maxSize)
+                    topClearIndex.intValue += maxSize
+            }
+            //条件1：向上滚动 条件2：第一个显示的Item index距离上次清理的最后一个item有maxSize个item
+            if (it < preIndex.intValue && it <= bottomClearIndex.intValue - maxSize * 2) {
+                onClear(it + maxSize, bottomClearIndex.intValue)
+                bottomClearIndex.intValue -= maxSize
+            }
+            if (it < preIndex.intValue && farIndex.intValue < preIndex.intValue) {
+                farIndex.intValue = preIndex.intValue
+                bottomClearIndex.intValue = farIndex.intValue
+            }
+            preIndex.intValue = min(itemCount - 1, it)
+        }
+    }
+
     LazyVerticalGrid(
         columns = GridCells.Fixed(gridColumn),
         state = state,
@@ -560,14 +652,13 @@ fun MediaList(
     ) {
         items(itemList.itemCount) { index ->
             itemList[index]?.let { item ->
-                println("id${item.id} 文件名:${item.displayName} 缩略图地址:${item.thumbnailPath} ")
                 if (index % 10 == 0)
                     LaunchedEffect(state) {
                         snapshotFlow { state.firstVisibleItemIndex }
                             .collect {
                                 if (itemIndex != 0 && back.value) {
                                     if (state.firstVisibleItemIndex == 0) {
-                                        co.launch {
+                                        scope.launch {
                                             while (delay.longValue < 100) {
                                                 state.scrollToItem(itemIndex)
                                                 delay(10)
@@ -587,15 +678,17 @@ fun MediaList(
                     if (bitmap.isRecycled) item.thumbnail
                     else bitmap
                 } ?: item.thumbnail
+                val checked = multipleChoiceList?.contains(item.id) == true
 
-                var checked by remember { mutableStateOf(false) }
                 Box(
                     contentAlignment = Alignment.TopEnd,
                     modifier = Modifier.pointerInput(Unit) {
                         awaitPointerEventScope {
                             var pressTimer: Long = 0
                             var canOpen = true
-                            var canMultipleChoice = multipleChoiceMode != null
+                            var canCheck = true
+                            val canMultipleChoice = multipleChoiceMode != null
+                            var check = false
                             val openImage = {
                                 if (onLocalFileOpen != null) onLocalFileOpen(
                                     item.id,
@@ -615,11 +708,11 @@ fun MediaList(
                                         tapNum++
                                         pressTimer = System.currentTimeMillis()
                                         if (tapNum == 1) {
-                                            if (canMultipleChoice){
+                                            if (canMultipleChoice) {
                                                 checkJob = scope.launch {
                                                     delay(1000)
                                                     multipleChoiceMode?.value = true
-                                                    checked = true
+                                                    onMultipleChoice?.invoke()
                                                 }
                                             }
                                         } else {
@@ -635,37 +728,47 @@ fun MediaList(
                                         } else {
                                             val pointerEvent = event.changes.last()
                                             val move = (pointerEvent.position - pointerEvent.previousPosition).getDistance()
-                                            if (move > 5f)
+                                            if (move > 10f) {
                                                 canOpen = false
-                                            if (move > 20f){
-                                                checkJob?.cancel()
+                                                canCheck = false
                                             }
+                                            if (move > 20f)
+                                                checkJob?.cancel()
                                         }
                                     }
 
                                     PointerEventType.Release -> {
+                                        multipleChoiceMode?.value?.let { multiChoice ->
+                                            if (multiChoice) {
+                                                check = true
+                                            }
+                                        }
                                         if (System.currentTimeMillis() - pressTimer < 1000) {
                                             checkJob?.cancel()
-                                            canMultipleChoice = false
                                         }
-                                        if (canOpen && !canMultipleChoice && tapNum == 1) {
+
+                                        if (canOpen && !check && tapNum == 1) {
                                             openImage()
+                                        }
+                                        if (check && canCheck) {
+                                            onSelect(item.id)
                                         }
                                         if (event.changes.size == 1) {
                                             canOpen = true
+                                            canCheck = true
                                             pressTimer = 0
+                                            check = false
                                         }
                                     }
                                 }
-
                             }
                         }
                     }
                 ) {
-                    if (multipleChoiceMode != null && multipleChoiceMode.value) {
+                    if (multipleChoiceMode != null && multipleChoiceMode.value && image != null) {
                         IconToggleButton(
                             checked = checked,
-                            onCheckedChange = { c -> checked = c },
+                            onCheckedChange = {},
                             modifier = Modifier.zIndex(2f)
                         ) {
                             if (checked) {
@@ -699,7 +802,6 @@ fun MediaList(
         mutableStateOf(true)
     }
     val lifecycleOwner = LocalLifecycleOwner.current
-
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -719,7 +821,7 @@ fun MediaList(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-    if (lifecycle)
+    if (lifecycle && multipleChoiceMode?.value == false)
         expand(!invisibleStatusBar)
 }
 
