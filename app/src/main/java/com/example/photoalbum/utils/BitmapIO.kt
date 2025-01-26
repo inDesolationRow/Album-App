@@ -58,7 +58,8 @@ fun decodeBitmap(
         println("测试:缩小${options.inSampleSize}倍 宽${bitmap.width}高${bitmap.height}加载时间 ${end - start}")
         return bitmap
     } catch (e: Exception) {
-        println("错误:解析失败 ${e.printStackTrace()}")
+        e.printStackTrace()
+        println("错误:解析失败文件地址 $filePath")
         return null
     }
 }

@@ -30,4 +30,8 @@ interface MediaFileDao {
 
     @Query(value = "SELECT MAX(generation_added) FROM media_file_table")
     suspend fun getMaxGenerationAdded(): Int?
+
+    @Query(value = "DELETE FROM media_file_table WHERE media_file_id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>): Int?
+
 }

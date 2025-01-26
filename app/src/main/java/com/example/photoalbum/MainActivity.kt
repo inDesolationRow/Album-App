@@ -129,16 +129,20 @@ class MainActivity : ComponentActivity() {
         Futures.addCallback(
             result, object : FutureCallback<List<WorkInfo>> {
                 override fun onSuccess(result: List<WorkInfo>) {
-                    val hasRunningWork = result.any { !it.state.isFinished }
-                    println("work log:有work在运行: $hasRunningWork")
+                    val runningWork = result.filter { !it.state.isFinished }
+                    println("work log:有work在运行: $runningWork")
 
-                    if (!hasRunningWork && createWorkFlag) {
+                    if (runningWork.isEmpty() && createWorkFlag) {
                         println("work log:没有work运行，创建work")
                         val work = OneTimeWorkRequest.Builder(SyncDatabaseWork::class.java)
                             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
                             .addTag(WorkTag.SYNC_DATABASE.value)
                             .build()
                         workManager.enqueue(work)
+                    }
+                    if (runningWork.size > 1){
+                        println("取消work")
+                        runningWork.drop(1).forEach { workManager.cancelWorkById(it.id) }
                     }
                 }
 
@@ -149,48 +153,6 @@ class MainActivity : ComponentActivity() {
         )
     }
 
-    /*    override fun onRestart() {
-            super.onRestart()
-            val info = workManager.getWorkInfoById(syncDatabaseWorkId)
-            if (info.isDone || info.isCancelled) {
-                println("work意外结束")
-                syncDatabaseWorkId = workRequest.id
-                workManager.enqueue(workRequest)
-            }
-        }*/
-
-    /*private fun observeWorkStatus() {
-        // 观察 WorkInfo 的变化
-        workManager.getWorkInfoByIdLiveData(syncDatabaseWorkId).observe(this, Observer { workInfo ->
-            if (workInfo != null) {
-                when (workInfo.state) {
-                    WorkInfo.State.ENQUEUED -> {
-                        println("work log:Task is in the queue. id:${workInfo.id}")
-                    }
-
-                    WorkInfo.State.RUNNING -> {
-                        println("work log:Task is running. id:${workInfo.id}")
-                    }
-
-                    WorkInfo.State.SUCCEEDED -> {
-                        println("work log:Task succeeded. id:${workInfo.id}")
-                    }
-
-                    WorkInfo.State.FAILED -> {
-                        println("work log:Task failed. id:${workInfo.id}")
-                    }
-
-                    WorkInfo.State.CANCELLED -> {
-                        println("work log:Task was cancelled. id:${workInfo.id}")
-                    }
-
-                    WorkInfo.State.BLOCKED -> {
-                        println("work log:Task was blocked. id:${workInfo.id}")
-                    }
-                }
-            }
-        })
-    }*/
 }
 
 @Suppress("DEPRECATION")

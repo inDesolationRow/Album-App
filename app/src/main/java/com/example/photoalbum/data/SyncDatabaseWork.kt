@@ -55,7 +55,7 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
             try {
                 println("work log:doWork. workId:$this.id")
                 val startTime = System.currentTimeMillis()
-                syncJob = coroutine.launch {
+                syncJob = coroutine.launch(Dispatchers.IO) {
                     val added = myapplication.mediaDatabase.mediaFileDao.getMaxGenerationAdded()
                     added?.let {
                         val result = myapplication.mediaStoreContainer.imageStoreRepository.updateMediaList(added)
@@ -107,14 +107,21 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
                             }
                         }
                     }
+
+                    val mediaInfoSet = myapplication.mediaStoreContainer.imageStoreRepository.getMediaList().map { it.data }.toSet()
+                    val delList = myapplication.mediaDatabase.mediaFileDao.query()?.filter { !mediaInfoSet.contains(it.data) }
+                    delList?.map { it.mediaFileId }?.let {
+                        val count = myapplication.mediaDatabase.mediaFileDao.deleteByIds(it)
+                        println("删除$count 行")
+                    }
                 }
+
                 syncJob?.join()
                 val runningTime = System.currentTimeMillis() - startTime
                 println("work log:运行时间 :$runningTime")
                 if (runningTime < 1000 * 10) {
                     delay(1000 * 10 - runningTime)
                 }
-                println("work log:正常流程再次运行")
                 if (!isStopped)
                     again()
                 Result.success()

@@ -622,6 +622,7 @@ fun ZoomViewImage(
                         .fillMaxHeight()
                 ) { page ->
                     items[page].let { item ->
+                        println("当前图片的地址${item.data} 名称${item.displayName}")
                         val image = item.dataBitmap.value
                         val thumbnail = item.thumbnailState.value?.let { bitmap ->
                             if (bitmap.isRecycled) item.thumbnail
