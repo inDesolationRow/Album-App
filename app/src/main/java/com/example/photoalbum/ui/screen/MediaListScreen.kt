@@ -132,7 +132,7 @@ fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Mo
                     multipleChoiceList.clear()
                     naviDrawerGesturesEnabled.value = true
                     selectAll.value = false
-                } else{
+                } else {
                     viewModel.clearCache(StorageType.LOCAL)
                     viewModel.localMediaFileStackBack()
                 }
@@ -765,7 +765,7 @@ fun MediaList(
                         }
                     }
                 ) {
-                    if (multipleChoiceMode != null && multipleChoiceMode.value && image != null) {
+                    if (multipleChoiceMode != null && multipleChoiceMode.value && (item.type == ItemType.DIRECTORY || image != null)) {
                         IconToggleButton(
                             checked = checked,
                             onCheckedChange = {},
