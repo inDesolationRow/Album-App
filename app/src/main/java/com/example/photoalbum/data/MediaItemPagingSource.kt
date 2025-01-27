@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import androidx.paging.PagingSource
 import androidx.paging.PagingState
 import com.example.photoalbum.MediaApplication
+import com.example.photoalbum.data.model.Directory
 import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.SystemFolder
@@ -72,7 +73,7 @@ interface MediaFileService<T> {
 
     var selectItemIndex: Int
 
-    suspend fun getAllData(param: T, onlyMediaFile: Boolean = false, selectItemId: Long = -1): Int
+    suspend fun getAllData(param: T, onlyMediaFile: Boolean = false, selectItemId: Long = -1): Triple<Int, Int, Int>
 
     fun sharedAllData(allData: MutableList<MediaItem>? = null): MutableList<MediaItem>
 
@@ -104,12 +105,12 @@ class LocalStorageThumbnailService(
         return this.allData
     }
 
-    override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Int {
+    override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Triple<Int, Int, Int> {
         allData.clear()
         var index = -1
+        var directories: List<Directory>? = null
         if (!onlyMediaFile) {
-            val directories =
-                application.mediaDatabase.directoryDao.querySortedByNameForDirectory(param)
+            directories = application.mediaDatabase.directoryDao.querySortedByNameForDirectory(param)
             val order1: MutableList<MediaItem> = mutableListOf()
             val order2: MutableList<MediaItem> = mutableListOf()
             val order3: MutableList<MediaItem> = mutableListOf()
@@ -161,7 +162,7 @@ class LocalStorageThumbnailService(
 
         val mediaList =
             application.mediaDatabase.directoryDao.querySortedMediaFilesByDirectoryId(param)
-        if (mediaList.isNullOrEmpty()) return index
+        if (mediaList.isNullOrEmpty()) return Triple(index, directories?.size ?: 0, mediaList?.size ?: 0)
         for (mediaFile in mediaList) {
             val item = MediaItem(
                 id = mediaFile.mediaFileId,
@@ -194,7 +195,7 @@ class LocalStorageThumbnailService(
             }
             allData.add(item)
         }
-        return index
+        return Triple(index, directories?.size ?: 0, mediaList.size)
     }
 
     override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
@@ -369,10 +370,19 @@ class LocalNetStorageThumbnailService(
         param: String,
         onlyMediaFile: Boolean,
         selectItemId: Long,
-    ): Int {
+    ): Triple<Int, Int, Int> {
+        var directoryNum = 0
+        var imageNum = 0
         allData.clear()
         allData.addAll(smbClient.getList(param, onlyMediaFile))
-        return getItemIndex(selectItemId)
+        allData.forEach {
+            if (it.type == ItemType.DIRECTORY) {
+                directoryNum++
+            } else if (it.type == ItemType.IMAGE) {
+                imageNum++
+            }
+        }
+        return Triple(getItemIndex(selectItemId), directoryNum, imageNum)
     }
 
     private suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {

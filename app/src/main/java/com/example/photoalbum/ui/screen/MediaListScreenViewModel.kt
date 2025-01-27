@@ -49,6 +49,17 @@ class MediaListScreenViewModel(
 ) : BaseViewModel(application, userAction, settings) {
 
     /**
+     * 顶部bar的状态
+     */
+    var directoryName = mutableStateOf("")
+
+    var directoryNum = mutableIntStateOf(0)
+
+    var photosNum = mutableIntStateOf(0)
+
+    private var localDirectoryInfo = 0 to 0
+
+    /**
      * 弹出窗的状态
      */
     var showDialog by mutableStateOf(MediaListDialogEntity())
@@ -66,7 +77,7 @@ class MediaListScreenViewModel(
 
     var menu: MutableState<List<Menu>> = mutableStateOf(listOf())
 
-    var selectedItem: MutableState<Menu?> = mutableStateOf(null)
+    var currentMenuItem: MutableState<Menu?> = mutableStateOf(null)
 
     private lateinit var localNetStorageInfoListStateFlow: MutableStateFlow<MutableList<LocalNetStorageInfo>>
 
@@ -121,6 +132,13 @@ class MediaListScreenViewModel(
     init {
         viewModelScope.launch(context = Dispatchers.IO) {
             currentDirectoryId.collect {
+                updateDirectoryName(
+                    true, if (it >= 0) {
+                        application.mediaDatabase.directoryDao.getDirectoryNameById(it) ?: ""
+                    } else {
+                        "根路径"
+                    }
+                )
                 if (!::localMediaFileFlow.isInitialized) {
                     localMediaFileFlow = mutableStateOf(initLocalMediaFilePaging())
                     localLevelStack.add(-1L to 0)
@@ -157,7 +175,7 @@ class MediaListScreenViewModel(
                 MutableStateFlow(localNetStorageInfoList ?: mutableListOf())
             //生成Menu列表
             menu = mutableStateOf(getMenuList(localNetStorageInfoList))
-            selectedItem.value = menu.value[0]
+            currentMenuItem.value = menu.value[0]
 
             //观察本地网络列表，由更改本地网络列表触发拖拽抽屉更新
             localNetStorageInfoListStateFlow.collect {
@@ -198,7 +216,37 @@ class MediaListScreenViewModel(
 
     private fun updateSelectItem(id: Int) {
         val selectItem = menu.value.filter { it.id == id }
-        selectedItem.value = selectItem.first()
+        currentMenuItem.value = selectItem.first()
+    }
+
+    fun updateDirectoryName(local: Boolean, name: String? = null) {
+        if (local) {
+            if (name == null) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    directoryName.value = application.mediaDatabase.directoryDao.getDirectoryNameById(currentDirectoryId.value) ?: "根路径"
+                }
+            } else {
+                directoryName.value = name
+            }
+        } else {
+            directoryName.value = name.takeIf { !it.isNullOrEmpty() } ?: "根路径"
+        }
+    }
+
+    fun updateDirectoryInfo(local: Boolean, directoryNum: Int? = null, imageNum: Int? = null) {
+        if (local) {
+            if (directoryNum != null && imageNum != null) {
+                this.directoryNum.intValue = directoryNum
+                photosNum.intValue = imageNum
+                localDirectoryInfo = directoryNum to imageNum
+            } else {
+                this.directoryNum.intValue = localDirectoryInfo.first
+                photosNum.intValue = localDirectoryInfo.second
+            }
+        } else {
+            this.directoryNum.intValue = directoryNum ?: 0
+            photosNum.intValue = imageNum ?: 0
+        }
     }
 
     private fun initLocalMediaFilePaging(directoryId: Long) {
@@ -209,7 +257,8 @@ class MediaListScreenViewModel(
                     maxSize = settings.maxSizeLarge,
                     initialLoadSize = settings.initialLoadSizeLarge
                 )
-            localMediaFileService.getAllData(directoryId)
+            val result = localMediaFileService.getAllData(directoryId)
+            updateDirectoryInfo(true, result.second, result.third)
             localMediaFileFlow.value = Pager(
                 PagingConfig(
                     pageSize = settings.pageSizeLarge,
@@ -228,7 +277,8 @@ class MediaListScreenViewModel(
 
     private suspend fun initLocalMediaFilePaging(): Flow<PagingData<MediaItem>> {
         val result = viewModelScope.async(Dispatchers.IO) {
-            localMediaFileService.getAllData(-1)
+            val result = localMediaFileService.getAllData(-1)
+            updateDirectoryInfo(true, result.second, result.third)
             MediaItemPagingSource(
                 localMediaFileService
             )
@@ -259,7 +309,7 @@ class MediaListScreenViewModel(
                     item.thumbnailState.value?.recycle()
                     item.thumbnailState.value = null
                 }
-            } else{
+            } else {
                 clearList.slice(IntRange(start, end)).onEach { item ->
                     item.thumbnail?.recycle()
                     item.thumbnail = null
@@ -267,12 +317,12 @@ class MediaListScreenViewModel(
                     item.thumbnailState.value = null
                 }
             }
-        }catch (e :Exception){
+        } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    fun clearCache(type: StorageType){
+    fun clearCache(type: StorageType) {
         try {
             val clearList = localMediaFileService.allData.toList()
             if (type == StorageType.LOCAL) {
@@ -289,7 +339,7 @@ class MediaListScreenViewModel(
                     item.thumbnailState.value?.recycle()
                     item.thumbnailState.value = null
                 }
-        }catch (e:Exception){
+        } catch (e: Exception) {
             e.printStackTrace()
         }
 
@@ -389,13 +439,15 @@ class MediaListScreenViewModel(
     fun initLocalNetMediaFilePaging(path: String? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val test = path ?: ""
+            updateDirectoryName(false, path ?: "根路径")
             localNetMediaFileService = LocalNetStorageThumbnailService(
                 application,
                 smbClient,
                 maxSize = settings.initialLoadSizeLarge,
                 initialLoadSize = settings.maxSizeLarge
             )
-            localNetMediaFileService.getAllData(test)
+            val result = localNetMediaFileService.getAllData(test)
+            updateDirectoryInfo(false, result.second, result.third)
             localNetMediaFileFlow.value = Pager(
                 PagingConfig(
                     pageSize = settings.pageSizeLarge,

@@ -25,8 +25,12 @@ interface DirectoryDao {
     @Query(value = "SELECT * FROM directory_table WHERE directory_id = :directoryId")
     suspend fun queryDirectoryWithMediaFileById(directoryId: Long): DirectoryWithMediaFile?
 
+    @Query(value = "SELECT display_name FROM directory_table WHERE directory_id = :directoryId")
+    suspend fun getDirectoryNameById(directoryId: Long): String?
+
     @Transaction
-    @Query(value = """ 
+    @Query(
+        value = """ 
            SELECT media_file_table.media_file_id, 
            media_file_table.date_taken, 
            media_file_table.bucket_id, 
@@ -46,7 +50,8 @@ interface DirectoryDao {
            INNER JOIN directory_media_file_cross_ref 
            ON media_file_table.media_file_id = directory_media_file_cross_ref.media_file_id
            WHERE directory_media_file_cross_ref.directory_id = :directoryId
-           ORDER BY media_file_table.date_taken DESC""")
+           ORDER BY media_file_table.date_taken DESC"""
+    )
     suspend fun querySortedMediaFilesByDirectoryId(directoryId: Long): List<MediaFile>?
 
     @Query(value = "SELECT * FROM directory_table WHERE parent_id = :parentId ORDER BY display_name ASC")
@@ -54,7 +59,7 @@ interface DirectoryDao {
 
     @Transaction
     @Query(value = "SELECT * FROM directory_table WHERE parent_id = :parentId")
-    suspend fun queryDirectoryWithMediaFileByParentId(parentId: Long):  List<DirectoryWithMediaFile>?
+    suspend fun queryDirectoryWithMediaFileByParentId(parentId: Long): List<DirectoryWithMediaFile>?
 
     @Query(value = "DELETE FROM directory_table")
     suspend fun clearTable()

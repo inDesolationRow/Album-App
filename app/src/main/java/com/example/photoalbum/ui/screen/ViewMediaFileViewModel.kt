@@ -89,9 +89,11 @@ class ViewMediaFileViewModel(
                         imageId
                     )
                 }
-            loadPageParams.value = select to source.items.size()
-            itemIndex.intValue = select
-            source.items[select]
+            if (select != -1){
+                loadPageParams.value = select to source.items.size()
+                itemIndex.intValue = select
+                source.items[select]
+            }
         }
 
     }

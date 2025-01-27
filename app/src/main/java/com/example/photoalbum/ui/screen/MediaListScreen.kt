@@ -4,8 +4,11 @@ import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -18,23 +21,25 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AdsClick
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Dehaze
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.IconToggleButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -65,17 +70,25 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RenderEffect
+import androidx.compose.ui.graphics.Shader
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -90,7 +103,6 @@ import com.example.photoalbum.enums.MediaListDialog
 import com.example.photoalbum.enums.StorageType
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.model.MediaListDialogEntity
-import com.example.photoalbum.model.Menu
 import com.example.photoalbum.ui.action.ConnectResult
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.ui.common.DisplayImage
@@ -101,6 +113,7 @@ import com.example.photoalbum.ui.theme.LargePadding
 import com.example.photoalbum.ui.theme.MediumPadding
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -116,7 +129,7 @@ fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Mo
     val multipleChoiceList: SnapshotStateList<Long> = remember { mutableStateListOf() }
     val selectAll = remember { mutableStateOf(false) }
 
-    viewModel.selectedItem.value?.let {
+    viewModel.currentMenuItem.value?.let {
         BackHandler {
             if (viewModel.localLevelStack.size == 1 && it.id == viewModel.menuLocalStorage) {
                 if (multipleChoiceMode.value) {
@@ -179,7 +192,7 @@ fun MediaListMainScreen(
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
-    val selectItem = viewModel.selectedItem.value ?: return
+    val selectItem = viewModel.currentMenuItem.value ?: return
 
     var getNavHostHeight by rememberSaveable { mutableStateOf(false) }
     var hostHeight by rememberSaveable(saver = dpSaver) { mutableStateOf(0.dp) }
@@ -198,6 +211,8 @@ fun MediaListMainScreen(
         null
     }
 
+    val showPopup = remember { mutableStateOf(false) }
+
     ModalNavigationDrawer(
         drawerState = viewModel.drawerState,
         gesturesEnabled = gesturesEnabled.value,
@@ -209,10 +224,14 @@ fun MediaListMainScreen(
                         NavigationDrawerItem(
                             icon = { Icon(item.icon, contentDescription = null) },
                             label = { Text(item.displayName) },
-                            selected = item == viewModel.selectedItem.value,
+                            selected = item == viewModel.currentMenuItem.value,
                             onClick = {
                                 scope.launch { viewModel.drawerState.close() }
-                                viewModel.selectedItem.value = item
+                                viewModel.currentMenuItem.value = item
+                                if (item.id == viewModel.menuLocalStorage) {
+                                    viewModel.updateDirectoryName(true)
+                                    viewModel.updateDirectoryInfo(true)
+                                }
                             },
                             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                         )
@@ -224,10 +243,10 @@ fun MediaListMainScreen(
             Scaffold(topBar = {
                 TopBar(
                     viewModel = viewModel,
-                    selectItem = selectItem,
                     multipleChoiceMode = multipleChoiceMode.value,
                     multipleChoiceList = multipleChoiceList,
                     selectAll = selectAll,
+                    showPopup = showPopup,
                     modifier = Modifier
                         .then(
                             if (topBarAnimateDp != null) {
@@ -253,6 +272,17 @@ fun MediaListMainScreen(
                         .fillMaxSize()
                 ) {
                     //整个composable的弹出dialog逻辑
+                    //RoundedPopup(showPopup = showPopup)
+                    AnimatedPopup(
+                        showPopup = showPopup,
+                        with(density) {
+                            DpSize(
+                                viewModel.settings.phoneSize?.width?.toDp() ?: LocalConfiguration.current.screenWidthDp.toDp(),
+                                viewModel.settings.phoneSize?.height?.toDp() ?: LocalConfiguration.current.screenHeightDp.toDp()
+                            )
+                        },
+                        scope
+                    )
                     if (viewModel.showDialog.isShow) {
                         when (viewModel.showDialog.mediaListDialog) {
                             MediaListDialog.LOCAL_NET_IP_ERROR -> MessageDialog(
@@ -461,100 +491,133 @@ fun MediaListMainScreen(
 @Composable
 private fun TopBar(
     viewModel: MediaListScreenViewModel,
-    selectItem: Menu,
     multipleChoiceMode: Boolean,
     multipleChoiceList: SnapshotStateList<Long>,
     selectAll: MutableState<Boolean>,
+    showPopup: MutableState<Boolean>,
     modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
-    Box(modifier = modifier.padding(bottom = 10.dp)) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (!multipleChoiceMode) {
-                Box(modifier = Modifier.weight(1f)) {
-                    IconButton(onClick = {
-                        coroutineScope.launch(Dispatchers.Main) {
-                            viewModel.drawerState.open()
-                        }
-                    }) {
-                        Icon(
-                            painter = rememberVectorPainter(Icons.Filled.Dehaze),
-                            contentDescription = null,
-                        )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .padding(top = 5.dp, bottom = 5.dp)
+            .fillMaxWidth()
+    ) {
+        if (!multipleChoiceMode) {
+            Box {
+                IconButton(onClick = {
+                    coroutineScope.launch(Dispatchers.Main) {
+                        viewModel.drawerState.open()
                     }
+                }) {
+                    Icon(
+                        painter = rememberVectorPainter(Icons.Filled.Dehaze),
+                        contentDescription = null,
+                    )
                 }
-                if (selectItem.id == viewModel.menuLocalStorage) {
-                    IconButton(onClick = {}) {
-                        Icon(
-                            painter = rememberVectorPainter(Icons.Filled.Search),
-                            contentDescription = null
-                        )
-                    }
-
-                    IconButton(
-                        onClick = {},
-                        modifier = Modifier.padding(end = SmallPadding)
-                    ) {
-                        Icon(
-                            painter = rememberVectorPainter(Icons.Filled.AdsClick),
-                            contentDescription = null
-                        )
-                    }
-                }
-                if (selectItem.id >= viewModel.menuLocalNetMinimumId) {
-                    IconButton(onClick = {
-                        viewModel.editLocalNetStorageInfo = true
-                    }) {
-                        Icon(
-                            painter = rememberVectorPainter(Icons.Filled.Edit),
-                            contentDescription = null
-                        )
-                    }
-                    IconButton(onClick = {
-                        viewModel.delLocalNetStorageInfo(selectItem.id)
-                        viewModel.delLocalNetStorageInfoInMenu(selectItem.id)
-                    }) {
-                        Icon(
-                            painter = rememberVectorPainter(Icons.Filled.Delete),
-                            contentDescription = null
-                        )
-                    }
-                }
-            } else {
-                Box(contentAlignment = Alignment.BottomCenter) {
-                    IconToggleButton(
-                        checked = selectAll.value,
-                        onCheckedChange = {
-                            selectAll.value = !selectAll.value
-                            if (selectAll.value) {
-                                val all = viewModel.localMediaFileService.allData
-                                val filter = multipleChoiceList.toSet()
-                                all.map { item ->
-                                    if (!filter.contains(item.id)) {
-                                        multipleChoiceList.add(item.id)
-                                    }
+            }
+            Column(modifier = Modifier.padding(start = 6.dp)) {
+                Text(
+                    text = viewModel.directoryName.value,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                Text(
+                    text = stringResource(
+                        R.string.top_bar_directory_info,
+                        viewModel.directoryNum.intValue,
+                        viewModel.photosNum.intValue
+                    ),
+                    style = MaterialTheme.typography.labelMedium,
+                )
+            }
+            /*                if (selectItem.id == viewModel.menuLocalStorage) {
+                                IconButton(onClick = {}) {
+                                    Icon(
+                                        painter = rememberVectorPainter(Icons.Filled.Search),
+                                        contentDescription = null
+                                    )
                                 }
-                            } else {
-                                multipleChoiceList.clear()
+
+                                IconButton(
+                                    onClick = {},
+                                    modifier = Modifier.padding(end = SmallPadding)
+                                ) {
+                                    Icon(
+                                        painter = rememberVectorPainter(Icons.Filled.AdsClick),
+                                        contentDescription = null
+                                    )
+                                }
                             }
-                        },
-                        modifier = Modifier.zIndex(2f)
-                    ) {
-                        println("改变图片 ${selectAll.value}")
+                            if (selectItem.id >= viewModel.menuLocalNetMinimumId) {
+                                IconButton(onClick = {
+                                    viewModel.editLocalNetStorageInfo = true
+                                }) {
+                                    Icon(
+                                        painter = rememberVectorPainter(Icons.Filled.Edit),
+                                        contentDescription = null
+                                    )
+                                }
+                                IconButton(onClick = {
+                                    viewModel.delLocalNetStorageInfo(selectItem.id)
+                                    viewModel.delLocalNetStorageInfoInMenu(selectItem.id)
+                                }) {
+                                    Icon(
+                                        painter = rememberVectorPainter(Icons.Filled.Delete),
+                                        contentDescription = null
+                                    )
+                                }
+                            }*/
+        } else {
+            Box(contentAlignment = Alignment.BottomCenter) {
+                IconToggleButton(
+                    checked = selectAll.value,
+                    onCheckedChange = {
+                        selectAll.value = !selectAll.value
                         if (selectAll.value) {
-                            Icon(Icons.Filled.CheckCircle, contentDescription = "选中", tint = Color.DarkGray)
+                            val all = viewModel.localMediaFileService.allData
+                            val filter = multipleChoiceList.toSet()
+                            all.map { item ->
+                                if (!filter.contains(item.id)) {
+                                    multipleChoiceList.add(item.id)
+                                }
+                            }
                         } else {
-                            Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "未选中", tint = Color.LightGray)
+                            multipleChoiceList.clear()
                         }
+                    },
+                    modifier = Modifier.zIndex(2f)
+                ) {
+                    println("改变图片 ${selectAll.value}")
+                    if (selectAll.value) {
+                        Icon(Icons.Filled.CheckCircle, contentDescription = "选中", tint = Color.DarkGray)
+                    } else {
+                        Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "未选中", tint = Color.LightGray)
                     }
-                    Text(stringResource(R.string.check_all), style = MaterialTheme.typography.labelSmall)
                 }
-                Row(modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.check_num, multipleChoiceList.size), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    stringResource(R.string.check_all),
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+            Text(
+                stringResource(R.string.check_num, multipleChoiceList.size),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f)
+            )
+            Box(contentAlignment = Alignment.BottomCenter) {
+                IconButton(onClick = {
+                    showPopup.value = true
+                }) {
+                    Icon(
+                        painter = rememberVectorPainter(Icons.Filled.Check),
+                        contentDescription = null
+                    )
                 }
+                Text(
+                    stringResource(R.string.top_bar_add_favorite),
+                    style = MaterialTheme.typography.labelSmall,
+                )
             }
         }
     }
@@ -765,19 +828,6 @@ fun MediaList(
                         }
                     }
                 ) {
-                    if (multipleChoiceMode != null && multipleChoiceMode.value && (item.type == ItemType.DIRECTORY || image != null)) {
-                        IconToggleButton(
-                            checked = checked,
-                            onCheckedChange = {},
-                            modifier = Modifier.zIndex(2f)
-                        ) {
-                            if (checked) {
-                                Icon(Icons.Filled.CheckCircle, contentDescription = "选中", tint = Color.DarkGray)
-                            } else {
-                                Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "未选中", tint = Color.LightGray)
-                            }
-                        }
-                    }
                     MediaFilePreview(
                         image = image,
                         nullPreviewIcon = nullPreviewIcon,
@@ -786,9 +836,46 @@ fun MediaList(
                         fileType = item.type,
                         context = context,
                         modifier = Modifier
-                            .zIndex(1f)
                             .padding(end = TinyPadding, top = TinyPadding)
                     )
+                    if (multipleChoiceMode != null && multipleChoiceMode.value && (item.type == ItemType.DIRECTORY || image != null)) {
+                        IconToggleButton(
+                            checked = checked,
+                            colors = IconButtonDefaults.iconToggleButtonColors(
+                                // 选中时图标的颜色
+                                containerColor = Color(0x80808080),
+                                // 未选中时图标的颜色
+                                contentColor = Color.White,
+                                // 选中时背景颜色
+                                checkedContainerColor = Color.White,
+                                // 未选中时背景颜色
+                                checkedContentColor = Color.DarkGray
+                            ),
+                            onCheckedChange = {},
+                            modifier = Modifier
+                                .width(24.dp)
+                                .height(24.dp)
+                                .offset(x = (-10).dp, y = 10.dp)
+                        ) {
+                            if (checked) {
+                                Icon(
+                                    Icons.Filled.CheckCircle,
+                                    contentDescription = "选中",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(0.dp)
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Filled.RadioButtonUnchecked,
+                                    contentDescription = "未选中",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(0.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -992,5 +1079,68 @@ fun result(
 
         is ConnectResult.ConnectError -> {}
         is ConnectResult.Success -> onSuccess()
+    }
+}
+
+@Composable
+fun RoundedPopup(showPopup: MutableState<Boolean>) {
+    if (showPopup.value) {
+        Popup(
+            alignment = Alignment.Center, // 控制弹出位置
+            onDismissRequest = { showPopup.value = false } // 点击外部关闭
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(300.dp, 200.dp) // 设置宽高
+                    .background(Color.White, shape = RoundedCornerShape(16.dp)) // 圆角背景
+                    .padding(16.dp)
+            ) {
+                Text("这是一个圆角弹出窗口", style = MaterialTheme.typography.titleLarge)
+            }
+        }
+    }
+}
+
+@Composable
+fun AnimatedPopup(showPopup: MutableState<Boolean>, size: DpSize, scope: CoroutineScope) {
+    val width = remember { (size.width.value * 0.9f).dp }
+    val height = remember { (size.height.value * 0.95f).dp }
+
+    val transition = updateTransition(targetState = showPopup.value, label = "popup")
+    val offset by transition.animateDp(
+        label = "popupOffset",
+        transitionSpec = { tween(durationMillis = 300) }
+    ) { state -> if (state) 0.dp else height }
+
+    val isPopupVisible = remember { mutableStateOf(false) } // 控制是否真正显示 Popup
+
+    // 监听 showPopup 的变化，管理 Popup 显示状态
+    LaunchedEffect(showPopup.value) {
+        if (showPopup.value) {
+            isPopupVisible.value = true // 打开 Popup
+        } else {
+            // 延迟到动画完成后再隐藏 Popup
+            delay(300) // 动画时长和 transitionSpec 一致
+            isPopupVisible.value = false
+        }
+    }
+
+    if (isPopupVisible.value) {
+        Popup(
+            alignment = Alignment.Center,
+            onDismissRequest = {
+                showPopup.value = false
+            }
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width, height)
+                    .offset(y = offset)
+                    .background(Color(0xE6FFFFFF), shape = RoundedCornerShape(16.dp))
+                    .padding(16.dp)
+            ) {
+                Text("这是一个带动画的圆角弹出窗口", style = MaterialTheme.typography.bodyMedium)
+            }
+        }
     }
 }

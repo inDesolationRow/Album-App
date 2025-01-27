@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">Photo Album</string>
     <string name="bar_title_media_list">媒体列表</string>
-    <string name="bar_title_my_favorite">我的最爱</string>
+    <string name="bar_title_my_favorite">收藏夹</string>
     <string name="bar_title_settings">设置</string>
     <string name="settings_scan_local_storage">扫描本地文件</string>
     <string name="settings_scan_local_storage_message">确定要进行本地扫描吗?</string>
@@ -33,4 +33,6 @@
     <string name="local_net_offline">本地网络离线，请检查网络环境</string>
     <string name="check_all">全选</string>
     <string name="check_num">已选中%1$s个</string>
+    <string name="top_bar_add_favorite">收藏</string>
+    <string name="top_bar_directory_info">%1$s个目录 %2$s张图片</string>
 </resources>
