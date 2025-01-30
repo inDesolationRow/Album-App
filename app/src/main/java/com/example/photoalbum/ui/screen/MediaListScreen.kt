@@ -70,12 +70,12 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.blur
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.RenderEffect
-import androidx.compose.ui.graphics.Shader
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -86,7 +86,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.zIndex
@@ -700,6 +699,7 @@ fun MediaList(
         state = state,
         modifier = modifier
             .padding(start = TinyPadding)
+            .nestedScroll(rememberFlingNestedScrollConnection())
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
@@ -882,7 +882,7 @@ fun MediaList(
     }
     val invisibleStatusBar by remember {
         derivedStateOf {
-            state.firstVisibleItemScrollOffset > 0
+            state.firstVisibleItemIndex >0
         }
     }
     var lifecycle by remember {
@@ -908,8 +908,9 @@ fun MediaList(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-    if (lifecycle && multipleChoiceMode?.value == false)
+    if (lifecycle && multipleChoiceMode?.value == false){
         expand(!invisibleStatusBar)
+    }
 }
 
 @Composable
@@ -1083,25 +1084,6 @@ fun result(
 }
 
 @Composable
-fun RoundedPopup(showPopup: MutableState<Boolean>) {
-    if (showPopup.value) {
-        Popup(
-            alignment = Alignment.Center, // 控制弹出位置
-            onDismissRequest = { showPopup.value = false } // 点击外部关闭
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(300.dp, 200.dp) // 设置宽高
-                    .background(Color.White, shape = RoundedCornerShape(16.dp)) // 圆角背景
-                    .padding(16.dp)
-            ) {
-                Text("这是一个圆角弹出窗口", style = MaterialTheme.typography.titleLarge)
-            }
-        }
-    }
-}
-
-@Composable
 fun AnimatedPopup(showPopup: MutableState<Boolean>, size: DpSize, scope: CoroutineScope) {
     val width = remember { (size.width.value * 0.9f).dp }
     val height = remember { (size.height.value * 0.95f).dp }
@@ -1142,5 +1124,18 @@ fun AnimatedPopup(showPopup: MutableState<Boolean>, size: DpSize, scope: Corouti
                 Text("这是一个带动画的圆角弹出窗口", style = MaterialTheme.typography.bodyMedium)
             }
         }
+    }
+}
+
+//限制滚动
+@Composable
+fun rememberFlingNestedScrollConnection() = remember {
+    object : NestedScrollConnection {
+
+        override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+            val use =  available.y / 20 * 9
+            return Offset(0f, use)
+        }
+
     }
 }
