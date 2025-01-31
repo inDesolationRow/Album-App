@@ -115,7 +115,6 @@ class MainActivity : ComponentActivity() {
             viewModel.settings.phoneSize = getPhysicalResolution(this@MainActivity)
             println("屏幕参数${viewModel.settings.phoneSize}")
         }
-        //getImageRatio("/storage/emulated/0/DCIM/Camera/20231008_154438.jpg", 0f)
         setContent {
             PhotoAlbumTheme {
                 MainScreen(viewModel)

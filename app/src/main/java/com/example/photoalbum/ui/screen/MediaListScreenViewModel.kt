@@ -324,21 +324,23 @@ class MediaListScreenViewModel(
 
     fun clearCache(type: StorageType) {
         try {
-            val clearList = localMediaFileService.allData.toList()
             if (type == StorageType.LOCAL) {
+                val clearList = localMediaFileService.allData.toList()
                 clearList.onEach { item ->
                     item.thumbnail?.recycle()
                     item.thumbnail = null
                     item.thumbnailState.value?.recycle()
                     item.thumbnailState.value = null
                 }
-            } else
+            } else{
+                val clearList = localNetMediaFileService.allData.toList()
                 clearList.onEach { item ->
                     item.thumbnail?.recycle()
                     item.thumbnail = null
                     item.thumbnailState.value?.recycle()
                     item.thumbnailState.value = null
                 }
+            }
         } catch (e: Exception) {
             e.printStackTrace()
         }

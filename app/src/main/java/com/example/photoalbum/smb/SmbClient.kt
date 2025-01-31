@@ -232,10 +232,10 @@ class SmbClient {
                         byteArray = inputStream.readBytes()
                     }
                 }
-                println("测试:数组${byteArray?.size}")
                 byteArray?.let {
                     thumbnail = decodeSampledBitmap(it)
                 }
+                byteArray = null
             }
         } catch (e: Exception) {
             println(e)

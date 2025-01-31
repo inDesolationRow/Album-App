@@ -20,6 +20,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import java.io.File
 import kotlin.math.min
 
@@ -314,6 +315,8 @@ class LocalNetStorageThumbnailService(
 
     override var selectItemIndex: Int = 0
 
+    private val loadSemaphore = Semaphore(10)
+
     override fun sharedAllData(allData: MutableList<MediaItem>?): MutableList<MediaItem> {
         allData?.let {
             this.allData = it
@@ -407,6 +410,7 @@ class LocalNetStorageThumbnailService(
     ): Bitmap? {
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         return coroutineScope.async(context = Dispatchers.IO) {
+            loadSemaphore.acquire()
             var image: Bitmap? = null
             try {
                 val thumbnailName =
@@ -422,8 +426,10 @@ class LocalNetStorageThumbnailService(
                         directory = thumbnailsPath
                     )
                 }
+                loadSemaphore.release()
                 image
             } catch (e: Exception) {
+                loadSemaphore.release()
                 return@async null
             }
         }.await()

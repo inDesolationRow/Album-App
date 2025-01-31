@@ -158,6 +158,7 @@ fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Mo
                     else
                         viewModel.connectSmb(id = it.id, reconnection = true)
                     if (result is ConnectResult.Success) {
+                        viewModel.clearCache(StorageType.CLOUD)
                         viewModel.initLocalNetMediaFilePaging(path)
                     } else {
                         viewModel.smbClient.rollback()
@@ -230,6 +231,7 @@ fun MediaListMainScreen(
                                 if (item.id == viewModel.menuLocalStorage) {
                                     viewModel.updateDirectoryName(true)
                                     viewModel.updateDirectoryInfo(true)
+                                    viewModel.clearCache(StorageType.CLOUD)
                                 }
                             },
                             modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
@@ -587,7 +589,6 @@ private fun TopBar(
                     },
                     modifier = Modifier.zIndex(2f)
                 ) {
-                    println("改变图片 ${selectAll.value}")
                     if (selectAll.value) {
                         Icon(Icons.Filled.CheckCircle, contentDescription = "选中", tint = Color.DarkGray)
                     } else {
@@ -652,6 +653,9 @@ fun MediaList(
     val preIndex = remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
 
+    //隐藏bar
+    var invisibleStatusBar by remember(state) { mutableStateOf(false) }
+
     //实现多选
     var tapNum by remember { mutableIntStateOf(0) }
     var checkJob: Job? = null
@@ -667,9 +671,12 @@ fun MediaList(
         }
     }
 
+
     val delay = remember { mutableLongStateOf(0L) }
     LaunchedEffect(state, itemCount, back) {
         snapshotFlow { state.firstVisibleItemIndex }.collect {
+            invisibleStatusBar = state.firstVisibleItemIndex > 0
+
             if (!back.value) {
                 onScroll(state.firstVisibleItemIndex)
             }
@@ -880,11 +887,6 @@ fun MediaList(
             }
         }
     }
-    val invisibleStatusBar by remember {
-        derivedStateOf {
-            state.firstVisibleItemIndex >0
-        }
-    }
     var lifecycle by remember {
         mutableStateOf(true)
     }
@@ -908,7 +910,7 @@ fun MediaList(
             lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
-    if (lifecycle && multipleChoiceMode?.value == false){
+    if (lifecycle && (multipleChoiceMode?.value == false || onLocalNetOpen != null)) {
         expand(!invisibleStatusBar)
     }
 }
@@ -1133,7 +1135,7 @@ fun rememberFlingNestedScrollConnection() = remember {
     object : NestedScrollConnection {
 
         override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-            val use =  available.y / 20 * 9
+            val use = available.y / 20 * 9
             return Offset(0f, use)
         }
 

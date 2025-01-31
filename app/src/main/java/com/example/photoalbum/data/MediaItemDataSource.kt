@@ -20,6 +20,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
 import java.io.File
 import kotlin.math.max
 import kotlin.math.min
@@ -264,8 +265,8 @@ class LocalDataSource(
         loadImageJob?.cancel()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         loadImageJob = coroutineScope.launch {
+            //给加载图片一个延迟，以减轻内存负担，且可以减少因状态重组导致的画面闪烁
             delay(200)
-            println("测试:load图片 $position")
             previousLoadItem?.dataBitmap?.value?.recycle()
             previousLoadItem?.dataBitmap?.value = null
             val item = allData[position]
@@ -347,6 +348,8 @@ class LocalNetDataSource(
 
     private var previousLoadItem: MediaItem? = null
 
+    private val loadSemaphore = Semaphore(10)
+
     override suspend fun getAllData(
         param: String,
         onlyMediaFile: Boolean,
@@ -385,6 +388,7 @@ class LocalNetDataSource(
         return coroutineScope.async(context = Dispatchers.IO) {
             var image: Bitmap? = null
             try {
+                loadSemaphore.acquire()
                 val thumbnailName =
                     getThumbnailName(name = fileName, otherStr = mediaFileId.toString())
                 val testFile = File(thumbnailsPath, thumbnailName)
@@ -398,8 +402,10 @@ class LocalNetDataSource(
                         directory = thumbnailsPath
                     )
                 }
+                loadSemaphore.release()
                 image
             } catch (e: Exception) {
+                loadSemaphore.release()
                 return@async null
             }
         }.await()
@@ -410,12 +416,14 @@ class LocalNetDataSource(
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         loadImageJob = coroutineScope.launch {
             delay(200)
+            loadSemaphore.acquire()
             previousLoadItem?.dataBitmap?.value?.recycle()
             previousLoadItem?.dataBitmap?.value = null
             val item = allData[position]
             val image = smbClient.getImage(item.data!!)
             item.dataBitmap.value = image
             previousLoadItem = item
+            loadSemaphore.release()
         }
     }
 
