@@ -113,7 +113,6 @@ class MainActivity : ComponentActivity() {
                 viewModel.settings.gridColumnNumState.intValue = settings?.gridColumnNum ?: 3
             }
             viewModel.settings.phoneSize = getPhysicalResolution(this@MainActivity)
-            println("屏幕参数${viewModel.settings.phoneSize}")
         }
         setContent {
             PhotoAlbumTheme {

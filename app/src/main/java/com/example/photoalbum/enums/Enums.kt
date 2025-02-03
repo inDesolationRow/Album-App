@@ -1,11 +1,5 @@
 package com.example.photoalbum.enums
 
-enum class AlbumType {
-    MAIN_ALBUM, //显示在主页的相册
-    MIXED_ALBUM, //即有相册又有照片
-    ALBUM, //只有照片
-}
-
 enum class StorageType {
     LOCAL,
     CLOUD
@@ -47,19 +41,20 @@ enum class ScanResult {
     NONE
 }
 
-enum class ItemType {
-    DIRECTORY,
-    IMAGE,
-    VIDEO,
-    ERROR
+enum class ItemType(val value: Int) {
+    GROUPING(0),
+    DIRECTORY(1),
+    IMAGE(2),
+    VIDEO(3),
+    ERROR(4)
 }
 
-enum class ThumbnailsPath(val path: String){
+enum class ThumbnailsPath(val path: String) {
     LOCAL_STORAGE("/Thumbnail/LocalStorage"),
     LOCAL_NET_STORAGE("/Thumbnail/LocalNetStorage")
 }
 
-enum class ImageSize(val size: Int){
+enum class ImageSize(val size: Int) {
     M_30(31457280),
     M_10(10485760),
     M_5(5242880),
@@ -67,7 +62,7 @@ enum class ImageSize(val size: Int){
     M_1(1310720)
 }
 
-enum class SystemFolder(val displayName: String){
+enum class SystemFolder(val displayName: String) {
     DCIM("dcim"),
     CAMERA("camera"),
     PICTURES("picture"),
@@ -76,13 +71,13 @@ enum class SystemFolder(val displayName: String){
     DOWNLOAD("download"),
 }
 
-enum class Direction(val value: Int){
+enum class Direction(val value: Int) {
     LEFT(-1),
     RIGHT(1),
     NULL(-10)
 }
 
-enum class WorkTag(val value: String){
+enum class WorkTag(val value: String) {
     SYNC_DATABASE("sync_database"),
     CREATE_THUMBNAILS("create_thumbnails")
 }

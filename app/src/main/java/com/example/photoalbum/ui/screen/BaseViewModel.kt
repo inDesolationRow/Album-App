@@ -196,8 +196,8 @@ abstract class BaseViewModel(
                         MediaListScreenViewModel(application, userAction, settings) as T
                     }
 
-                    modelClass.isAssignableFrom(FavoriteScreenViewModel::class.java) -> {
-                        FavoriteScreenViewModel(application, userAction, settings) as T
+                    modelClass.isAssignableFrom(GroupingScreenViewModel::class.java) -> {
+                        GroupingScreenViewModel(application, userAction, settings) as T
                     }
 
                     modelClass.isAssignableFrom(SettingsScreenViewModel::class.java) -> {

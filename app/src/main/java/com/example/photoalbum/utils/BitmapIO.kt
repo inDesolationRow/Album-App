@@ -19,7 +19,6 @@ fun getImageRatio(
     orientation: Int = 0,
 ): Float {
     var ratio = 0f
-    val start = System.currentTimeMillis()
     val options = BitmapFactory.Options().apply {
         inJustDecodeBounds = true // 只加载图片的元信息，不加载实际内容
     }
@@ -29,8 +28,6 @@ fun getImageRatio(
             options.outHeight.toFloat() / options.outWidth.toFloat()
         else
             options.outWidth.toFloat() / options.outHeight.toFloat()
-    val end = System.currentTimeMillis()
-    println("测试:尺寸${ratio}加载时间 ${end - start}")
     return ratio
 }
 
@@ -41,7 +38,6 @@ fun decodeBitmap(
     maxMemorySize: Int = 50 * 1024 * 1024,
 ): Bitmap? {
     try {
-        val start = System.currentTimeMillis()
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true // 只加载图片的元信息，不加载实际内容
         }
@@ -54,8 +50,6 @@ fun decodeBitmap(
         )
         options.inJustDecodeBounds = false
         val bitmap = rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation = orientation)
-        val end = System.currentTimeMillis()
-        println("测试:缩小${options.inSampleSize}倍 宽${bitmap.width}高${bitmap.height}加载时间 ${end - start}")
         return bitmap
     } catch (e: Exception) {
         e.printStackTrace()
@@ -133,7 +127,8 @@ fun decodeSampledBitmap(
         val bitmap = BitmapFactory.decodeByteArray(byteArray, 0, byteArray.size, options)
         return bitmap
     } catch (e: Exception) {
-        println("错误:解析失败 ${e.printStackTrace()}")
+        println("错误:解析失败")
+        e.printStackTrace()
         return null
     }
 }
@@ -229,7 +224,6 @@ fun blurBitmap(context: Context, bitmap: Bitmap, radius: Float): Bitmap {
     output.copyTo(bitmap) // 将处理后的图像输出回Bitmap
     renderScript.destroy()
     val end = System.currentTimeMillis()
-    println("测试:模糊处理用时${end - start}")
     return bitmap
 }
 

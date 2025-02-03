@@ -198,7 +198,6 @@ class LocalDataSource(
             }
             allData.add(item)
         }
-        println("测试:边界 ${allData.size}")
         return index
     }
 
@@ -393,7 +392,10 @@ class LocalNetDataSource(
                     getThumbnailName(name = fileName, otherStr = mediaFileId.toString())
                 val testFile = File(thumbnailsPath, thumbnailName)
 
-                if (testFile.exists()) return@async null
+                if (testFile.exists()) {
+                    loadSemaphore.release()
+                    return@async null
+                }
                 smbClient.getImageThumbnail(name = fileName, mediaFileId)?.let {
                     image = it
                     saveBitmapToPrivateStorage(

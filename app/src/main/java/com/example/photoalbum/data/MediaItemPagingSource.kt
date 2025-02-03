@@ -74,9 +74,9 @@ interface MediaFileService<T> {
 
     var selectItemIndex: Int
 
-    suspend fun getAllData(param: T, onlyMediaFile: Boolean = false, selectItemId: Long = -1): Triple<Int, Int, Int>
-
     fun sharedAllData(allData: MutableList<MediaItem>? = null): MutableList<MediaItem>
+
+    suspend fun getAllData(param: T, onlyMediaFile: Boolean = false, selectItemId: Long = -1): Triple<Int, Int, Int>
 
     suspend fun getData(page: Int, loadSize: Int): List<MediaItem>
 
@@ -89,8 +89,7 @@ class LocalStorageThumbnailService(
     private val application: MediaApplication,
     override var initialLoadSize: Int,
     override var maxSize: Int,
-) :
-    MediaFileService<Long> {
+) : MediaFileService<Long> {
 
     override var allData: MutableList<MediaItem> = mutableListOf()
 
@@ -304,9 +303,10 @@ class LocalStorageThumbnailService(
 
 class LocalNetStorageThumbnailService(
     val application: MediaApplication,
-    private val smbClient: SmbClient, override var maxSize: Int, override var initialLoadSize: Int,
-) :
-    MediaFileService<String> {
+    private val smbClient: SmbClient,
+    override var maxSize: Int,
+    override var initialLoadSize: Int,
+) : MediaFileService<String> {
 
     override var allData: MutableList<MediaItem> = mutableListOf()
 
@@ -328,7 +328,6 @@ class LocalNetStorageThumbnailService(
         val start = (page - 1) * loadSize
         val end = min(page * loadSize - 1, allData.size - 1)
         val items = allData.slice(IntRange(start, end))
-
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         val jobs: MutableList<Job> = mutableListOf()
         for (item in items) {
@@ -400,6 +399,7 @@ class LocalNetStorageThumbnailService(
                 ).absolutePath
             )
         } catch (e: Exception) {
+            e.printStackTrace()
             null
         }
     }
@@ -417,7 +417,10 @@ class LocalNetStorageThumbnailService(
                     getThumbnailName(name = fileName, otherStr = mediaFileId.toString())
                 val testFile = File(thumbnailsPath, thumbnailName)
 
-                if (testFile.exists()) return@async null
+                if (testFile.exists()) {
+                    loadSemaphore.release()
+                    return@async null
+                }
                 smbClient.getImageThumbnail(name = fileName, mediaFileId)?.let {
                     image = it
                     saveBitmapToPrivateStorage(

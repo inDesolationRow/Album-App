@@ -89,15 +89,15 @@ class MediaListScreenViewModel(
 
     val localLevelStack: SnapshotStateList<Pair<Long, Int>> = mutableStateListOf()
 
-    val notPreviewIcon = application.getDrawable(R.drawable.hide)!!.toBitmap()
-
-    val directoryIcon = application.getDrawable(R.drawable.baseline_folder)!!.toBitmap()
-
     val localState = mutableStateOf(LazyGridState())
 
     private var recomposeLocalStorageListKey: MutableStateFlow<Int> = MutableStateFlow(0)
 
     lateinit var localMediaFileFlow: MutableState<Flow<PagingData<MediaItem>>>
+
+    val notPreviewIcon = application.getDrawable(R.drawable.hide)!!.toBitmap()
+
+    val directoryIcon = application.getDrawable(R.drawable.baseline_folder)!!.toBitmap()
 
     var localMediaFileService =
         LocalStorageThumbnailService(

@@ -28,11 +28,11 @@ class MainScreenViewModel(
         )
     )[MediaListScreenViewModel::class.java]
 
-    var favoriteScreenViewModel: FavoriteScreenViewModel = ViewModelProvider.create(
+    var favoriteScreenViewModel: GroupingScreenViewModel = ViewModelProvider.create(
         owner = activity, Companion.MyViewModelFactory(
             application,
             userAction,
             settings
         )
-    )[FavoriteScreenViewModel::class.java]
+    )[GroupingScreenViewModel::class.java]
 }

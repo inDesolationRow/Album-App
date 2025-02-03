@@ -7,10 +7,6 @@ import androidx.test.rule.GrantPermissionRule
 import com.example.photoalbum.data.dao.AlbumDao
 import com.example.photoalbum.data.MediaDatabase
 import com.example.photoalbum.data.dao.MediaFileDao
-import com.example.photoalbum.data.dao.PhotoDao
-import com.example.photoalbum.enums.AlbumType
-import com.example.photoalbum.data.model.Album
-import com.example.photoalbum.data.model.PhotoInfo
 import com.example.photoalbum.repository.ImageStoreImageRepositoryImpl
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -44,8 +40,6 @@ class SQLTest {
 
     private lateinit var albumDao: AlbumDao
 
-    private lateinit var photoDao: PhotoDao
-
     private lateinit var mediaDao: MediaFileDao
 
     private lateinit var imageStoreImageRepositoryImpl: ImageStoreImageRepositoryImpl
@@ -64,7 +58,6 @@ class SQLTest {
             .build()
 
         albumDao = db.albumDao
-        photoDao = db.photoDao
         mediaDao = db.mediaFileDao
     }
 
@@ -80,27 +73,6 @@ class SQLTest {
 
     @Test
     fun testSQL() = runBlocking {
-        albumDao.insert(Album(type = AlbumType.MAIN_ALBUM.name))
-        val albumList = albumDao.queryMainAlbum()
-        assertEquals(albumList?.size, 1)
-
-        photoDao.insert(PhotoInfo(albumId = 1))
-        val photoList = photoDao.queryByAlbumId(1)
-        assertEquals(photoList?.size, 1)
-
-        photoDao.delete(id = 1)
-        val photoList2 = photoDao.queryByAlbumId(1)
-        val empty = photoList2.isNullOrEmpty()
-        assertEquals(empty, true)
-
-        val query = albumDao.queryById(id = 1, false)
-        val isNull: Boolean = query?.equals(null) ?: true
-        assertEquals(isNull, false)
-
-        albumDao.delete(query?.id ?: 0)
-        val albumList2 = albumDao.queryMainAlbum()
-        assertEquals(albumList2?.size, 0)
-
     }
 
     @Test

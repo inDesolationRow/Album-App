@@ -559,7 +559,7 @@ fun ZoomViewImage(
             if (aniTransOriginX.value >= 0f) {
                 transformOrigin = Offset(aniTransOriginX.value, transformOrigin.y)
             }
-            if (aniTransOriginY.value >= 0f) {
+            if (aniTransOriginY.value >= 0f && aniTransOriginY.isRunning) {
                 transformOrigin = Offset(transformOrigin.x, aniTransOriginY.value)
             }
         }
@@ -631,7 +631,6 @@ fun ZoomViewImage(
                         .fillMaxHeight()
                 ) { page ->
                     items[page].let { item ->
-                        println("当前图片的地址${item.data} 名称${item.displayName}")
                         val image = item.dataBitmap.value
                         val thumbnail = item.thumbnailState.value?.let { bitmap ->
                             if (bitmap.isRecycled) item.thumbnail
@@ -649,7 +648,7 @@ fun ZoomViewImage(
                             contentAlignment = Alignment.Center,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .pointerInput(page) {
+                                .pointerInput(page to item.dataBitmap.value) {
                                     awaitPointerEventScope {
                                         var doubleClick = false //双击
                                         var multiTouch = false //多指手势
@@ -712,7 +711,6 @@ fun ZoomViewImage(
                                                                 change.consume()
                                                             }
                                                         }
-                                                        println("当前坐标 ${pointer.position}")
                                                         velocityTracker.addPosition(pointer.uptimeMillis, pointer.position)
                                                         val ratioX = deltaX / 1000 / aniScale.value
                                                         val ratioY = deltaY / 1000 / aniScale.value
@@ -895,7 +893,7 @@ fun ZoomViewImage(
                                                         }
                                                         event.changes.forEach { change -> change.consume() }
                                                     }
-                                                    // 如果长按超过400ms，消费事件
+
                                                     if (tapDrag && !doubleClick && !multiTouch && aniScale.value > 1f) {
                                                         val velocity = velocityTracker.calculateVelocity()
                                                         val speedX = velocity.x // 水平方向的速度
@@ -934,7 +932,7 @@ fun ZoomViewImage(
                                                         }
 
                                                         val transformOriginY = speedY.let {
-                                                            if (abs(speedY) > 2000) {
+                                                            if (abs(speedY) > 2000 && topEdge != 0.5f) {
                                                                 val ratio = speedY / 10000
                                                                 if (ratio < 0) {
                                                                     if (transformOrigin.y - abs(ratio) >= bottomEdge)
@@ -947,8 +945,9 @@ fun ZoomViewImage(
                                                                     else
                                                                         topEdge
                                                                 }
-                                                            } else
+                                                            } else{
                                                                 transformOrigin.y
+                                                            }
                                                         }
                                                         if (transformOriginX != transformOrigin.x) {
                                                             aniTransOriginXStartVal = transformOrigin.x
@@ -956,6 +955,7 @@ fun ZoomViewImage(
                                                             aniTransOriginXDuration = (abs(transformOriginX - transformOrigin.x) * 300).toInt()
                                                             aniTransOriginXFlag.intValue += 1
                                                         }
+
                                                         if (transformOriginY != transformOrigin.y) {
                                                             aniTransOriginYStartVal = transformOrigin.y
                                                             aniTransOriginYEndVal = transformOriginY

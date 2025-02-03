@@ -26,7 +26,6 @@ class SettingsScreenViewModel(
         viewModelScope.launch {
             userAction.collect {
                 if (it is UserAction.ScanAction) {
-                    println("扫描状态 ${it.scanState}")
                     scanResult = it.scanState
                 }
             }

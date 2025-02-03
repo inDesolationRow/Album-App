@@ -4,11 +4,8 @@ import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.core.animateDp
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.updateTransition
-import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -23,13 +20,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -56,7 +51,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -87,7 +81,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Popup
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -112,7 +105,6 @@ import com.example.photoalbum.ui.theme.LargePadding
 import com.example.photoalbum.ui.theme.MediumPadding
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -125,26 +117,32 @@ fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Mo
     val activity = context as? Activity
     val naviDrawerGesturesEnabled = remember { mutableStateOf(true) }
     val multipleChoiceMode = remember { mutableStateOf(false) }
-    val multipleChoiceList: SnapshotStateList<Long> = remember { mutableStateListOf() }
+    val multipleChoiceList: SnapshotStateList<String> = remember { mutableStateListOf() }
     val selectAll = remember { mutableStateOf(false) }
+    val showPopup = remember { mutableStateOf(false) }
+    val isPopupVisible = remember { mutableStateOf(false) } // 控制是否真正显示 Popup
+    val exitMultipleChoiceMode = {
+        multipleChoiceMode.value = false
+        multipleChoiceList.clear()
+        naviDrawerGesturesEnabled.value = true
+        selectAll.value = false
+    }
 
     viewModel.currentMenuItem.value?.let {
         BackHandler {
             if (viewModel.localLevelStack.size == 1 && it.id == viewModel.menuLocalStorage) {
-                if (multipleChoiceMode.value) {
-                    multipleChoiceMode.value = false
-                    multipleChoiceList.clear()
-                    naviDrawerGesturesEnabled.value = true
-                    selectAll.value = false
-                } else
+                if (showPopup.value)
+                    showPopup.value = false
+                else if (multipleChoiceMode.value)
+                    exitMultipleChoiceMode()
+                else
                     activity?.moveTaskToBack(true)
             } else if (it.id == viewModel.menuLocalStorage && viewModel.localLevelStack.size >= 2) {
-                if (multipleChoiceMode.value) {
-                    multipleChoiceMode.value = false
-                    multipleChoiceList.clear()
-                    naviDrawerGesturesEnabled.value = true
-                    selectAll.value = false
-                } else {
+                if (showPopup.value)
+                    showPopup.value = false
+                else if (multipleChoiceMode.value)
+                    exitMultipleChoiceMode()
+                else {
                     viewModel.clearCache(StorageType.LOCAL)
                     viewModel.localMediaFileStackBack()
                 }
@@ -178,8 +176,12 @@ fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Mo
         multipleChoiceMode = multipleChoiceMode,
         multipleChoiceList = multipleChoiceList,
         selectAll = selectAll,
+        showAlbumGrouping = showPopup,
+        isPopupVisible = isPopupVisible,
         modifier = modifier
-    )
+    ) {
+        exitMultipleChoiceMode()
+    }
 }
 
 @Composable
@@ -187,9 +189,12 @@ fun MediaListMainScreen(
     viewModel: MediaListScreenViewModel,
     gesturesEnabled: MutableState<Boolean>,
     multipleChoiceMode: MutableState<Boolean>,
-    multipleChoiceList: SnapshotStateList<Long>,
+    multipleChoiceList: SnapshotStateList<String>,
     selectAll: MutableState<Boolean>,
+    showAlbumGrouping: MutableState<Boolean>,
+    isPopupVisible: MutableState<Boolean>,
     modifier: Modifier = Modifier,
+    exitMultipleChoiceMode: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val selectItem = viewModel.currentMenuItem.value ?: return
@@ -210,8 +215,6 @@ fun MediaListMainScreen(
     } else {
         null
     }
-
-    val showPopup = remember { mutableStateOf(false) }
 
     ModalNavigationDrawer(
         drawerState = viewModel.drawerState,
@@ -247,7 +250,8 @@ fun MediaListMainScreen(
                     multipleChoiceMode = multipleChoiceMode.value,
                     multipleChoiceList = multipleChoiceList,
                     selectAll = selectAll,
-                    showPopup = showPopup,
+                    showPopup = showAlbumGrouping,
+                    isPopupVisible = isPopupVisible,
                     modifier = Modifier
                         .then(
                             if (topBarAnimateDp != null) {
@@ -272,18 +276,23 @@ fun MediaListMainScreen(
                         .padding(padding)
                         .fillMaxSize()
                 ) {
+                    if (isPopupVisible.value) {
+                        AlbumGrouping(
+                            showPopup = showAlbumGrouping,
+                            isPopupVisible = isPopupVisible,
+                            with(density) {
+                                DpSize(
+                                    viewModel.settings.phoneSize?.width?.toDp() ?: LocalConfiguration.current.screenWidthDp.toDp(),
+                                    viewModel.settings.phoneSize?.height?.toDp() ?: LocalConfiguration.current.screenHeightDp.toDp()
+                                )
+                            },
+                            directoryIcon = viewModel.directoryIcon,
+                            application = viewModel.application,
+                            groupingList = multipleChoiceList.toList(),
+                            onAddGrouping = { exitMultipleChoiceMode() }
+                        )
+                    }
                     //整个composable的弹出dialog逻辑
-                    //RoundedPopup(showPopup = showPopup)
-                    AnimatedPopup(
-                        showPopup = showPopup,
-                        with(density) {
-                            DpSize(
-                                viewModel.settings.phoneSize?.width?.toDp() ?: LocalConfiguration.current.screenWidthDp.toDp(),
-                                viewModel.settings.phoneSize?.height?.toDp() ?: LocalConfiguration.current.screenHeightDp.toDp()
-                            )
-                        },
-                        scope
-                    )
                     if (viewModel.showDialog.isShow) {
                         when (viewModel.showDialog.mediaListDialog) {
                             MediaListDialog.LOCAL_NET_IP_ERROR -> MessageDialog(
@@ -493,9 +502,10 @@ fun MediaListMainScreen(
 private fun TopBar(
     viewModel: MediaListScreenViewModel,
     multipleChoiceMode: Boolean,
-    multipleChoiceList: SnapshotStateList<Long>,
+    multipleChoiceList: SnapshotStateList<String>,
     selectAll: MutableState<Boolean>,
     showPopup: MutableState<Boolean>,
+    isPopupVisible: MutableState<Boolean>,
     modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -579,8 +589,8 @@ private fun TopBar(
                             val all = viewModel.localMediaFileService.allData
                             val filter = multipleChoiceList.toSet()
                             all.map { item ->
-                                if (!filter.contains(item.id)) {
-                                    multipleChoiceList.add(item.id)
+                                if (!filter.contains("${item.id}_${item.type.value}")) {
+                                    multipleChoiceList.add("${item.id}_${item.type.value}")
                                 }
                             }
                         } else {
@@ -608,6 +618,7 @@ private fun TopBar(
             Box(contentAlignment = Alignment.BottomCenter) {
                 IconButton(onClick = {
                     showPopup.value = true
+                    isPopupVisible.value = true
                 }) {
                     Icon(
                         painter = rememberVectorPainter(Icons.Filled.Check),
@@ -615,7 +626,7 @@ private fun TopBar(
                     )
                 }
                 Text(
-                    stringResource(R.string.top_bar_add_favorite),
+                    stringResource(R.string.top_bar_add_grouping),
                     style = MaterialTheme.typography.labelSmall,
                 )
             }
@@ -638,7 +649,7 @@ fun MediaList(
     context: Context,
     back: MutableState<Boolean>,
     multipleChoiceMode: MutableState<Boolean>? = null,
-    multipleChoiceList: SnapshotStateList<Long>? = null,
+    multipleChoiceList: SnapshotStateList<String>? = null,
     selectAll: MutableState<Boolean>? = null,
     onMultipleChoice: (() -> Unit)? = null,
     onClear: (Int, Int) -> Unit,
@@ -659,18 +670,17 @@ fun MediaList(
     //实现多选
     var tapNum by remember { mutableIntStateOf(0) }
     var checkJob: Job? = null
-    val onSelect: (Long) -> Unit = { id: Long ->
-        if (multipleChoiceList?.contains(id) == false) {
-            multipleChoiceList.add(id)
+    val onSelect: (Long, Int) -> Unit = { id: Long, type: Int ->
+        if (multipleChoiceList?.contains("${id}_$type") == false) {
+            multipleChoiceList.add("${id}_$type")
             if (itemCount == multipleChoiceList.size)
                 selectAll?.value = true
         } else {
             if (itemCount == (multipleChoiceList?.size ?: 0))
                 selectAll?.value = false
-            multipleChoiceList?.remove(id)
+            multipleChoiceList?.remove("${id}_$type")
         }
     }
-
 
     val delay = remember { mutableLongStateOf(0L) }
     LaunchedEffect(state, itemCount, back) {
@@ -748,8 +758,7 @@ fun MediaList(
                     if (bitmap.isRecycled) item.thumbnail
                     else bitmap
                 } ?: item.thumbnail
-                val checked = multipleChoiceList?.contains(item.id) == true
-
+                val checked = multipleChoiceList?.contains("${item.id}_${item.type.value}") == true
                 Box(
                     contentAlignment = Alignment.TopEnd,
                     modifier = Modifier.pointerInput(Unit) {
@@ -821,7 +830,7 @@ fun MediaList(
                                             openImage()
                                         }
                                         if (check && canCheck) {
-                                            onSelect(item.id)
+                                            onSelect(item.id, item.type.value)
                                         }
                                         if (event.changes.size == 1) {
                                             canOpen = true
@@ -927,26 +936,18 @@ fun MediaFilePreview(
 ) {
     Column(modifier = modifier) {
         if (image == null || image.width == 0 && image.height == 0) {
-            when (fileType) {
-                ItemType.IMAGE -> {
-                    DisplayImage(
-                        bitmap = nullPreviewIcon,
-                        context = context,
-                        modifier = Modifier.aspectRatio(1f)
-                    )
-                }
-
-                ItemType.DIRECTORY -> {
-                    DisplayImage(
-                        bitmap = directoryIcon,
-                        context = context,
-                        modifier = Modifier.aspectRatio(1f)
-                    )
-                }
-
-                ItemType.VIDEO -> {}
-                ItemType.ERROR -> {}
-            }
+            if (fileType == ItemType.IMAGE)
+                DisplayImage(
+                    bitmap = nullPreviewIcon,
+                    context = context,
+                    modifier = Modifier.aspectRatio(1f)
+                )
+            else if (fileType == ItemType.DIRECTORY)
+                DisplayImage(
+                    bitmap = directoryIcon,
+                    context = context,
+                    modifier = Modifier.aspectRatio(1f)
+                )
         } else {
             DisplayImage(
                 bitmap = image,
@@ -958,7 +959,7 @@ fun MediaFilePreview(
             Text(
                 text = directoryName,
                 style = MaterialTheme.typography.labelMedium,
-                modifier = Modifier.padding(start = SmallPadding)
+                modifier = Modifier.padding(start = MediumPadding)
             )
         }
     }
@@ -1082,50 +1083,6 @@ fun result(
 
         is ConnectResult.ConnectError -> {}
         is ConnectResult.Success -> onSuccess()
-    }
-}
-
-@Composable
-fun AnimatedPopup(showPopup: MutableState<Boolean>, size: DpSize, scope: CoroutineScope) {
-    val width = remember { (size.width.value * 0.9f).dp }
-    val height = remember { (size.height.value * 0.95f).dp }
-
-    val transition = updateTransition(targetState = showPopup.value, label = "popup")
-    val offset by transition.animateDp(
-        label = "popupOffset",
-        transitionSpec = { tween(durationMillis = 300) }
-    ) { state -> if (state) 0.dp else height }
-
-    val isPopupVisible = remember { mutableStateOf(false) } // 控制是否真正显示 Popup
-
-    // 监听 showPopup 的变化，管理 Popup 显示状态
-    LaunchedEffect(showPopup.value) {
-        if (showPopup.value) {
-            isPopupVisible.value = true // 打开 Popup
-        } else {
-            // 延迟到动画完成后再隐藏 Popup
-            delay(300) // 动画时长和 transitionSpec 一致
-            isPopupVisible.value = false
-        }
-    }
-
-    if (isPopupVisible.value) {
-        Popup(
-            alignment = Alignment.Center,
-            onDismissRequest = {
-                showPopup.value = false
-            }
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(width, height)
-                    .offset(y = offset)
-                    .background(Color(0xE6FFFFFF), shape = RoundedCornerShape(16.dp))
-                    .padding(16.dp)
-            ) {
-                Text("这是一个带动画的圆角弹出窗口", style = MaterialTheme.typography.bodyMedium)
-            }
-        }
     }
 }
 

@@ -165,7 +165,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                 )
             }
             composable(route = NavType.FAVORITE.name) {
-                FavoriteScreen(
+                GroupingScreen(
                     viewModel = viewModel.favoriteScreenViewModel,
                     modifier = Modifier.padding(innerPadding)
                 )
