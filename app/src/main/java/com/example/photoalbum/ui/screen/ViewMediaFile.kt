@@ -177,13 +177,6 @@ fun ViewMediaFile(viewModel: ViewMediaFileViewModel) {
             )
         }
     }
-    val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner) {
-        onDispose {
-            println("移除lifecycle")
-            viewModel.source.clearCache()
-        }
-    }
 }
 
 @Composable

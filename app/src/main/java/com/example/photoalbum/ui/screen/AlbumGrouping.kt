@@ -74,7 +74,8 @@ fun AlbumGrouping(
     application: MediaApplication,
     directoryIcon: Bitmap,
     groupingList: List<String>,
-    onAddGrouping: ()->Unit
+    onAddGroupingSuccess: () -> Unit,
+    onAddGrouping: (Album) -> Unit,
 ) {
     val width = remember { (size.width.value * 0.9f).dp }
     val height = remember { (size.height.value * 0.6f).dp }
@@ -105,9 +106,9 @@ fun AlbumGrouping(
             isPopupVisible.value = true
         } else {
             delay(500)
-            isPopupVisible.value = false
             queryJob?.cancel()
             println("摧毁popup")
+            isPopupVisible.value = false
         }
     }
 
@@ -243,7 +244,7 @@ fun AlbumGrouping(
                                     application.mediaDatabase.albumMediaFileCrossRefDao.insert(list)
                                 }
                                 showPopup.value = false
-                                onAddGrouping()
+                                onAddGroupingSuccess()
                             }
                         }
                     }) {
@@ -264,6 +265,7 @@ fun AlbumGrouping(
                                 val id = application.mediaDatabase.albumDao.insert(album)
                                 album.id = id
                                 items.add(album)
+                                onAddGrouping(album)
                             }
                         }
                     }) {

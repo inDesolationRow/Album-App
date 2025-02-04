@@ -260,4 +260,16 @@ class SmbClient {
     fun isConnect(): Boolean {
         return connection.isConnected
     }
+
+    fun close() {
+        try {
+            diskShare.close()
+            session.close()
+            connection.close()
+            smbClient.close()
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
 }

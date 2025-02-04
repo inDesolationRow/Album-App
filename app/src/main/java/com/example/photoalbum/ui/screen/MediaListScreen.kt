@@ -103,7 +103,6 @@ import com.example.photoalbum.ui.common.MessageDialog
 import com.example.photoalbum.ui.common.ProgressDialog
 import com.example.photoalbum.ui.theme.LargePadding
 import com.example.photoalbum.ui.theme.MediumPadding
-import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -289,7 +288,10 @@ fun MediaListMainScreen(
                             directoryIcon = viewModel.directoryIcon,
                             application = viewModel.application,
                             groupingList = multipleChoiceList.toList(),
-                            onAddGrouping = { exitMultipleChoiceMode() }
+                            onAddGroupingSuccess = { exitMultipleChoiceMode() },
+                            onAddGrouping = { album ->
+                                viewModel.userAction.value = UserAction.AddGrouping(album)
+                            }
                         )
                     }
                     //整个composable的弹出dialog逻辑
@@ -758,7 +760,6 @@ fun MediaList(
                     if (bitmap.isRecycled) item.thumbnail
                     else bitmap
                 } ?: item.thumbnail
-                val checked = multipleChoiceList?.contains("${item.id}_${item.type.value}") == true
                 Box(
                     contentAlignment = Alignment.TopEnd,
                     modifier = Modifier.pointerInput(Unit) {
@@ -854,6 +855,7 @@ fun MediaList(
                         modifier = Modifier
                             .padding(end = TinyPadding, top = TinyPadding)
                     )
+                    val checked = multipleChoiceList?.contains("${item.id}_${item.type.value}") == true
                     if (multipleChoiceMode != null && multipleChoiceMode.value && (item.type == ItemType.DIRECTORY || image != null)) {
                         IconToggleButton(
                             checked = checked,

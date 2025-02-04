@@ -80,6 +80,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
 
         is UserAction.ScanAction -> {}
         is UserAction.NoneAction -> {}
+        is UserAction.AddGrouping -> {}
     }
     val bottomBarAnimateDp: State<Dp>? = if (getNavHostHeight) {
         animateDpAsState(

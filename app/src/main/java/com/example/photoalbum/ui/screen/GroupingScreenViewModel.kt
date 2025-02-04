@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import androidx.compose.ui.res.stringResource
 import androidx.core.graphics.drawable.toBitmap
 import androidx.lifecycle.viewModelScope
 import com.example.photoalbum.MediaApplication
@@ -35,15 +34,20 @@ class GroupingScreenViewModel(
     var photosNum = mutableIntStateOf(0)
 
     /**
-     * 数据源
+     * 分组数据源
      */
     val groupingList: SnapshotStateList<Album> = mutableStateListOf()
 
-    val currentDirectoryInfo: MutableState<Pair<Int, Int>?> = mutableStateOf(-1 to ItemType.GROUPING.value)
+    val currentDirectoryInfo: MutableState<Pair<Long, Int>> = mutableStateOf(-1L to ItemType.GROUPING.value)
 
     val notPreviewIcon = application.getDrawable(R.drawable.hide)!!.toBitmap()
 
     val directoryIcon = application.getDrawable(R.drawable.baseline_folder)!!.toBitmap()
+
+    /**
+     * 分组内容
+     */
+
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -52,11 +56,20 @@ class GroupingScreenViewModel(
                 groupingList.addAll(it)
             }
             updateTopBarInfo(directoryNum = list?.size)
+            userAction.collect { action ->
+                if (action is UserAction.AddGrouping) {
+                    groupingList.add(action.album)
+                }
+            }
         }
     }
 
+    fun loadGrouping(album: Album) {
+        currentDirectoryInfo.value = album.id to ItemType.GROUPING.value
+    }
+
     private fun updateTopBarInfo(name: String? = null, directoryNum: Int? = null, imageNum: Int? = null) {
-        if (currentDirectoryInfo.value?.second == ItemType.GROUPING.value) {
+        if (currentDirectoryInfo.value.second == ItemType.GROUPING.value) {
             typeName.value = "分组"
         } else {
             typeName.value = "目录"
@@ -66,4 +79,5 @@ class GroupingScreenViewModel(
         this.directoryName.value = name ?: "收藏夹"
 
     }
+
 }

@@ -89,7 +89,7 @@ class ViewMediaFileViewModel(
                         imageId
                     )
                 }
-            if (select != -1){
+            if (select != -1) {
                 loadPageParams.value = select to source.items.size()
                 itemIndex.intValue = select
                 source.items[select]
@@ -116,5 +116,11 @@ class ViewMediaFileViewModel(
 
     fun expandBar(expand: Boolean, recomposeKey: Int = 0) {
         userAction.value = UserAction.ExpandStatusBarAction(expand, recomposeKey, 0)
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        source.clearCache()
+        smbClient.close()
     }
 }

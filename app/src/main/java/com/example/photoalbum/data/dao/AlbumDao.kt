@@ -26,4 +26,8 @@ interface AlbumDao {
 
     @Update
     suspend fun update(album: Album)
+
+    @Query(value = "DELETE FROM album_table WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>): Int?
+
 }

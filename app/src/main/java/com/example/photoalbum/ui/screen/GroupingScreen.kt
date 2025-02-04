@@ -2,10 +2,18 @@ package com.example.photoalbum.ui.screen
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.transition.Transition
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.ScrollableState
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.rememberScrollableState
+import androidx.compose.foundation.gestures.scrollable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -21,6 +29,7 @@ import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
@@ -29,6 +38,8 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Dehaze
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.FolderDelete
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +49,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.State
@@ -49,25 +61,39 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
 import com.example.photoalbum.data.model.Album
+import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.ui.common.DisplayImage
 import com.example.photoalbum.ui.theme.MediumPadding
@@ -106,11 +132,16 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
         viewModel.expand = (actionState.value as UserAction.ExpandStatusBarAction).expand
     }
 
+    BackHandler {
+        if (multipleChoiceMode.value)
+            exitMultipleChoiceMode()
+    }
+
     Scaffold(
         topBar = {
             TopBar(
                 viewModel = viewModel,
-                multipleChoiceMode = multipleChoiceMode.value,
+                multipleChoiceMode = multipleChoiceMode,
                 multipleChoiceList = multipleChoiceList,
                 selectAll = selectAll,
                 showPopup = showPopup,
@@ -136,13 +167,20 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
         },
         modifier = modifier
     ) { padding ->
-        if (viewModel.currentDirectoryInfo.value?.first == -1) {
+        if (viewModel.currentDirectoryInfo.value.first == -1L) {
             GroupingList(
                 items = viewModel.groupingList,
                 directoryIcon = viewModel.directoryIcon,
                 application = viewModel.application,
-                modifier = Modifier.padding(padding)
-            )
+                multipleChoiceMode = multipleChoiceMode,
+                multipleChoiceList = multipleChoiceList,
+                modifier = Modifier.padding(padding),
+                expand = { expand ->
+                    viewModel.userAction.value = UserAction.ExpandStatusBarAction(expand)
+                }
+            ) { album ->
+                viewModel.loadGrouping(album)
+            }
         } else {
 
         }
@@ -153,12 +191,24 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
 fun GroupingList(
     items: SnapshotStateList<Album>,
     directoryIcon: Bitmap,
+    multipleChoiceList: SnapshotStateList<String>,
+    multipleChoiceMode: MutableState<Boolean>,
     application: MediaApplication,
     modifier: Modifier = Modifier,
+    expand: (Boolean) -> Unit,
+    onClickGrouping: (Album) -> Unit,
 ) {
     val gridState = rememberLazyGridState()
     val keyboardController = LocalSoftwareKeyboardController.current
     val scope = rememberCoroutineScope()
+    var soleTextFieldEnable: MutableState<Boolean>? = null
+    val saveGroupingName: (TextFieldValue, Album) -> Unit = { textFieldValueState, item ->
+        scope.launch(Dispatchers.IO) {
+            item.name = textFieldValueState.text.drop(1)
+            application.mediaDatabase.albumDao.update(item)
+        }
+    }
+
     LazyVerticalGrid(
         state = gridState,
         columns = GridCells.Fixed(3),
@@ -167,20 +217,28 @@ fun GroupingList(
     ) {
         items(items.size) { index ->
             items[index].let { item ->
-                val checked = remember { mutableStateOf(false) }
                 Box(
                     contentAlignment = Alignment.TopEnd,
                     modifier = Modifier
                         .padding(end = TinyPadding, top = TinyPadding)
-                    /*.clickable {
-                        if (checked.value) {
-                            checked.value = false
-                        } else {
-                            choiceChecked.value?.second?.value = false
-                            choiceChecked.value = index to checked
-                            checked.value = true
+                        .pointerInput(Unit) {
+                            detectTapGestures(
+                                onLongPress = {
+                                    multipleChoiceMode.value = true
+                                    expand(false)
+                                },
+                                onTap = {
+                                    if (multipleChoiceMode.value) {
+                                        if (multipleChoiceList.contains("${item.id}"))
+                                            multipleChoiceList.remove("${item.id}")
+                                        else
+                                            multipleChoiceList.add("${item.id}")
+                                    } else {
+                                        onClickGrouping(item)
+                                    }
+                                }
+                            )
                         }
-                    }*/
                 ) {
                     Column {
                         DisplayImage(
@@ -188,112 +246,167 @@ fun GroupingList(
                             context = application.baseContext,
                             modifier = Modifier.aspectRatio(1f)
                         )
-
-                        val field = remember { mutableStateOf(item.name) }
                         val focusRequester = remember { FocusRequester() }
                         val textFieldEnable = remember { mutableStateOf(false) }
+                        val textFieldValueState = remember { mutableStateOf(TextFieldValue(text = " ${item.name}")) }
+                        LaunchedEffect(Unit) {
+                            textFieldValueState.value = textFieldValueState.value.copy(
+                                selection = TextRange(textFieldValueState.value.text.length)
+                            )
+                        }
+
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
+                            BasicTextField(
+                                value = textFieldValueState.value,
+                                enabled = textFieldEnable.value,
+                                singleLine = true,
+                                onValueChange = { input ->
+                                    if (input.text.length in 1..10)
+                                        textFieldValueState.value = input
+                                },
+                                keyboardActions = KeyboardActions(
+                                    onDone = {
+                                        keyboardController?.hide()
+                                        textFieldEnable.value = false
+                                        saveGroupingName(textFieldValueState.value, item)
+                                    }
+                                ),
+                                decorationBox = { innerTextField ->
+                                    Box(modifier = Modifier.width(IntrinsicSize.Min)) {
+                                        innerTextField()
+                                    }
+                                },
                                 modifier = Modifier
-                                    .width(IntrinsicSize.Min)
-                            ) {
-                                BasicTextField(
-                                    value = field.value,
-                                    enabled = textFieldEnable.value,
-                                    singleLine = true,
-                                    onValueChange = { input -> field.value = input },
-                                    keyboardActions = KeyboardActions(
-                                        onDone = {
-                                            keyboardController?.hide()
-                                            textFieldEnable.value = false
-                                            scope.launch(Dispatchers.IO) {
-                                                item.name = field.value
-                                                application.mediaDatabase.albumDao.update(item)
-                                            }
-                                        }
-                                    ),
-                                    modifier = Modifier
-                                        .wrapContentWidth()
-                                        .padding(start = MediumPadding, end = SmallPadding)
-                                        .focusRequester(focusRequester),
-                                )
-                            }
+                                    .nestedScroll(HorizontalScrollConsumer)
+                                    .padding(start = MediumPadding, end = SmallPadding)
+                                    .focusRequester(focusRequester),
+                            )
                             LaunchedEffect(textFieldEnable.value) {
                                 if (textFieldEnable.value)
                                     focusRequester.requestFocus()
+                                else
+                                    saveGroupingName(textFieldValueState.value, item)
                             }
-                            IconButton(
-                                onClick = {
-                                    textFieldEnable.value = true
+                            IconToggleButton(
+                                checked = textFieldEnable.value,
+                                onCheckedChange = {
+                                    if (textFieldEnable.value) {
+                                        textFieldEnable.value = false
+                                        saveGroupingName(textFieldValueState.value, item)
+                                    } else {
+                                        soleTextFieldEnable?.value = false
+                                        soleTextFieldEnable = textFieldEnable
+                                        textFieldEnable.value = true
+                                    }
                                 },
                                 modifier = Modifier
                                     .width(20.dp)
                                     .height(20.dp)
                                     .padding(start = 0.dp)
                             ) {
+                                if (textFieldEnable.value)
+                                    Icon(
+                                        Icons.Filled.Check,
+                                        contentDescription = "",
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(start = 0.dp)
+                                    )
+                                else
+                                    Icon(
+                                        Icons.Filled.Create,
+                                        contentDescription = "",
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(start = 0.dp)
+                                    )
+                            }
+                        }
+                    }
+                    if (multipleChoiceMode.value) {
+                        val checked = multipleChoiceList.contains("${item.id}")
+                        IconToggleButton(
+                            checked = checked,
+                            colors = IconButtonDefaults.iconToggleButtonColors(
+                                containerColor = Color(0x80808080), // 选中时图标的颜色
+                                contentColor = Color.White,              // 未选中时图标的颜色
+                                checkedContainerColor = Color.White,    // 选中时背景颜色
+                                checkedContentColor = Color.DarkGray   // 未选中时背景颜色
+                            ),
+                            onCheckedChange = {
+                                if (checked)
+                                    multipleChoiceList.remove("${item.id}")
+                                else
+                                    multipleChoiceList.add("${item.id}")
+                            },
+                            modifier = Modifier
+                                .width(24.dp)
+                                .height(24.dp)
+                                .offset(x = (-10).dp, y = 10.dp)
+                        ) {
+                            if (checked) {
                                 Icon(
-                                    Icons.Filled.Create,
-                                    contentDescription = "",
+                                    Icons.Filled.CheckCircle,
+                                    contentDescription = "选中",
                                     modifier = Modifier
                                         .fillMaxSize()
-                                        .padding(start = 0.dp)
+                                        .padding(0.dp)
+                                )
+                            } else {
+                                Icon(
+                                    Icons.Filled.RadioButtonUnchecked,
+                                    contentDescription = "未选中",
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(0.dp)
                                 )
                             }
                         }
-
                     }
-
-                    /*IconToggleButton(
-                        checked = checked.value,
-                        colors = IconButtonDefaults.iconToggleButtonColors(
-                            containerColor = Color(0x80808080), // 选中时图标的颜色
-                            contentColor = Color.White,              // 未选中时图标的颜色
-                            checkedContainerColor = Color.White,    // 选中时背景颜色
-                            checkedContentColor = Color.DarkGray   // 未选中时背景颜色
-                        ),
-                        onCheckedChange = {
-                            if (checked.value) {
-                                checked.value = false
-                            } else {
-                                choiceChecked.value?.second?.value = false
-                                choiceChecked.value = index to checked
-                                checked.value = true
-                            }
-                        },
-                        modifier = Modifier
-                            .width(24.dp)
-                            .height(24.dp)
-                            .offset(x = (-10).dp, y = 10.dp)
-                    ) {
-                        if (checked.value) {
-                            Icon(
-                                Icons.Filled.CheckCircle,
-                                contentDescription = "选中",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(0.dp)
-                            )
-                        } else {
-                            Icon(
-                                Icons.Filled.RadioButtonUnchecked,
-                                contentDescription = "未选中",
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(0.dp)
-                            )
-                        }
-                    }*/
                 }
             }
         }
+    }
+
+    var invisibleStatusBar by remember { mutableStateOf(false) }
+    LaunchedEffect(gridState) {
+        snapshotFlow { gridState.firstVisibleItemIndex }.collect {
+            invisibleStatusBar = gridState.firstVisibleItemIndex > 0
+        }
+    }
+    var lifecycle by remember {
+        mutableStateOf(true)
+    }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    lifecycle = true
+                }
+
+                Lifecycle.Event.ON_PAUSE -> {
+                    lifecycle = false
+                }
+
+                else -> {}
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+    if (lifecycle && !multipleChoiceMode.value) {
+        expand(!invisibleStatusBar)
     }
 }
 
 @Composable
 private fun TopBar(
     viewModel: GroupingScreenViewModel,
-    multipleChoiceMode: Boolean,
+    multipleChoiceMode: MutableState<Boolean>,
     multipleChoiceList: SnapshotStateList<String>,
     selectAll: MutableState<Boolean>,
     showPopup: MutableState<Boolean>,
@@ -307,7 +420,7 @@ private fun TopBar(
             .padding(top = 5.dp, bottom = 5.dp)
             .fillMaxWidth()
     ) {
-        if (!multipleChoiceMode) {
+        if (!multipleChoiceMode.value) {
             Column(modifier = Modifier.padding(start = 6.dp)) {
                 Text(
                     text = viewModel.directoryName.value,
@@ -323,7 +436,36 @@ private fun TopBar(
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
-        } /*else {
+        } else {
+            //分组根目录
+            if (viewModel.currentDirectoryInfo.value.first == -1L) {
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    IconButton(
+                        onClick = {
+                            coroutineScope.launch(Dispatchers.IO) {
+                                viewModel.application.mediaDatabase.runInTransaction {
+                                    coroutineScope.launch(Dispatchers.IO) {
+                                        val deleteList = multipleChoiceList.map { it.toLong() }
+                                        viewModel.application.mediaDatabase.albumDao.deleteByIds(deleteList)
+                                        viewModel.application.mediaDatabase.albumMediaFileCrossRefDao.deleteByIds(deleteList)
+                                        viewModel.groupingList.removeIf { album ->
+                                            deleteList.contains(album.id)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ) {
+                        Icon(Icons.Filled.Delete, contentDescription = "")
+                    }
+                }
+            }
+        }
+
+        /*else {
             Box(contentAlignment = Alignment.BottomCenter) {
                 IconToggleButton(
                     checked = selectAll.value,
@@ -376,4 +518,9 @@ private fun TopBar(
             }
         }*/
     }
+}
+
+private val HorizontalScrollConsumer = object : NestedScrollConnection {
+    override fun onPreScroll(available: Offset, source: NestedScrollSource) = available.copy(y = 0f)
+    override suspend fun onPreFling(available: Velocity) = available.copy(y = 0f)
 }

@@ -18,4 +18,10 @@ interface AlbumMediaFileCrossRefDao {
     @Query(value = "DELETE FROM album_media_file_cross_ref")
     suspend fun clearTable()
 
+    @Query(value = "DELETE FROM album_media_file_cross_ref WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>): Int?
+
+    @Query(value = "DELETE FROM album_media_file_cross_ref WHERE media_file_id IN (:ids)")
+    suspend fun deleteByMediaFileIds(ids: List<Long>): Int?
+
 }
