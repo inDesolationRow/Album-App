@@ -112,6 +112,7 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
                     val delList = myapplication.mediaDatabase.mediaFileDao.query()?.filter { !mediaInfoSet.contains(it.data) }
                     delList?.map { it.mediaFileId }?.let {
                         val count = myapplication.mediaDatabase.mediaFileDao.deleteByIds(it)
+                        myapplication.mediaDatabase.albumMediaFileCrossRefDao.deleteByMediaFileIds(it)
                         println("删除$count 行")
                     }
                 }

@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
@@ -24,6 +25,8 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BookmarkRemove
+import androidx.compose.material.icons.filled.Bookmarks
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Create
@@ -57,6 +60,7 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -71,6 +75,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -254,6 +259,7 @@ fun GroupingList(
         columns = GridCells.Fixed(3),
         modifier = modifier
             .fillMaxSize()
+            .padding(start = TinyPadding)
     ) {
         items(items.size) { index ->
             items[index].let { item ->
@@ -459,6 +465,7 @@ private fun TopBar(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
             .padding(top = 5.dp, bottom = 5.dp)
+            .heightIn(min = 64.dp)
             .fillMaxWidth()
     ) {
         if (!multipleChoiceMode.value) {
@@ -503,61 +510,79 @@ private fun TopBar(
                         Icon(Icons.Filled.Delete, contentDescription = "")
                     }
                 }
-            }
-        }
-
-        /*else {
-            Box(contentAlignment = Alignment.BottomCenter) {
-                IconToggleButton(
-                    checked = selectAll.value,
-                    onCheckedChange = {
-                        selectAll.value = !selectAll.value
-                        if (selectAll.value) {
-                            val all = viewModel.localMediaFileService.allData
-                            val filter = multipleChoiceList.toSet()
-                            all.map { item ->
-                                if (!filter.contains("${item.id}_${item.type.value}")) {
-                                    multipleChoiceList.add("${item.id}_${item.type.value}")
+            } else {
+                Box(contentAlignment = Alignment.BottomCenter) {
+                    IconToggleButton(
+                        checked = selectAll.value,
+                        onCheckedChange = {
+                            selectAll.value = !selectAll.value
+                            if (selectAll.value) {
+                                val all = viewModel.localMediaFileService.allData
+                                val filter = multipleChoiceList.toSet()
+                                all.map { item ->
+                                    if (!filter.contains("${item.id}_${item.type.value}")) {
+                                        multipleChoiceList.add("${item.id}_${item.type.value}")
+                                    }
                                 }
+                            } else {
+                                multipleChoiceList.clear()
                             }
+                        },
+                        modifier = Modifier.zIndex(2f)
+                    ) {
+                        if (selectAll.value) {
+                            Icon(Icons.Filled.CheckCircle, contentDescription = "选中", tint = Color.DarkGray)
                         } else {
-                            multipleChoiceList.clear()
+                            Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "未选中", tint = Color.LightGray)
                         }
-                    },
-                    modifier = Modifier.zIndex(2f)
-                ) {
-                    if (selectAll.value) {
-                        Icon(Icons.Filled.CheckCircle, contentDescription = "选中", tint = Color.DarkGray)
-                    } else {
-                        Icon(Icons.Filled.RadioButtonUnchecked, contentDescription = "未选中", tint = Color.LightGray)
                     }
-                }
-                Text(
-                    stringResource(R.string.check_all),
-                    style = MaterialTheme.typography.labelSmall,
-                )
-            }
-            Text(
-                stringResource(R.string.check_num, multipleChoiceList.size),
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.weight(1f)
-            )
-            Box(contentAlignment = Alignment.BottomCenter) {
-                IconButton(onClick = {
-                    showPopup.value = true
-                    isPopupVisible.value = true
-                }) {
-                    Icon(
-                        painter = rememberVectorPainter(Icons.Filled.Check),
-                        contentDescription = null
+                    Text(
+                        stringResource(R.string.check_all),
+                        style = MaterialTheme.typography.labelSmall,
                     )
                 }
                 Text(
-                    stringResource(R.string.top_bar_add_grouping),
-                    style = MaterialTheme.typography.labelSmall,
+                    stringResource(R.string.check_num, multipleChoiceList.size),
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
                 )
+                Box(contentAlignment = Alignment.BottomCenter) {
+                    IconButton(onClick = {
+                        showPopup.value = true
+                        isPopupVisible.value = true
+                    }) {
+                        Icon(
+                            painter = rememberVectorPainter(Icons.Filled.Bookmarks),
+                            contentDescription = null
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.top_bar_move_grouping),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
+                Box(contentAlignment = Alignment.BottomCenter) {
+                    IconButton(onClick = {
+                        coroutineScope.launch(Dispatchers.IO) {
+                            val deleteList = multipleChoiceList.map { id ->
+                                id.split("_").first().toLong()
+                            }
+                            viewModel.application.mediaDatabase.albumMediaFileCrossRefDao.deleteByMediaFileIds(deleteList)
+                            viewModel.recompose()
+                        }
+                    }) {
+                        Icon(
+                            painter = rememberVectorPainter(Icons.Filled.BookmarkRemove),
+                            contentDescription = null
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.top_bar_remove_grouping),
+                        style = MaterialTheme.typography.labelSmall,
+                    )
+                }
             }
-        }*/
+        }
     }
 }
 

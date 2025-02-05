@@ -21,6 +21,7 @@ import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.ui.action.UserAction
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -66,6 +67,8 @@ class GroupingScreenViewModel(
     )
 
     val back = mutableStateOf(false)
+
+    private var recomposeKey: MutableStateFlow<Int> = MutableStateFlow(0)
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -142,6 +145,71 @@ class GroupingScreenViewModel(
                 }
             }
         }
+
+    }
+
+    fun recompose() {
+        val clearList = localMediaFileService.allData.toList()
+        viewModelScope.launch(Dispatchers.IO) {
+            clearCache(clearList)
+            if (currentPageInfo.value.first != -1L && currentPageInfo.value.second == ItemType.GROUPING.value) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    localMediaFileService =
+                        LocalStorageThumbnailService(
+                            application,
+                            maxSize = settings.maxSizeLarge,
+                            initialLoadSize = settings.initialLoadSizeLarge
+                        )
+                    val result = localMediaFileService.getAllDataByAlbumId(currentPageInfo.value.first)
+                    val groupingName = application.mediaDatabase.albumDao.getNameById(currentPageInfo.value.first)
+                    updateTopBarInfo(groupingName, result.first, result.second)
+                    localMediaFileFlow.value = Pager(
+                        PagingConfig(
+                            pageSize = settings.pageSizeLarge,
+                            initialLoadSize = settings.initialLoadSizeLarge,
+                            prefetchDistance = settings.prefetchDistanceLarge,
+                            maxSize = settings.maxSizeLarge
+                        )
+                    ) {
+                        MediaItemPagingSource(
+                            localMediaFileService
+                        )
+                    }.flow.cachedIn(viewModelScope)
+                    System.gc()
+                }
+            } else if (currentPageInfo.value.second == ItemType.DIRECTORY.value) {
+                viewModelScope.launch(Dispatchers.IO) {
+                    localMediaFileService =
+                        LocalStorageThumbnailService(
+                            application,
+                            maxSize = settings.maxSizeLarge,
+                            initialLoadSize = settings.initialLoadSizeLarge
+                        )
+                    val result = localMediaFileService.getAllData(currentPageInfo.value.first)
+                    val directoryName = application.mediaDatabase.directoryDao.getDirectoryNameById(currentPageInfo.value.first)
+                    updateTopBarInfo(directoryName, result.first, result.second)
+                    localMediaFileFlow.value = Pager(
+                        PagingConfig(
+                            pageSize = settings.pageSizeLarge,
+                            initialLoadSize = settings.initialLoadSizeLarge,
+                            prefetchDistance = settings.prefetchDistanceLarge,
+                            maxSize = settings.maxSizeLarge
+                        )
+                    ) {
+                        MediaItemPagingSource(
+                            localMediaFileService
+                        )
+                    }.flow.cachedIn(viewModelScope)
+                    System.gc()
+                }
+            } else if (currentPageInfo.value.first == -1L) {
+                val list = application.mediaDatabase.albumDao.queryByParentId(-1)
+                updateTopBarInfo(directoryNum = list?.size)
+            }
+            if (localLevelStack.isEmpty() || currentPageInfo.value.first != localLevelStack.last().first) {
+                localLevelStack.add(Triple(currentPageInfo.value.first, currentPageInfo.value.second, 0))
+            }
+        }
     }
 
     fun localMediaFileStackBack() {
@@ -179,14 +247,23 @@ class GroupingScreenViewModel(
         }
     }
 
-    fun clearCache() {
+    fun clearCache(clear: List<MediaItem>? = null) {
         try {
-            val clearList = localMediaFileService.allData.toList()
-            clearList.onEach { item ->
-                item.thumbnail?.recycle()
-                item.thumbnail = null
-                item.thumbnailState.value?.recycle()
-                item.thumbnailState.value = null
+            if (clear == null) {
+                val clearList = localMediaFileService.allData.toList()
+                clearList.onEach { item ->
+                    item.thumbnail?.recycle()
+                    item.thumbnail = null
+                    item.thumbnailState.value?.recycle()
+                    item.thumbnailState.value = null
+                }
+            } else {
+                clear.onEach { item ->
+                    item.thumbnail?.recycle()
+                    item.thumbnail = null
+                    item.thumbnailState.value?.recycle()
+                    item.thumbnailState.value = null
+                }
             }
         } catch (e: Exception) {
             e.printStackTrace()

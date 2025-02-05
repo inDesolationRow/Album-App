@@ -34,6 +34,8 @@
     <string name="check_all">全选</string>
     <string name="check_num">已选中%1$s个</string>
     <string name="top_bar_add_grouping">收藏</string>
+    <string name="top_bar_remove_grouping">移除</string>
+    <string name="top_bar_move_grouping">移动</string>
     <string name="top_bar_directory_info">%1$s个目录 %2$s张图片</string>
     <string name="top_bar_directory_info_2">%1$s个%2$s %3$s张图片</string>
     <string name="popup_add_grouping">新建分组</string>
