@@ -112,8 +112,6 @@ import kotlin.math.min
 
 @Composable
 fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
-    val activity = context as? Activity
     val naviDrawerGesturesEnabled = remember { mutableStateOf(true) }
     val multipleChoiceMode = remember { mutableStateOf(false) }
     val multipleChoiceList: SnapshotStateList<String> = remember { mutableStateListOf() }
@@ -127,25 +125,18 @@ fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Mo
         selectAll.value = false
     }
 
+    val activity = LocalContext.current as? Activity
     viewModel.currentMenuItem.value?.let {
         BackHandler {
-            if (viewModel.localLevelStack.size == 1 && it.id == viewModel.menuLocalStorage) {
-                if (showPopup.value)
-                    showPopup.value = false
-                else if (multipleChoiceMode.value)
-                    exitMultipleChoiceMode()
-                else
-                    activity?.moveTaskToBack(true)
-            } else if (it.id == viewModel.menuLocalStorage && viewModel.localLevelStack.size >= 2) {
-                if (showPopup.value)
-                    showPopup.value = false
-                else if (multipleChoiceMode.value)
-                    exitMultipleChoiceMode()
-                else {
-                    viewModel.clearCache(StorageType.LOCAL)
-                    viewModel.localMediaFileStackBack()
-                }
-
+            if (showPopup.value)
+                showPopup.value = false
+            else if (multipleChoiceMode.value)
+                exitMultipleChoiceMode()
+            else if (it.id == viewModel.menuLocalStorage && viewModel.localLevelStack.size == 1)
+                activity?.moveTaskToBack(true)
+            else if (it.id == viewModel.menuLocalStorage && viewModel.localLevelStack.size >= 2) {
+                viewModel.clearCache(StorageType.LOCAL)
+                viewModel.localMediaFileStackBack()
             } else if (it.id >= viewModel.menuLocalNetMinimumId && viewModel.localNetLevelStack.size >= 2) {
                 val path = viewModel.localNetStackBack()
                 //每次操作时判断连接是否有效
@@ -165,7 +156,45 @@ fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Mo
                         )
                     }
                 }
+            } else if (it.id >= viewModel.menuLocalNetMinimumId && viewModel.localNetLevelStack.size == 1)
+                activity?.moveTaskToBack(true)
+            /*if (viewModel.localLevelStack.size == 1 && it.id == viewModel.menuLocalStorage) {
+                if (showPopup.value)
+                    showPopup.value = false
+                else if (multipleChoiceMode.value)
+                    exitMultipleChoiceMode()
+                else
+                    activity?.moveTaskToBack(true)
+            } else if (it.id == viewModel.menuLocalStorage && viewModel.localLevelStack.size >= 2) {
+                if (showPopup.value)
+                    showPopup.value = false
+                else if (multipleChoiceMode.value)
+                    exitMultipleChoiceMode()
+                else {
+                    viewModel.clearCache(StorageType.LOCAL)
+                    viewModel.localMediaFileStackBack()
+                }else if (it.id >= viewModel.menuLocalNetMinimumId && viewModel.localNetLevelStack.size >= 2) {
+                val path = viewModel.localNetStackBack()
+                //每次操作时判断连接是否有效
+                viewModel.viewModelScope.launch(Dispatchers.IO) {
+                    val result = if (viewModel.isConnect())
+                        ConnectResult.Success
+                    else
+                        viewModel.connectSmb(id = it.id, reconnection = true)
+                    if (result is ConnectResult.Success) {
+                        viewModel.clearCache(StorageType.CLOUD)
+                        viewModel.initLocalNetMediaFilePaging(path)
+                    } else {
+                        viewModel.smbClient.rollback()
+                        viewModel.showDialog = MediaListDialogEntity(
+                            mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
+                            isShow = true
+                        )
+                    }
+                }
             }
+
+            }*/
         }
     }
 
@@ -196,7 +225,7 @@ fun MediaListMainScreen(
     exitMultipleChoiceMode: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
-    val selectItem = viewModel.currentMenuItem.value ?: return
+    val currentMenuItem = viewModel.currentMenuItem.value ?: return
 
     var getNavHostHeight by rememberSaveable { mutableStateOf(false) }
     var hostHeight by rememberSaveable(saver = dpSaver) { mutableStateOf(0.dp) }
@@ -334,7 +363,7 @@ fun MediaListMainScreen(
                             MediaListDialog.NONE -> {}
                         }
                     }
-                    if (selectItem.id == viewModel.menuLocalStorage) {
+                    if (currentMenuItem.id == viewModel.menuLocalStorage) {
                         val items = viewModel.localMediaFileFlow.value.collectAsLazyPagingItems()
                         MediaList(
                             itemList = items,
@@ -376,7 +405,7 @@ fun MediaListMainScreen(
                             },
                             modifier = Modifier.fillMaxHeight()
                         )
-                    } else if (selectItem.id == viewModel.menuAddLocalNetStorage) {
+                    } else if (currentMenuItem.id == viewModel.menuAddLocalNetStorage) {
                         AddLocalNetStorage(onClick = { ip, user, pwd, shared ->
                             viewModel.showDialog =
                                 MediaListDialogEntity(MediaListDialog.LOCAL_NET_CONNECTING, true)
@@ -400,14 +429,14 @@ fun MediaListMainScreen(
                                 }
                             }
                         })
-                    } else if (selectItem.id >= viewModel.menuLocalNetMinimumId) {
+                    } else if (currentMenuItem.id >= viewModel.menuLocalNetMinimumId) {
                         if (!viewModel.jumpToView) {
                             viewModel.jumpToView = false
                             LaunchedEffect(
-                                selectItem.id,
+                                currentMenuItem.id,
                                 viewModel.recomposeLocalNetStorageListKey
                             ) {
-                                val result = viewModel.connectSmb(selectItem.id)
+                                val result = viewModel.connectSmb(currentMenuItem.id)
                                 result(result = result, viewModel = viewModel) {
                                     viewModel.initLocalNetMediaFilePaging()
                                 }
@@ -415,8 +444,8 @@ fun MediaListMainScreen(
                         }
                         if (viewModel.editLocalNetStorageInfo) {
                             var info: LocalNetStorageInfo? by remember { mutableStateOf(null) }
-                            LaunchedEffect(selectItem.id) {
-                                info = viewModel.getLocalNetStorageInfo(id = selectItem.id)
+                            LaunchedEffect(currentMenuItem.id) {
+                                info = viewModel.getLocalNetStorageInfo(id = currentMenuItem.id)
                             }
                             info?.let {
                                 EditLocalNetStorageDialog(it) {
@@ -459,7 +488,7 @@ fun MediaListMainScreen(
                                         ConnectResult.Success
                                     else
                                         viewModel.connectSmb(
-                                            id = selectItem.id,
+                                            id = currentMenuItem.id,
                                             reconnection = true
                                         )
                                     if (result is ConnectResult.Success) {
@@ -472,7 +501,6 @@ fun MediaListMainScreen(
                                                 UserAction.OpenImage(
                                                     viewModel.smbClient.getPath().dropLast(1),
                                                     id,
-                                                    selectItem.id
                                                 )
                                             viewModel.jumpToView = true
                                         }
@@ -544,43 +572,6 @@ private fun TopBar(
                     style = MaterialTheme.typography.labelMedium,
                 )
             }
-            /*                if (selectItem.id == viewModel.menuLocalStorage) {
-                                IconButton(onClick = {}) {
-                                    Icon(
-                                        painter = rememberVectorPainter(Icons.Filled.Search),
-                                        contentDescription = null
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = {},
-                                    modifier = Modifier.padding(end = SmallPadding)
-                                ) {
-                                    Icon(
-                                        painter = rememberVectorPainter(Icons.Filled.AdsClick),
-                                        contentDescription = null
-                                    )
-                                }
-                            }
-                            if (selectItem.id >= viewModel.menuLocalNetMinimumId) {
-                                IconButton(onClick = {
-                                    viewModel.editLocalNetStorageInfo = true
-                                }) {
-                                    Icon(
-                                        painter = rememberVectorPainter(Icons.Filled.Edit),
-                                        contentDescription = null
-                                    )
-                                }
-                                IconButton(onClick = {
-                                    viewModel.delLocalNetStorageInfo(selectItem.id)
-                                    viewModel.delLocalNetStorageInfoInMenu(selectItem.id)
-                                }) {
-                                    Icon(
-                                        painter = rememberVectorPainter(Icons.Filled.Delete),
-                                        contentDescription = null
-                                    )
-                                }
-                            }*/
         } else {
             Box(contentAlignment = Alignment.BottomCenter) {
                 IconToggleButton(

@@ -25,6 +25,26 @@ interface MediaFileDao {
     @Query(value = "SELECT * FROM media_file_table WHERE media_file_id = :id")
     suspend fun queryById(id: Long): MediaFile?
 
+    @Transaction
+    @Query(
+        value = """ 
+        SELECT m.*
+        FROM media_file_table AS m
+        INNER JOIN directory_media_file_cross_ref  AS r
+        ON m.media_file_id = r.media_file_id
+        WHERE r.directory_id = :directoryId
+        ORDER BY m.date_taken DESC"""
+    )
+    suspend fun querySortedMediaFilesByDirectoryId(directoryId: Long): List<MediaFile>?
+
+    @Query(value = """
+        SELECT m.*
+        FROM media_file_table AS m
+        INNER JOIN album_media_file_cross_ref AS r 
+        ON m.media_file_id = r.media_file_id
+        WHERE r.id = :albumId AND r.type = 2""")
+    suspend fun queryByAlbumId(albumId: Long):List<MediaFile>?
+
     @Query(value = "DELETE FROM media_file_table")
     suspend fun clearTable()
 

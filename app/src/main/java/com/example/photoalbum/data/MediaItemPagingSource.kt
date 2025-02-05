@@ -72,11 +72,9 @@ interface MediaFileService<T> {
 
     var maxSize: Int
 
-    var selectItemIndex: Int
-
     fun sharedAllData(allData: MutableList<MediaItem>? = null): MutableList<MediaItem>
 
-    suspend fun getAllData(param: T, onlyMediaFile: Boolean = false, selectItemId: Long = -1): Triple<Int, Int, Int>
+    suspend fun getAllData(param: T, onlyMediaFile: Boolean = false): Pair<Int, Int>
 
     suspend fun getData(page: Int, loadSize: Int): List<MediaItem>
 
@@ -96,8 +94,6 @@ class LocalStorageThumbnailService(
     override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
 
-    override var selectItemIndex: Int = 0
-
     override fun sharedAllData(allData: MutableList<MediaItem>?): MutableList<MediaItem> {
         allData?.let {
             this.allData = it
@@ -105,12 +101,11 @@ class LocalStorageThumbnailService(
         return this.allData
     }
 
-    override suspend fun getAllData(param: Long, onlyMediaFile: Boolean, selectItemId: Long): Triple<Int, Int, Int> {
+    override suspend fun getAllData(param: Long, onlyMediaFile: Boolean): Pair<Int, Int> {
         allData.clear()
-        var index = -1
         var directories: List<Directory>? = null
         if (!onlyMediaFile) {
-            directories = application.mediaDatabase.directoryDao.querySortedByNameForDirectory(param)
+            directories = application.mediaDatabase.directoryDao.querySortedByNameByParentId(param)
             val order1: MutableList<MediaItem> = mutableListOf()
             val order2: MutableList<MediaItem> = mutableListOf()
             val order3: MutableList<MediaItem> = mutableListOf()
@@ -161,8 +156,8 @@ class LocalStorageThumbnailService(
         }
 
         val mediaList =
-            application.mediaDatabase.directoryDao.querySortedMediaFilesByDirectoryId(param)
-        if (mediaList.isNullOrEmpty()) return Triple(index, directories?.size ?: 0, mediaList?.size ?: 0)
+            application.mediaDatabase.mediaFileDao.querySortedMediaFilesByDirectoryId(param)
+        if (mediaList.isNullOrEmpty()) return (directories?.size ?: 0) to 0
         for (mediaFile in mediaList) {
             val item = MediaItem(
                 id = mediaFile.mediaFileId,
@@ -189,14 +184,61 @@ class LocalStorageThumbnailService(
                 orientation = mediaFile.orientation,
                 fileSize = mediaFile.size
             )
-            if (mediaFile.mediaFileId == selectItemId) {
-                index = allData.size
-                selectItemIndex = index
-            }
             allData.add(item)
         }
-        return Triple(index, directories?.size ?: 0, mediaList.size)
+        return (directories?.size ?: 0) to mediaList.size
     }
+
+    suspend fun getAllDataByAlbumId(albumId: Long): Pair<Int, Int> {
+        allData.clear()
+        val directories = application.mediaDatabase.directoryDao.queryDirectoryByAlbumId(albumId)
+        if (!directories.isNullOrEmpty()) {
+            directories.forEach { dir ->
+                allData.add(
+                    MediaItem(
+                        id = dir.directoryId,
+                        type = ItemType.DIRECTORY,
+                        displayName = dir.displayName,
+                        mimeType = "",
+                    )
+                )
+            }
+        }
+
+        val mediaList =
+            application.mediaDatabase.mediaFileDao.queryByAlbumId(albumId)
+        if (mediaList.isNullOrEmpty()) return (directories?.size ?: 0) to 0
+        for (mediaFile in mediaList) {
+            val item = MediaItem(
+                id = mediaFile.mediaFileId,
+                type = mediaFile.mimeType.let {
+                    val test = it.lowercase()
+                    return@let when {
+                        test.contains("image") -> {
+                            ItemType.IMAGE
+                        }
+
+                        test.contains("video") -> {
+                            ItemType.VIDEO
+                        }
+
+                        else -> {
+                            ItemType.ERROR
+                        }
+                    }
+                },
+                data = mediaFile.data,
+                thumbnailPath = mediaFile.thumbnail,
+                displayName = mediaFile.displayName,
+                mimeType = mediaFile.mimeType,
+                orientation = mediaFile.orientation,
+                fileSize = mediaFile.size
+            )
+            allData.add(item)
+        }
+        return (directories?.size ?: 0) to mediaList.size
+    }
+
 
     override suspend fun getData(page: Int, loadSize: Int): List<MediaItem> {
         val start = (page - 1) * loadSize
@@ -313,8 +355,6 @@ class LocalNetStorageThumbnailService(
     override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_NET_STORAGE.path)
 
-    override var selectItemIndex: Int = 0
-
     private val loadSemaphore = Semaphore(10)
 
     override fun sharedAllData(allData: MutableList<MediaItem>?): MutableList<MediaItem> {
@@ -368,11 +408,7 @@ class LocalNetStorageThumbnailService(
         return allData.indexOfFirst { id == it.id }
     }
 
-    override suspend fun getAllData(
-        param: String,
-        onlyMediaFile: Boolean,
-        selectItemId: Long,
-    ): Triple<Int, Int, Int> {
+    override suspend fun getAllData(param: String, onlyMediaFile: Boolean): Pair<Int, Int> {
         var directoryNum = 0
         var imageNum = 0
         allData.clear()
@@ -384,7 +420,7 @@ class LocalNetStorageThumbnailService(
                 imageNum++
             }
         }
-        return Triple(getItemIndex(selectItemId), directoryNum, imageNum)
+        return directoryNum to imageNum
     }
 
     private suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {
@@ -437,6 +473,5 @@ class LocalNetStorageThumbnailService(
             }
         }.await()
     }
-
 
 }

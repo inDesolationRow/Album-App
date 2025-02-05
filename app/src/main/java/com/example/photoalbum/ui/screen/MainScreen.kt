@@ -71,7 +71,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
 
                 else -> throw IllegalArgumentException("转跳ViewImage参数异常")
             }
-            navHost.navigate("ViewImage?directory=$directory&id=${action.imageId}&local=$local")
+            navHost.navigate("ViewImage?directory=$directory&id=${action.imageId}&local=$local&albumId=${action.albumId}")
         }
 
         UserAction.Back -> {
@@ -184,7 +184,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                     modifier = Modifier.padding(innerPadding)
                 )
             }
-            composable(route = "ViewImage?directory={directory}&id={id}&local={local}") {
+            composable(route = "ViewImage?directory={directory}&id={id}&local={local}&albumId={albumId}") {
                 val viewMediaFileViewModel = ViewModelProvider.create(
                     it, factory = BaseViewModel.Companion.MyViewModelFactory(
                         application = viewModel.application,
@@ -194,8 +194,11 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                 )[ViewMediaFileViewModel::class.java]
                 val local = it.arguments?.getString("local")?.toBoolean() ?: false
                 val id = it.arguments?.getString("id")?.toLongOrNull()
-                LaunchedEffect(local, id) {
-                    if (local) {
+                val albumId = it.arguments?.getString("albumId")?.toLongOrNull()
+                LaunchedEffect(local, id, albumId) {
+                    if (albumId != null)
+                        viewMediaFileViewModel.initDataByAlbumId(albumId, id!!)
+                    else if (local) {
                         val directoryId = it.arguments?.getString("directory")!!.toLong()
                         viewMediaFileViewModel.initData(directoryId, id!!, true)
                     } else {

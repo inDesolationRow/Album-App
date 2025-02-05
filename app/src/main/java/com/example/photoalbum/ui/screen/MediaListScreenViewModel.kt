@@ -258,7 +258,7 @@ class MediaListScreenViewModel(
                     initialLoadSize = settings.initialLoadSizeLarge
                 )
             val result = localMediaFileService.getAllData(directoryId)
-            updateDirectoryInfo(true, result.second, result.third)
+            updateDirectoryInfo(true, result.first, result.second)
             localMediaFileFlow.value = Pager(
                 PagingConfig(
                     pageSize = settings.pageSizeLarge,
@@ -278,7 +278,7 @@ class MediaListScreenViewModel(
     private suspend fun initLocalMediaFilePaging(): Flow<PagingData<MediaItem>> {
         val result = viewModelScope.async(Dispatchers.IO) {
             val result = localMediaFileService.getAllData(-1)
-            updateDirectoryInfo(true, result.second, result.third)
+            updateDirectoryInfo(true, result.first, result.second)
             MediaItemPagingSource(
                 localMediaFileService
             )
@@ -301,21 +301,15 @@ class MediaListScreenViewModel(
 
     fun clearCache(start: Int, end: Int, type: StorageType) {
         try {
-            val clearList = localMediaFileService.allData.toList()
-            if (type == StorageType.LOCAL) {
-                clearList.slice(IntRange(start, end)).onEach { item ->
-                    item.thumbnail?.recycle()
-                    item.thumbnail = null
-                    item.thumbnailState.value?.recycle()
-                    item.thumbnailState.value = null
-                }
-            } else {
-                clearList.slice(IntRange(start, end)).onEach { item ->
-                    item.thumbnail?.recycle()
-                    item.thumbnail = null
-                    item.thumbnailState.value?.recycle()
-                    item.thumbnailState.value = null
-                }
+            val clearList = if (type == StorageType.LOCAL)
+                localMediaFileService.allData.toList()
+            else
+                localNetMediaFileService.allData.toList()
+            clearList.slice(IntRange(start, end)).onEach { item ->
+                item.thumbnail?.recycle()
+                item.thumbnail = null
+                item.thumbnailState.value?.recycle()
+                item.thumbnailState.value = null
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -324,27 +318,19 @@ class MediaListScreenViewModel(
 
     fun clearCache(type: StorageType) {
         try {
-            if (type == StorageType.LOCAL) {
-                val clearList = localMediaFileService.allData.toList()
-                clearList.onEach { item ->
-                    item.thumbnail?.recycle()
-                    item.thumbnail = null
-                    item.thumbnailState.value?.recycle()
-                    item.thumbnailState.value = null
-                }
-            } else{
-                val clearList = localNetMediaFileService.allData.toList()
-                clearList.onEach { item ->
-                    item.thumbnail?.recycle()
-                    item.thumbnail = null
-                    item.thumbnailState.value?.recycle()
-                    item.thumbnailState.value = null
-                }
+            val clearList = if (type == StorageType.LOCAL)
+                localMediaFileService.allData.toList()
+            else
+                localNetMediaFileService.allData.toList()
+            clearList.onEach { item ->
+                item.thumbnail?.recycle()
+                item.thumbnail = null
+                item.thumbnailState.value?.recycle()
+                item.thumbnailState.value = null
             }
         } catch (e: Exception) {
             e.printStackTrace()
         }
-
     }
 
     fun localMediaFileStackBack() {
@@ -449,7 +435,7 @@ class MediaListScreenViewModel(
                 initialLoadSize = settings.maxSizeLarge
             )
             val result = localNetMediaFileService.getAllData(test)
-            updateDirectoryInfo(false, result.second, result.third)
+            updateDirectoryInfo(false, result.first, result.second)
             localNetMediaFileFlow.value = Pager(
                 PagingConfig(
                     pageSize = settings.pageSizeLarge,

@@ -267,7 +267,6 @@ class SmbClient {
             session.close()
             connection.close()
             smbClient.close()
-
         } catch (e: Exception) {
             e.printStackTrace()
         }

@@ -18,8 +18,8 @@ interface AlbumDao {
     @Query("SELECT * FROM album_table WHERE id = :id AND del_flag = :delFlag")
     suspend fun queryById(id: Long, delFlag: Boolean): Album?
 
-    @Query("SELECT * FROM album_table WHERE del_flag = :delFlag")
-    suspend fun queryByDelFlag(delFlag: Boolean): List<Album>?
+    @Query("SELECT name FROM album_table WHERE id = :id")
+    suspend fun getNameById(id: Long): String?
 
     @Query("SELECT * FROM album_table WHERE parent_id = :parentId AND del_flag = :delFlag")
     suspend fun queryByParentId(parentId: Long, delFlag: Boolean = false): List<Album>?

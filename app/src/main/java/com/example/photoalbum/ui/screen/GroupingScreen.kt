@@ -1,18 +1,11 @@
 package com.example.photoalbum.ui.screen
 
-import android.content.Context
+import android.app.Activity
 import android.graphics.Bitmap
-import android.transition.Transition
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.gestures.rememberScrollableState
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,21 +18,16 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BorderColor
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Create
-import androidx.compose.material.icons.filled.Dehaze
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.FolderDelete
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -69,27 +57,24 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.painter.Painter
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
-import androidx.compose.ui.text.intl.Locale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.paging.compose.collectAsLazyPagingItems
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
 import com.example.photoalbum.data.model.Album
@@ -115,6 +100,8 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
         selectAll.value = false
     }
 
+    val currentPageInfo = viewModel.currentPageInfo.collectAsState()
+
     val density = LocalDensity.current
     val actionState = viewModel.userAction.collectAsState()
     var hostHeight by rememberSaveable(saver = dpSaver) { mutableStateOf(0.dp) }
@@ -132,9 +119,18 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
         viewModel.expand = (actionState.value as UserAction.ExpandStatusBarAction).expand
     }
 
+    val activity = LocalContext.current as? Activity
     BackHandler {
-        if (multipleChoiceMode.value)
+        if (showPopup.value)
+            showPopup.value = false
+        else if (multipleChoiceMode.value)
             exitMultipleChoiceMode()
+        else if (viewModel.localLevelStack.size == 1)
+            activity?.moveTaskToBack(true)
+        else if (viewModel.localLevelStack.size >= 2) {
+            viewModel.clearCache()
+            viewModel.localMediaFileStackBack()
+        }
     }
 
     Scaffold(
@@ -146,6 +142,7 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
                 selectAll = selectAll,
                 showPopup = showPopup,
                 isPopupVisible = isPopupVisible,
+                currentPageInfo = currentPageInfo,
                 modifier = Modifier
                     .then(
                         if (topBarAnimateDp != null) {
@@ -167,7 +164,7 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
         },
         modifier = modifier
     ) { padding ->
-        if (viewModel.currentDirectoryInfo.value.first == -1L) {
+        if (currentPageInfo.value.first == -1L) {
             GroupingList(
                 items = viewModel.groupingList,
                 directoryIcon = viewModel.directoryIcon,
@@ -182,7 +179,50 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
                 viewModel.loadGrouping(album)
             }
         } else {
-
+            val localState = rememberLazyGridState()
+            viewModel.localMediaFileFlow.value?.let { flow ->
+                val items = flow.collectAsLazyPagingItems()
+                MediaList(
+                    itemList = items,
+                    itemCount = viewModel.localMediaFileService.allData.size,
+                    itemIndex = viewModel.localLevelStack.last().second,
+                    maxSize = viewModel.settings.maxSizeLarge,
+                    back = viewModel.back,
+                    state = localState,
+                    nullPreviewIcon = viewModel.notPreviewIcon,
+                    directoryIcon = viewModel.directoryIcon,
+                    gridColumn = viewModel.settings.gridColumnNumState.intValue,
+                    multipleChoiceMode = multipleChoiceMode,
+                    multipleChoiceList = multipleChoiceList,
+                    selectAll = selectAll,
+                    context = viewModel.application.applicationContext,
+                    onMultipleChoice = {
+                        viewModel.userAction.value = UserAction.ExpandStatusBarAction(false)
+                    },
+                    onClear = { start, end ->
+                        viewModel.clearCache(start, end)
+                    },
+                    onLocalFileOpen = { id, type, image ->
+                        if (type == ItemType.DIRECTORY) viewModel.currentPageInfo.value =
+                            id to ItemType.DIRECTORY.value
+                        else if (type == ItemType.IMAGE || type == ItemType.VIDEO) {
+                            viewModel.application.loadThumbnailBitmap = image
+                            viewModel.userAction.value = UserAction.ExpandStatusBarAction(false)
+                            if (viewModel.currentPageInfo.value.second == ItemType.GROUPING.value) {
+                                viewModel.userAction.value = UserAction.OpenImage(-1L, id, viewModel.currentPageInfo.value.first)
+                            }
+                        }
+                    },
+                    expand = {
+                        viewModel.userAction.value = UserAction.ExpandStatusBarAction(it)
+                    },
+                    onScroll = { index ->
+                        val last = viewModel.localLevelStack.removeLast()
+                        viewModel.localLevelStack.add(Triple(last.first, last.second, index))
+                    },
+                    modifier = Modifier.padding(padding)
+                )
+            }
         }
     }
 }
@@ -411,6 +451,7 @@ private fun TopBar(
     selectAll: MutableState<Boolean>,
     showPopup: MutableState<Boolean>,
     isPopupVisible: MutableState<Boolean>,
+    currentPageInfo: State<Pair<Long, Int>>,
     modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -438,7 +479,7 @@ private fun TopBar(
             }
         } else {
             //分组根目录
-            if (viewModel.currentDirectoryInfo.value.first == -1L) {
+            if (currentPageInfo.value.first == -1L) {
                 Row(
                     horizontalArrangement = Arrangement.End,
                     modifier = Modifier.fillMaxWidth()

@@ -39,9 +39,9 @@ class ViewMediaFileViewModel(
 
     var initializer by mutableStateOf(false)
 
-    var nextDirectory: String? = null
+/*    var nextDirectory: String? = null
 
-    var previousDirectory: String? = null
+    var previousDirectory: String? = null*/
 
     val notPreviewIcon = application.getDrawable(R.drawable.hide)!!.toBitmap()
 
@@ -98,6 +98,22 @@ class ViewMediaFileViewModel(
 
     }
 
+    fun initDataByAlbumId(albumId: Long, imageId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            _source = LocalDataSource(application, loadSize = 20, maxSize = 80)
+            initializer = true
+            val select =
+                source.let {
+                    return@let (it as LocalDataSource).getAllDataByAlbumId(albumId, imageId)
+                }
+            if (select != -1) {
+                loadPageParams.value = select to source.items.size()
+                itemIndex.intValue = select
+                source.items[select]
+            }
+        }
+    }
+
     private fun connectSmb(smbClient: SmbClient, reconnect: Boolean = false) {
         application.localNetStorageInfo?.let {
             val result =
@@ -121,6 +137,8 @@ class ViewMediaFileViewModel(
     override fun onCleared() {
         super.onCleared()
         source.clearCache()
-        smbClient.close()
+        if (source is LocalNetDataSource) {
+            smbClient.close()
+        }
     }
 }

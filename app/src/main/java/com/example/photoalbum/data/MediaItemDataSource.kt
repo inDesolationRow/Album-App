@@ -114,7 +114,7 @@ class LocalDataSource(
         var index = -1
         if (!onlyMediaFile) {
             val directories =
-                application.mediaDatabase.directoryDao.querySortedByNameForDirectory(param)
+                application.mediaDatabase.directoryDao.querySortedByNameByParentId(param)
             val order1: MutableList<MediaItem> = mutableListOf()
             val order2: MutableList<MediaItem> = mutableListOf()
             val order3: MutableList<MediaItem> = mutableListOf()
@@ -164,8 +164,45 @@ class LocalDataSource(
 
         }
 
-        val mediaList =
-            application.mediaDatabase.directoryDao.querySortedMediaFilesByDirectoryId(param)
+        val mediaList = application.mediaDatabase.mediaFileDao.querySortedMediaFilesByDirectoryId(param)
+        if (mediaList.isNullOrEmpty()) return index
+        for (mediaFile in mediaList) {
+            val item = MediaItem(
+                id = mediaFile.mediaFileId,
+                type = mediaFile.mimeType.let {
+                    val test = it.lowercase()
+                    return@let when {
+                        test.contains("image") -> {
+                            ItemType.IMAGE
+                        }
+
+                        test.contains("video") -> {
+                            ItemType.VIDEO
+                        }
+
+                        else -> {
+                            ItemType.ERROR
+                        }
+                    }
+                },
+                data = mediaFile.data,
+                thumbnailPath = mediaFile.thumbnail,
+                displayName = mediaFile.displayName,
+                mimeType = mediaFile.mimeType,
+                orientation = mediaFile.orientation,
+                fileSize = mediaFile.size
+            )
+            if (mediaFile.mediaFileId == selectItemId) {
+                index = allData.size
+            }
+            allData.add(item)
+        }
+        return index
+    }
+
+    suspend fun getAllDataByAlbumId(albumId: Long, selectItemId: Long): Int {
+        var index = -1
+        val mediaList = application.mediaDatabase.mediaFileDao.queryByAlbumId(albumId)
         if (mediaList.isNullOrEmpty()) return index
         for (mediaFile in mediaList) {
             val item = MediaItem(
