@@ -29,7 +29,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BookmarkAdd
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Dehaze
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
@@ -74,7 +73,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -98,6 +96,7 @@ import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.model.MediaListDialogEntity
 import com.example.photoalbum.ui.action.ConnectResult
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.ui.common.AlbumGrouping
 import com.example.photoalbum.ui.common.DisplayImage
 import com.example.photoalbum.ui.common.EditLocalNetStorageDialog
 import com.example.photoalbum.ui.common.MessageDialog
@@ -159,43 +158,6 @@ fun MediaListScreen(viewModel: MediaListScreenViewModel, modifier: Modifier = Mo
                 }
             } else if (it.id >= viewModel.menuLocalNetMinimumId && viewModel.localNetLevelStack.size == 1)
                 activity?.moveTaskToBack(true)
-            /*if (viewModel.localLevelStack.size == 1 && it.id == viewModel.menuLocalStorage) {
-                if (showPopup.value)
-                    showPopup.value = false
-                else if (multipleChoiceMode.value)
-                    exitMultipleChoiceMode()
-                else
-                    activity?.moveTaskToBack(true)
-            } else if (it.id == viewModel.menuLocalStorage && viewModel.localLevelStack.size >= 2) {
-                if (showPopup.value)
-                    showPopup.value = false
-                else if (multipleChoiceMode.value)
-                    exitMultipleChoiceMode()
-                else {
-                    viewModel.clearCache(StorageType.LOCAL)
-                    viewModel.localMediaFileStackBack()
-                }else if (it.id >= viewModel.menuLocalNetMinimumId && viewModel.localNetLevelStack.size >= 2) {
-                val path = viewModel.localNetStackBack()
-                //每次操作时判断连接是否有效
-                viewModel.viewModelScope.launch(Dispatchers.IO) {
-                    val result = if (viewModel.isConnect())
-                        ConnectResult.Success
-                    else
-                        viewModel.connectSmb(id = it.id, reconnection = true)
-                    if (result is ConnectResult.Success) {
-                        viewModel.clearCache(StorageType.CLOUD)
-                        viewModel.initLocalNetMediaFilePaging(path)
-                    } else {
-                        viewModel.smbClient.rollback()
-                        viewModel.showDialog = MediaListDialogEntity(
-                            mediaListDialog = MediaListDialog.LOCAL_NET_OFFLINE,
-                            isShow = true
-                        )
-                    }
-                }
-            }
-
-            }*/
         }
     }
 
@@ -227,7 +189,6 @@ fun MediaListMainScreen(
 ) {
     val scope = rememberCoroutineScope()
     val currentMenuItem = viewModel.currentMenuItem.value ?: return
-
     var getNavHostHeight by rememberSaveable { mutableStateOf(false) }
     var hostHeight by rememberSaveable(saver = dpSaver) { mutableStateOf(0.dp) }
     val density = LocalDensity.current
@@ -309,10 +270,11 @@ fun MediaListMainScreen(
                         AlbumGrouping(
                             showPopup = showAlbumGrouping,
                             isPopupVisible = isPopupVisible,
-                            with(density) {
+                            size = with(density) {
+                                println("phone size:${viewModel.settings.phoneSize?.width?.toDp()?.toPx()}")
                                 DpSize(
-                                    viewModel.settings.phoneSize?.width?.toDp() ?: LocalConfiguration.current.screenWidthDp.toDp(),
-                                    viewModel.settings.phoneSize?.height?.toDp() ?: LocalConfiguration.current.screenHeightDp.toDp()
+                                    viewModel.application.phoneSize?.width?.toDp() ?: viewModel.settings.phoneSize?.width?.toDp() ?: 1080f.toDp(),
+                                    viewModel.application.phoneSize?.height?.toDp() ?: viewModel.settings.phoneSize?.width?.toDp() ?: 2000f.toDp()
                                 )
                             },
                             directoryIcon = viewModel.directoryIcon,

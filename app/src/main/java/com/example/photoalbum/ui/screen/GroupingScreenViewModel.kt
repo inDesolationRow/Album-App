@@ -2,6 +2,7 @@ package com.example.photoalbum.ui.screen
 
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
@@ -20,8 +21,8 @@ import com.example.photoalbum.data.model.Settings
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.utils.getLastPath
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
@@ -47,6 +48,8 @@ class GroupingScreenViewModel(
      */
     val groupingList: SnapshotStateList<Album> = mutableStateListOf()
 
+    val groupingId: MutableState<Long> = mutableLongStateOf(-1L)
+
     val currentPageInfo: MutableStateFlow<Pair<Long, Int>> = MutableStateFlow(-1L to ItemType.GROUPING.value)
 
     val notPreviewIcon = application.getDrawable(R.drawable.hide)!!.toBitmap()
@@ -68,7 +71,7 @@ class GroupingScreenViewModel(
 
     val back = mutableStateOf(false)
 
-    private var recomposeKey: MutableStateFlow<Int> = MutableStateFlow(0)
+    val firstDisplayCueCard = mutableStateOf(true)
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -80,6 +83,8 @@ class GroupingScreenViewModel(
             userAction.collect { action ->
                 if (action is UserAction.AddGrouping) {
                     groupingList.add(action.album)
+                    if (currentPageInfo.value.first == -1L)
+                        updateTopBarInfo(directoryNum = groupingList.size)
                 }
             }
         }
@@ -87,6 +92,7 @@ class GroupingScreenViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             currentPageInfo.collect { pageInfo ->
                 if (pageInfo.first != -1L && pageInfo.second == ItemType.GROUPING.value) {
+                    groupingId.value = pageInfo.first
                     viewModelScope.launch(Dispatchers.IO) {
                         localMediaFileService =
                             LocalStorageThumbnailService(
@@ -120,7 +126,9 @@ class GroupingScreenViewModel(
                                 initialLoadSize = settings.initialLoadSizeLarge
                             )
                         val result = localMediaFileService.getAllData(pageInfo.first)
-                        val directoryName = application.mediaDatabase.directoryDao.getDirectoryNameById(pageInfo.first)
+                        val directoryName = application.mediaDatabase.directoryDao.getPathById(pageInfo.first)?.let { path ->
+                            getLastPath(path)
+                        }
                         updateTopBarInfo(directoryName, result.first, result.second)
                         localMediaFileFlow.value = Pager(
                             PagingConfig(
@@ -137,6 +145,7 @@ class GroupingScreenViewModel(
                         System.gc()
                     }
                 } else if (pageInfo.first == -1L) {
+                    groupingId.value = -1L
                     val list = application.mediaDatabase.albumDao.queryByParentId(-1)
                     updateTopBarInfo(directoryNum = list?.size)
                 }
@@ -186,7 +195,8 @@ class GroupingScreenViewModel(
                             initialLoadSize = settings.initialLoadSizeLarge
                         )
                     val result = localMediaFileService.getAllData(currentPageInfo.value.first)
-                    val directoryName = application.mediaDatabase.directoryDao.getDirectoryNameById(currentPageInfo.value.first)
+                    val directoryName =
+                        application.mediaDatabase.directoryDao.getPathById(currentPageInfo.value.first)?.let { path -> getLastPath(path) }
                     updateTopBarInfo(directoryName, result.first, result.second)
                     localMediaFileFlow.value = Pager(
                         PagingConfig(
@@ -222,7 +232,7 @@ class GroupingScreenViewModel(
         currentPageInfo.value = album.id to ItemType.GROUPING.value
     }
 
-    private fun updateTopBarInfo(name: String? = null, directoryNum: Int? = null, imageNum: Int? = null) {
+    fun updateTopBarInfo(name: String? = null, directoryNum: Int? = null, imageNum: Int? = null) {
         if (currentPageInfo.value.first == -1L) {
             typeName.value = "分组"
         } else {

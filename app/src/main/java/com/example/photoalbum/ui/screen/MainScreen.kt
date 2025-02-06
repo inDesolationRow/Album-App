@@ -41,6 +41,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModelProvider
 import com.example.photoalbum.R
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.ui.screen.BaseViewModel.Companion
 
 @Composable
 fun MainScreen(viewModel: MainScreenViewModel) {
@@ -160,41 +161,86 @@ fun MainScreen(viewModel: MainScreenViewModel) {
     ) { innerPadding ->
         NavHost(navController = navHost, startDestination = NavType.MEDIA_LIST.name) {
             composable(route = NavType.MEDIA_LIST.name) {
-                MediaListScreen(
-                    viewModel = viewModel.mediaListScreenViewModel,
-                    modifier = Modifier.padding(innerPadding)
-                )
+                val mediaListScreenViewModel: MutableState<MediaListScreenViewModel?> = remember { mutableStateOf(null) }
+                LaunchedEffect(Unit) {
+                    mediaListScreenViewModel.value = viewModel.settings.lowMemoryMode.let { mode ->
+                        if (mode || viewModel.settings.smbMode) {
+                            ViewModelProvider.create(
+                                owner = it, factory = Companion.MyViewModelFactory(
+                                    viewModel.application,
+                                    viewModel.userAction,
+                                    viewModel.settings
+                                )
+                            )[MediaListScreenViewModel::class.java]
+                        } else {
+                            viewModel.mediaListScreenViewModel
+                        }
+                    }
+                }
+
+                mediaListScreenViewModel.value?.let { v ->
+                    MediaListScreen(
+                        viewModel = v,
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                }
             }
             composable(route = NavType.FAVORITE.name) {
-                GroupingScreen(
-                    viewModel = viewModel.favoriteScreenViewModel,
-                    modifier = Modifier.padding(innerPadding)
-                )
+                val groupingScreenViewModel: MutableState<GroupingScreenViewModel?> = remember { mutableStateOf(null) }
+                LaunchedEffect(Unit) {
+                    groupingScreenViewModel.value = viewModel.settings.lowMemoryMode.let { mode ->
+                        if (mode || viewModel.settings.smbMode) {
+                            ViewModelProvider.create(
+                                owner = it, factory = Companion.MyViewModelFactory(
+                                    viewModel.application,
+                                    viewModel.userAction,
+                                    viewModel.settings
+                                )
+                            )[GroupingScreenViewModel::class.java]
+                        } else {
+                            viewModel.favoriteScreenViewModel
+                        }
+                    }
+                }
+
+                groupingScreenViewModel.value?.let { v ->
+                    GroupingScreen(
+                        viewModel = v,
+                        modifier = Modifier.padding(innerPadding)
+                    )
+                }
             }
             composable(route = NavType.SETTINGS.name) {
-                val settingsViewModel = ViewModelProvider.create(
-                    it, factory = BaseViewModel.Companion.MyViewModelFactory(
-                        application = viewModel.application,
-                        userAction = viewModel.userAction,
-                        settings = viewModel.settings
+                val settingsScreenViewModel: MutableState<SettingsScreenViewModel?> = remember { mutableStateOf(null) }
+                LaunchedEffect(Unit) {
+                    settingsScreenViewModel.value = ViewModelProvider.create(
+                        it, factory = Companion.MyViewModelFactory(
+                            application = viewModel.application,
+                            userAction = viewModel.userAction,
+                            settings = viewModel.settings
+                        )
+                    )[SettingsScreenViewModel::class.java]
+                }
+                settingsScreenViewModel.value?.let { settings ->
+                    SettingsScreen(
+                        viewModel = settings,
+                        modifier = Modifier.padding(innerPadding),
                     )
-                )[SettingsScreenViewModel::class.java]
-                SettingsScreen(
-                    viewModel = settingsViewModel,
-                    modifier = Modifier.padding(innerPadding)
-                )
+                }
             }
             composable(route = "ViewImage?directory={directory}&id={id}&local={local}&albumId={albumId}") {
                 val viewMediaFileViewModel = ViewModelProvider.create(
-                    it, factory = BaseViewModel.Companion.MyViewModelFactory(
+                    it, factory = Companion.MyViewModelFactory(
                         application = viewModel.application,
                         userAction = viewModel.userAction,
                         settings = viewModel.settings
                     )
                 )[ViewMediaFileViewModel::class.java]
+
                 val local = it.arguments?.getString("local")?.toBoolean() ?: false
                 val id = it.arguments?.getString("id")?.toLongOrNull()
                 val albumId = it.arguments?.getString("albumId")?.toLongOrNull()
+
                 LaunchedEffect(local, id, albumId) {
                     if (albumId != null)
                         viewMediaFileViewModel.initDataByAlbumId(albumId, id!!)

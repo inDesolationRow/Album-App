@@ -73,6 +73,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
@@ -85,6 +86,8 @@ import com.example.photoalbum.R
 import com.example.photoalbum.data.model.Album
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.ui.common.AlbumGrouping
+import com.example.photoalbum.ui.common.AniCueCard
 import com.example.photoalbum.ui.common.DisplayImage
 import com.example.photoalbum.ui.theme.MediumPadding
 import com.example.photoalbum.ui.theme.SmallPadding
@@ -148,6 +151,7 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
                 showPopup = showPopup,
                 isPopupVisible = isPopupVisible,
                 currentPageInfo = currentPageInfo,
+                exitMultipleChoiceMode = exitMultipleChoiceMode,
                 modifier = Modifier
                     .then(
                         if (topBarAnimateDp != null) {
@@ -170,6 +174,12 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
         modifier = modifier
     ) { padding ->
         if (currentPageInfo.value.first == -1L) {
+            if (viewModel.firstDisplayCueCard.value) {
+                AniCueCard(modifier = Modifier.padding(padding), stringResource(R.string.grouping_is_empty))
+            }
+            if (viewModel.groupingList.isNotEmpty()) {
+                viewModel.firstDisplayCueCard.value = false
+            }
             GroupingList(
                 items = viewModel.groupingList,
                 directoryIcon = viewModel.directoryIcon,
@@ -186,6 +196,29 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
         } else {
             val localState = rememberLazyGridState()
             viewModel.localMediaFileFlow.value?.let { flow ->
+                if (isPopupVisible.value) {
+                    AlbumGrouping(
+                        showPopup = showPopup,
+                        isPopupVisible = isPopupVisible,
+                        with(density) {
+                            DpSize(
+                                viewModel.application.phoneSize?.width?.toDp() ?: viewModel.settings.phoneSize?.width?.toDp() ?: 1080f.toDp(),
+                                viewModel.application.phoneSize?.height?.toDp() ?: viewModel.settings.phoneSize?.width?.toDp() ?: 2000f.toDp()
+                            )
+                        },
+                        directoryIcon = viewModel.directoryIcon,
+                        application = viewModel.application,
+                        albumId = viewModel.groupingId.value,
+                        groupingList = multipleChoiceList.toList(),
+                        onAddGroupingSuccess = {
+                            exitMultipleChoiceMode()
+                            viewModel.recompose()
+                        },
+                        onAddGrouping = { album ->
+                            viewModel.userAction.value = UserAction.AddGrouping(album)
+                        }
+                    )
+                }
                 val items = flow.collectAsLazyPagingItems()
                 MediaList(
                     itemList = items,
@@ -458,6 +491,7 @@ private fun TopBar(
     showPopup: MutableState<Boolean>,
     isPopupVisible: MutableState<Boolean>,
     currentPageInfo: State<Pair<Long, Int>>,
+    exitMultipleChoiceMode: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val coroutineScope = rememberCoroutineScope()
@@ -502,6 +536,8 @@ private fun TopBar(
                                         viewModel.groupingList.removeIf { album ->
                                             deleteList.contains(album.id)
                                         }
+                                        exitMultipleChoiceMode()
+                                        viewModel.updateTopBarInfo(directoryNum = viewModel.groupingList.size)
                                     }
                                 }
                             }
@@ -567,7 +603,11 @@ private fun TopBar(
                             val deleteList = multipleChoiceList.map { id ->
                                 id.split("_").first().toLong()
                             }
-                            viewModel.application.mediaDatabase.albumMediaFileCrossRefDao.deleteByMediaFileIds(deleteList)
+                            viewModel.application.mediaDatabase.albumMediaFileCrossRefDao.deleteByAlbumIdAndMediaFileIds(
+                                viewModel.groupingId.value,
+                                deleteList
+                            )
+                            exitMultipleChoiceMode()
                             viewModel.recompose()
                         }
                     }) {

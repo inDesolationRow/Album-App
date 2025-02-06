@@ -17,6 +17,15 @@ data class Settings(
 
     @ColumnInfo(name = "grid_column_num")
     var gridColumnNum: Int = 3,
+
+    @ColumnInfo(name = "low_memory_mode")
+    var lowMemoryMode: Boolean = false,
+
+    @ColumnInfo(name = "high_pixel_thumbnail")
+    var highPixelThumbnail: Boolean = false,
+
+    @ColumnInfo(name = "smb_mode")
+    var smbMode: Boolean = false,
 ) {
     @Ignore
     var phoneSize: Size? = null
@@ -50,4 +59,5 @@ data class Settings(
 
     @Ignore
     var prefetchDistanceMedium = 10
+
 }

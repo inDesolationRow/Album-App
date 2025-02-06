@@ -79,15 +79,16 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+        //管理同步work
         CoroutineScope(context = Dispatchers.IO).launch {
             viewModel.userAction.collect {
                 if (it is UserAction.ScanAction) {
-                    if (it.scanState == ScanResult.SCANNING){
+                    if (it.scanState == ScanResult.SCANNING) {
                         println("work log:扫描中，取消同步work")
                         workManager.cancelAllWork()
                         createWorkFlag = false
                     }
-                    if (it.scanState == ScanResult.SUCCESS || it.scanState == ScanResult.FAILED){
+                    if (it.scanState == ScanResult.SUCCESS || it.scanState == ScanResult.FAILED) {
                         println("work log:扫描结束，启动同步work")
                         val work = OneTimeWorkRequest.Builder(SyncDatabaseWork::class.java)
                             .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
@@ -99,7 +100,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        //初始化设置
+        //加载设置
         CoroutineScope(context = Dispatchers.IO).launch {
             val isFirstRun = viewModel.checkFirstRunApp()
             if (isFirstRun) {
@@ -108,11 +109,14 @@ class MainActivity : ComponentActivity() {
                 viewModel.application.mediaDatabase.settingsDao.insertOrUpdate(viewModel.settings)
             } else {
                 val settings = viewModel.application.mediaDatabase.settingsDao.getUserSettings()
-                viewModel.settings.openLocalNetStorageThumbnail =
-                    settings?.openLocalNetStorageThumbnail ?: true
-                viewModel.settings.gridColumnNumState.intValue = settings?.gridColumnNum ?: 3
+                settings?.let {
+                    viewModel.settings = settings
+                }
             }
-            viewModel.settings.phoneSize = getPhysicalResolution(this@MainActivity)
+            myapplication.phoneSize = getPhysicalResolution(this@MainActivity)
+            viewModel.settings.phoneSize = myapplication.phoneSize
+            myapplication.settings = viewModel.settings
+
         }
         setContent {
             PhotoAlbumTheme {
@@ -138,7 +142,7 @@ class MainActivity : ComponentActivity() {
                             .build()
                         workManager.enqueue(work)
                     }
-                    if (runningWork.size > 1){
+                    if (runningWork.size > 1) {
                         println("取消work")
                         runningWork.drop(1).forEach { workManager.cancelWorkById(it.id) }
                     }

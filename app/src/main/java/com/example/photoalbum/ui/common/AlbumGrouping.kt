@@ -1,4 +1,4 @@
-package com.example.photoalbum.ui.screen
+package com.example.photoalbum.ui.common
 
 import android.graphics.Bitmap
 import androidx.compose.animation.core.animateFloat
@@ -57,7 +57,6 @@ import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.R
 import com.example.photoalbum.data.model.Album
 import com.example.photoalbum.data.model.AlbumMediaFileCrossRef
-import com.example.photoalbum.ui.common.DisplayImage
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.Dispatchers
@@ -73,12 +72,14 @@ fun AlbumGrouping(
     size: DpSize,
     application: MediaApplication,
     directoryIcon: Bitmap,
+    albumId: Long? = null,
     groupingList: List<String>,
     onAddGroupingSuccess: () -> Unit,
     onAddGrouping: (Album) -> Unit,
 ) {
     val width = remember { (size.width.value * 0.9f).dp }
     val height = remember { (size.height.value * 0.6f).dp }
+    println( width)
     val density = LocalDensity.current
 
     //加载数据
@@ -107,7 +108,6 @@ fun AlbumGrouping(
         } else {
             delay(500)
             queryJob?.cancel()
-            println("摧毁popup")
             isPopupVisible.value = false
         }
     }
@@ -115,7 +115,7 @@ fun AlbumGrouping(
     val choiceChecked: MutableState<Pair<Int, MutableState<Boolean>>?> = remember { mutableStateOf(null) }
     if (isPopupVisible.value) {
         Popup(
-            alignment = Alignment.TopCenter,
+            alignment = Alignment.Center,
             onDismissRequest = {
                 showPopup.value = false
             },
@@ -228,23 +228,34 @@ fun AlbumGrouping(
                             addJob?.join()
                             val index = choiceChecked.value?.first
                             index?.let { n ->
-                                addJob = scope.launch {
+                                addJob = scope.launch (Dispatchers.IO){
                                     val list: MutableList<AlbumMediaFileCrossRef> = mutableListOf()
                                     val groupingId = items[n].id
-                                    groupingList.forEach { fileId ->
-                                        val info = fileId.split("_")
-                                        list.add(
-                                            AlbumMediaFileCrossRef(
-                                                id = groupingId,
-                                                mediaFileId = info.first().trim().toLong(),
-                                                type = info.last().trim().toInt()
-                                            )
-                                        )
+                                    application.mediaDatabase.runInTransaction {
+                                        if (albumId != groupingId) {
+                                            scope.launch(Dispatchers.IO) {
+                                                groupingList.forEach { fileId ->
+                                                    val info = fileId.split("_")
+                                                    list.add(
+                                                        AlbumMediaFileCrossRef(
+                                                            id = groupingId,
+                                                            mediaFileId = info.first().trim().toLong(),
+                                                            type = info.last().trim().toInt()
+                                                        )
+                                                    )
+                                                }
+                                                application.mediaDatabase.albumMediaFileCrossRefDao.insert(list)
+
+                                                albumId?.let { id ->
+                                                    val deleteIds = list.map { it.mediaFileId }
+                                                    application.mediaDatabase.albumMediaFileCrossRefDao.deleteByAlbumIdAndMediaFileIds(id, deleteIds)
+                                                }
+                                            }
+                                        }
                                     }
-                                    application.mediaDatabase.albumMediaFileCrossRefDao.insert(list)
+                                    showPopup.value = false
+                                    onAddGroupingSuccess()
                                 }
-                                showPopup.value = false
-                                onAddGroupingSuccess()
                             }
                         }
                     }) {

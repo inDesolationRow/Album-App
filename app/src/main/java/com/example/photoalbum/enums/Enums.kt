@@ -26,12 +26,18 @@ enum class MediaListDialog {
 }
 
 enum class SettingsDialog {
-    SCAN_LOCAL_STORAGE,
+    //SCAN_LOCAL_STORAGE,
     GO_TO_APP_SETTINGS,
     SCAN_SUCCESS,
     SCAN_FAILED,
     SCANNING,
     NONE
+}
+
+enum class ScanMode(val mode: Int) {
+    MODE_1(1),
+    MODE_2(2),
+    MODE_3(3)
 }
 
 enum class ScanResult {

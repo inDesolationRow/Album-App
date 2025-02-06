@@ -17,9 +17,11 @@ import com.example.photoalbum.data.model.Directory
 import com.example.photoalbum.data.model.DirectoryMediaFileCrossRef
 import com.example.photoalbum.data.model.Settings
 import com.example.photoalbum.enums.ImageSize
+import com.example.photoalbum.enums.ScanMode
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.utils.decodeSampledBitmap
+import com.example.photoalbum.utils.getPaths
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.Dispatchers
@@ -28,9 +30,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withLock
 import java.io.File
 
 abstract class BaseViewModel(
@@ -61,25 +61,26 @@ abstract class BaseViewModel(
         }
     }
 
-    open fun scanLocalStorage() {
+    open fun scanLocalStorage(scanMode: ScanMode) {
         viewModelScope.launch(context = Dispatchers.IO) {
-            //限制最大协程32
             var bigImage = 0
-            val testJobs = mutableListOf<Job>()
-            val semaphore4k = Semaphore(16)
+            val semaphore = Semaphore(16)
             val jobs = mutableListOf<Job>()
-            val delimiter = "[\\\\/]".toRegex()
-            val mutex = Mutex()
-            val path = (application.applicationContext.getExternalFilesDir(
-                null
-            ) ?: application.applicationContext.filesDir).absolutePath.plus(
-                ThumbnailsPath.LOCAL_STORAGE.path
-            )
+            val path = (application.applicationContext.getExternalFilesDir(null) ?: application.applicationContext.filesDir)
+                .absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
+            val imageSize = when (scanMode.mode) {
+                ScanMode.MODE_1.mode -> ImageSize.M_10
+                ScanMode.MODE_2.mode -> ImageSize.M_5
+                ScanMode.MODE_3.mode -> ImageSize.M_1
+                else -> ImageSize.M_5
+            }
+            val highThumbnail = settings.highPixelThumbnail
+            val map: HashMap<String, Long> = HashMap()
+
             if (checkPermissions()) {
                 userAction.value = UserAction.ScanAction(ScanResult.SCANNING)
                 val startTime = System.currentTimeMillis()
-                val lists =
-                    application.mediaStoreContainer.imageStoreRepository.getMediaList().chunked(600)
+                val lists = application.mediaStoreContainer.imageStoreRepository.getMediaList()
                 application.mediaDatabase.runInTransaction {
                     launch(Dispatchers.IO) {
                         try {
@@ -87,81 +88,70 @@ abstract class BaseViewModel(
                             application.mediaDatabase.directoryDao.clearTable()
                             application.mediaDatabase.mediaFileDao.clearTable()
                             application.mediaDatabase.directoryMediaFileCrossRefDao.clearTable()
-                            for (insertList in lists) {
-                                val job = viewModelScope.launch(Dispatchers.IO) {
-                                    val crossRefList: MutableList<DirectoryMediaFileCrossRef> =
-                                        mutableListOf()
-                                    for (item in insertList) {
-                                        val directories = item.relativePath.split(regex = delimiter)
-                                            .map { it.trim() }
-                                        //分析目录并插入directory表
-                                        var parentId: Long? = null
-                                        var directoryId: Long? = null
-                                        val trimDirectories = directories.filter { it.isNotBlank() }
-                                        for (dir in trimDirectories) {
-                                            mutex.withLock {
-                                                val queryResult =
-                                                    application.mediaDatabase.directoryDao.queryByDisplayName(
-                                                        displayName = dir
-                                                    )
-                                                parentId = queryResult?.directoryId
-                                                    ?: application.mediaDatabase.directoryDao.insert(
-                                                        directory = Directory(
-                                                            displayName = dir,
-                                                            parentId = parentId ?: -1,
-                                                        )
-                                                    )
-                                                directoryId = queryResult?.directoryId ?: parentId
-                                            }
-                                        }
-
-                                        val itemId =
-                                            application.mediaDatabase.mediaFileDao.insert(item)
-                                        crossRefList.add(
-                                            DirectoryMediaFileCrossRef(
-                                                directoryId!!,
-                                                itemId
+                            val scanJob = viewModelScope.launch(Dispatchers.IO) {
+                                val crossRefList: MutableList<DirectoryMediaFileCrossRef> = mutableListOf()
+                                for (item in lists) {
+                                    //分析目录并插入directory表
+                                    var directoryId: Long?
+                                    val paths = getPaths(item.relativePath)
+                                    for ((index, directoryPath) in paths.withIndex()) {
+                                        val inserted = map.contains(directoryPath)
+                                        val parentId = if (index - 1 >= 0)
+                                            map[paths[index - 1]] ?: -1
+                                        else
+                                            -1
+                                        if (!inserted) {
+                                            val id = application.mediaDatabase.directoryDao.insert(
+                                                Directory(
+                                                    path = directoryPath,
+                                                    parentId = parentId
+                                                )
                                             )
-                                        )
-
-                                        //文件信息插入media_file表 文件大于5242880字节(5m 4k无损压缩图标准大小)生成缩略图
-                                        if (item.size > ImageSize.M_5.size) {
-                                            bigImage += 1
-                                            val job = viewModelScope.launch(Dispatchers.IO) {
-                                                semaphore4k.acquire()
-                                                val fileName = getThumbnailName(item.displayName, otherStr = itemId.toString())
-                                                val testFile = File(path, fileName)
-                                                if (!testFile.exists()) {
-                                                    decodeSampledBitmap(
-                                                        filePath = item.data,
-                                                        orientation = item.orientation.toFloat()
-                                                    )?.let {
-                                                        saveBitmapToPrivateStorage(
-                                                            it,
-                                                            fileName,
-                                                            path
-                                                        )
-                                                    }
-                                                }
-                                                semaphore4k.release()
-                                            }
-                                            testJobs.add(job)
+                                            map[directoryPath] = id
                                         }
                                     }
-                                    viewModelScope.launch(context = Dispatchers.IO) {
-                                        application.mediaDatabase.directoryMediaFileCrossRefDao.insert(
-                                            crossRefList
+                                    directoryId = map[paths.last()]
+                                    val itemId = application.mediaDatabase.mediaFileDao.insert(item)
+                                    crossRefList.add(
+                                        DirectoryMediaFileCrossRef(
+                                            directoryId!!,
+                                            itemId
                                         )
+                                    )
+                                    if (item.size > imageSize.size) {
+                                        bigImage += 1
+                                        val createJob = viewModelScope.launch(Dispatchers.IO) {
+                                            semaphore.acquire()
+                                            val fileName = getThumbnailName(item.displayName, otherStr = itemId.toString())
+                                            val testFile = File(path, fileName)
+                                            if (!testFile.exists()) {
+                                                decodeSampledBitmap(
+                                                    filePath = item.data,
+                                                    orientation = item.orientation.toFloat(),
+                                                    reqHeight = if (highThumbnail) 400 else 300,
+                                                    reqWidth = if (highThumbnail) 400 else 300
+                                                )?.let {
+                                                    saveBitmapToPrivateStorage(
+                                                        it,
+                                                        fileName,
+                                                        path
+                                                    )
+                                                }
+                                            }
+                                            semaphore.release()
+                                        }
+                                        jobs.add(createJob)
                                     }
                                 }
-                                jobs.add(job)
+                                viewModelScope.launch(context = Dispatchers.IO) {
+                                    application.mediaDatabase.directoryMediaFileCrossRefDao.insert(crossRefList)
+                                }
                             }
+                            jobs.add(scanJob)
                             jobs.forEach {
                                 it.join()
                             }
-                            testJobs.forEach {
-                                it.join()
-                            }
+
                             val endTime = System.currentTimeMillis()
                             val duration = endTime - startTime
                             println("Test testSQL took $duration ms")

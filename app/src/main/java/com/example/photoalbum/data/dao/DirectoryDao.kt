@@ -11,20 +11,20 @@ import com.example.photoalbum.data.model.DirectoryWithMediaFile
 @Dao
 interface DirectoryDao {
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insert(directory: Directory): Long
 
-    @Query(value = "SELECT * FROM directory_table WHERE display_name = :displayName")
-    suspend fun queryByDisplayName(displayName: String): Directory?
+    @Query(value = "SELECT * FROM directory_table WHERE path = :path")
+    suspend fun queryByPath(path: String): Directory?
 
     @Transaction
     @Query(value = "SELECT * FROM directory_table WHERE directory_id = :directoryId")
     suspend fun queryDirectoryWithMediaFileById(directoryId: Long): DirectoryWithMediaFile?
 
-    @Query(value = "SELECT display_name FROM directory_table WHERE directory_id = :directoryId")
-    suspend fun getDirectoryNameById(directoryId: Long): String?
+    @Query(value = "SELECT path FROM directory_table WHERE directory_id = :directoryId")
+    suspend fun getPathById(directoryId: Long): String?
 
-    @Query(value = "SELECT * FROM directory_table WHERE parent_id = :parentId ORDER BY display_name ASC")
+    @Query(value = "SELECT * FROM directory_table WHERE parent_id = :parentId ORDER BY path ASC")
     suspend fun querySortedByNameByParentId(parentId: Long): List<Directory>?
 
     @Query(

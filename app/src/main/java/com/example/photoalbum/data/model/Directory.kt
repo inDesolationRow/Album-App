@@ -17,8 +17,8 @@ data class Directory(
     @ColumnInfo(name = "parent_id")
     var parentId: Long = -1,
 
-    @ColumnInfo(name = "display_name")
-    var displayName: String,
+    @ColumnInfo(name = "path")
+    var path: String,
 
     @ColumnInfo(name = "size")
     var size: Int = 0,

@@ -41,4 +41,17 @@
     <string name="popup_add_grouping">新建分组</string>
     <string name="popup_select_grouping">选择分组</string>
     <string name="grouping">分组%1$s</string>
+    <string name="grouping_is_empty">目前没有分组，长按目录或图片可以添加分组。</string>
+    <string name="scan_mode_1">快速扫描</string>
+    <string name="scan_mode_1_label">不生成缩略图扫描速度快，但是第一次加载图片会产生卡顿。</string>
+    <string name="scan_mode_2">正常扫描</string>
+    <string name="scan_mode_2_label">生成部分缩略图扫描速度快，减少第一次加载图片时的卡顿。</string>
+    <string name="scan_mode_3">全盘扫描</string>
+    <string name="scan_mode_3_label">生成全部缩略图扫描速度非常慢，第一次加载图片不会卡顿。（图片超过1000张时不推荐使用）</string>
+    <string name="low_memory_mode">减少内存占用</string>
+    <string name="low_memory_mode_label">提高应用流畅度，防止因占用内存过多导致崩溃，但是切换页面不再保留数据。(开启后再次关闭需要重启应用才能生效)</string>
+    <string name="high_thumbnail_mode">提高缩略图分辨率</string>
+    <string name="high_thumbnail_mode_label">占用更多的存储与内存。</string>
+    <string name="smb_mode">smb优化</string>
+    <string name="smb_mode_label">smb占用更多内存提高加载速度，但是切换页面不再保留数据。(开启后再次关闭需要重启应用才能生效)</string>
 </resources>

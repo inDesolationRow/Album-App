@@ -15,24 +15,29 @@ class MainScreenViewModel(
     application: MediaApplication,
     userAction: MutableStateFlow<UserAction>,
     settings: Settings,
-    activity: MainActivity
+    activity: MainActivity,
 ) : BaseViewModel(application, userAction, settings) {
 
     var selectPage by mutableStateOf(NavType.MEDIA_LIST)
 
-    var mediaListScreenViewModel: MediaListScreenViewModel = ViewModelProvider.create(
-        owner = activity, factory = Companion.MyViewModelFactory(
-            application,
-            userAction,
-            settings
-        )
-    )[MediaListScreenViewModel::class.java]
+    val mediaListScreenViewModel: MediaListScreenViewModel by lazy {
+        ViewModelProvider.create(
+            owner = activity, factory = Companion.MyViewModelFactory(
+                application,
+                userAction,
+                settings
+            )
+        )[MediaListScreenViewModel::class.java]
+    }
 
-    var favoriteScreenViewModel: GroupingScreenViewModel = ViewModelProvider.create(
-        owner = activity, Companion.MyViewModelFactory(
-            application,
-            userAction,
-            settings
-        )
-    )[GroupingScreenViewModel::class.java]
+    val favoriteScreenViewModel: GroupingScreenViewModel? by lazy {
+        ViewModelProvider.create(
+            owner = activity, Companion.MyViewModelFactory(
+                application,
+                userAction,
+                settings
+            )
+        )[GroupingScreenViewModel::class.java]
+    }
+
 }

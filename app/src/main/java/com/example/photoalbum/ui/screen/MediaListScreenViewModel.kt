@@ -35,6 +35,7 @@ import com.example.photoalbum.model.Menu
 import com.example.photoalbum.smb.SmbClient
 import com.example.photoalbum.ui.action.ConnectResult
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.utils.getLastPath
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
@@ -134,7 +135,7 @@ class MediaListScreenViewModel(
             currentDirectoryId.collect {
                 updateDirectoryName(
                     true, if (it >= 0) {
-                        application.mediaDatabase.directoryDao.getDirectoryNameById(it) ?: ""
+                        application.mediaDatabase.directoryDao.getPathById(it)?.let { path -> getLastPath(path) } ?: ""
                     } else {
                         "根路径"
                     }
@@ -223,7 +224,9 @@ class MediaListScreenViewModel(
         if (local) {
             if (name == null) {
                 viewModelScope.launch(Dispatchers.IO) {
-                    directoryName.value = application.mediaDatabase.directoryDao.getDirectoryNameById(currentDirectoryId.value) ?: "根路径"
+                    directoryName.value = application.mediaDatabase.directoryDao.getPathById(currentDirectoryId.value)?.let { path ->
+                        getLastPath(path)
+                    } ?: "根路径"
                 }
             } else {
                 directoryName.value = name

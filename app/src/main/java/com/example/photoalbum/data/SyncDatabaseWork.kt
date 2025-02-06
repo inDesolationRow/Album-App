@@ -13,6 +13,7 @@ import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.enums.WorkTag
 import com.example.photoalbum.utils.decodeSampledBitmap
+import com.example.photoalbum.utils.getPaths
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import java.util.concurrent.CancellationException
@@ -36,9 +37,7 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
 
     private val coroutine = CoroutineScope(Dispatchers.IO)
 
-    private val semaphore4k = Semaphore(16)
-
-    private val delimiter = "[\\\\/]".toRegex()
+    private val semaphore = Semaphore(16)
 
     private val mutex = Mutex()
 
@@ -57,46 +56,56 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
                 val startTime = System.currentTimeMillis()
                 syncJob = coroutine.launch(Dispatchers.IO) {
                     val added = myapplication.mediaDatabase.mediaFileDao.getMaxGenerationAdded()
+
                     added?.let {
                         val result = myapplication.mediaStoreContainer.imageStoreRepository.updateMediaList(added)
+                        val map: HashMap<String, Long> = HashMap()
                         println("同步${result.size}张图片")
                         if (result.isNotEmpty()) {
                             val crossRefList: MutableList<DirectoryMediaFileCrossRef> = mutableListOf()
                             val jobs = mutableListOf<Job>()
                             result.forEach { item ->
-                                val directories = item.relativePath.split(regex = delimiter).map { it.trim() }
                                 //分析目录并插入directory表
-                                var parentId: Long? = null
-                                var directoryId: Long? = null
-                                val trimDirectories = directories.filter { it.isNotBlank() }
-                                for (dir in trimDirectories) {
-                                    mutex.withLock {
-                                        val queryResult = myapplication.mediaDatabase.directoryDao.queryByDisplayName(displayName = dir)
-                                        parentId = queryResult?.directoryId ?: myapplication.mediaDatabase.directoryDao.insert(
-                                            directory = Directory(
-                                                displayName = dir,
-                                                parentId = parentId ?: -1,
+                                val paths = getPaths(item.relativePath)
+                                for ((index, directoryPath) in paths.withIndex()) {
+                                    val inserted = map.contains(directoryPath)
+                                    val parentId = if (index - 1 >= 0)
+                                        map[paths[index - 1]] ?: -1
+                                    else
+                                        -1
+                                    if (!inserted) {
+                                        val id = mutex.withLock {
+                                            myapplication.mediaDatabase.directoryDao.insert(
+                                                Directory(
+                                                    path = directoryPath,
+                                                    parentId = parentId
+                                                )
                                             )
-                                        )
-                                        directoryId = queryResult?.directoryId ?: parentId
+                                        }
+                                        map[directoryPath] = id
                                     }
                                 }
-
+                                val directoryId = map[paths.last()]
                                 val itemId = myapplication.mediaDatabase.mediaFileDao.insert(item)
                                 crossRefList.add(DirectoryMediaFileCrossRef(directoryId!!, itemId))
 
                                 //文件信息插入media_file表 文件大于2m生成缩略图
                                 if (item.size > ImageSize.M_2.size) {
                                     val job = coroutine.launch(Dispatchers.IO) {
-                                        semaphore4k.acquire()
+                                        semaphore.acquire()
                                         val fileName = getThumbnailName(item.displayName, itemId.toString())
                                         val testFile = File(path, fileName)
                                         if (!testFile.exists()) {
-                                            decodeSampledBitmap(filePath = item.data, orientation = item.orientation.toFloat())?.let {
+                                            decodeSampledBitmap(
+                                                filePath = item.data,
+                                                orientation = item.orientation.toFloat(),
+                                                reqWidth = if (myapplication.settings?.highPixelThumbnail == true) 400 else 300,
+                                                reqHeight = if (myapplication.settings?.highPixelThumbnail == true) 400 else 300
+                                            )?.let {
                                                 saveBitmapToPrivateStorage(it, fileName, path)
                                             }
                                         }
-                                        semaphore4k.release()
+                                        semaphore.release()
                                     }
                                     jobs.add(job)
                                 }

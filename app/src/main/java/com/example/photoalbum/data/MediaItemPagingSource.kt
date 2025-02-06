@@ -13,6 +13,7 @@ import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.model.MediaItem
 import com.example.photoalbum.smb.SmbClient
 import com.example.photoalbum.utils.decodeSampledBitmap
+import com.example.photoalbum.utils.getLastPath
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
 import kotlinx.coroutines.CoroutineScope
@@ -111,13 +112,14 @@ class LocalStorageThumbnailService(
             val order3: MutableList<MediaItem> = mutableListOf()
             if (!directories.isNullOrEmpty()) {
                 for (dir in directories) {
+                    val directoryName = getLastPath(dir.path)
                     val item = MediaItem(
                         id = dir.directoryId,
                         type = ItemType.DIRECTORY,
-                        displayName = dir.displayName,
+                        displayName = directoryName,
                         mimeType = "",
                     )
-                    val name = dir.displayName.lowercase()
+                    val name = directoryName.lowercase()
                     when {
                         name.contains(SystemFolder.DCIM.displayName) -> {
                             order1.add(item)
@@ -198,7 +200,7 @@ class LocalStorageThumbnailService(
                     MediaItem(
                         id = dir.directoryId,
                         type = ItemType.DIRECTORY,
-                        displayName = dir.displayName,
+                        displayName = getLastPath(dir.path),
                         mimeType = "",
                     )
                 )
@@ -322,7 +324,12 @@ class LocalStorageThumbnailService(
                     return@async null
                 }
 
-                decodeSampledBitmap(filePath = path, orientation = orientation)?.let {
+                decodeSampledBitmap(
+                    filePath = path,
+                    orientation = orientation,
+                    reqWidth = if (application.settings?.highPixelThumbnail == true) 400 else 300,
+                    reqHeight = if (application.settings?.highPixelThumbnail == true) 400 else 300
+                )?.let {
                     image = it
                     saveBitmapToPrivateStorage(
                         bitmap = it,
