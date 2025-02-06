@@ -59,7 +59,6 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
 
                     added?.let {
                         val result = myapplication.mediaStoreContainer.imageStoreRepository.updateMediaList(added)
-                        val map: HashMap<String, Long> = HashMap()
                         println("同步${result.size}张图片")
                         if (result.isNotEmpty()) {
                             val crossRefList: MutableList<DirectoryMediaFileCrossRef> = mutableListOf()
@@ -67,25 +66,27 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
                             result.forEach { item ->
                                 //分析目录并插入directory表
                                 val paths = getPaths(item.relativePath)
-                                for ((index, directoryPath) in paths.withIndex()) {
-                                    val inserted = map.contains(directoryPath)
-                                    val parentId = if (index - 1 >= 0)
-                                        map[paths[index - 1]] ?: -1
-                                    else
-                                        -1
-                                    if (!inserted) {
-                                        val id = mutex.withLock {
-                                            myapplication.mediaDatabase.directoryDao.insert(
-                                                Directory(
-                                                    path = directoryPath,
-                                                    parentId = parentId
+                                var directoryId: Long? = myapplication.mediaDatabase.directoryDao.queryByPath(paths.last())?.directoryId
+                                if (directoryId == null){
+                                    for ((index, directoryPath) in paths.withIndex()) {
+                                        val inserted = myapplication.mediaDatabase.directoryDao.queryByPath(directoryPath)
+                                        if (inserted == null) {
+                                            val parentId =
+                                                if (index - 1 >= 0)
+                                                    myapplication.mediaDatabase.directoryDao.queryByPath(paths[index - 1])?.directoryId ?: -1
+                                                else
+                                                    -1
+                                            directoryId = mutex.withLock {
+                                                myapplication.mediaDatabase.directoryDao.insert(
+                                                    Directory(
+                                                        path = directoryPath,
+                                                        parentId = parentId
+                                                    )
                                                 )
-                                            )
+                                            }
                                         }
-                                        map[directoryPath] = id
                                     }
                                 }
-                                val directoryId = map[paths.last()]
                                 val itemId = myapplication.mediaDatabase.mediaFileDao.insert(item)
                                 crossRefList.add(DirectoryMediaFileCrossRef(directoryId!!, itemId))
 
