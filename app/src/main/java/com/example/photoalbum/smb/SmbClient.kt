@@ -187,6 +187,24 @@ class SmbClient {
         return directoryList
     }
 
+    /*fun testMedia(){
+        val file = diskShare.openFile(
+            "TEST.mp4",
+            setOf(AccessMask.FILE_READ_DATA),
+            null,
+            setOf(SMB2ShareAccess.FILE_SHARE_READ),
+            SMB2CreateDisposition.FILE_OPEN,
+            setOf(SMB2CreateOptions.FILE_SEQUENTIAL_ONLY)
+        )
+        val imageBytes: ByteArray = ByteArray(1000)
+        file.use {
+            it.inputStream.use { inputStream ->
+                val testByte = inputStream.read(imageBytes)
+                println("读取长度 $testByte")
+            }
+        }
+    }*/
+
     fun getImage(path: String, mediaFileId: Long = -1): Bitmap? {
         var image: Bitmap? = null
         try {

@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    kotlin("kapt")
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -64,18 +64,29 @@ dependencies {
 
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.rules)
-    kapt(libs.androidx.room.compiler)
+    ksp(libs.androidx.room.compiler)
+
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.coil.compose)
     implementation(libs.smbj)
     implementation(libs.androidx.material.icons.extended)
+
     implementation(libs.androidx.paging.compose)
     implementation(libs.androidx.paging.runtime)
+
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.kotlinx.coroutines.guava)
     implementation(libs.google.guava)
     implementation(libs.androidx.concurrent)
+
+    implementation(libs.androidx.media3.common)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.session)
+    implementation(libs.androidx.media3.effect)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.transformer)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)

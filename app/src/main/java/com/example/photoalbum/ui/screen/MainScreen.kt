@@ -32,16 +32,15 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.photoalbum.enums.NavType
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.ViewModelProvider
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
 import com.example.photoalbum.R
 import com.example.photoalbum.ui.action.UserAction
-import com.example.photoalbum.ui.screen.BaseViewModel.Companion
 
 @Composable
 fun MainScreen(viewModel: MainScreenViewModel) {
@@ -92,6 +91,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
     } else {
         null
     }
+
     Scaffold(
         bottomBar = {
             NavigationBar(modifier = Modifier
@@ -166,7 +166,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                     mediaListScreenViewModel.value = viewModel.settings.lowMemoryMode.let { mode ->
                         if (mode || viewModel.settings.smbMode) {
                             ViewModelProvider.create(
-                                owner = it, factory = Companion.MyViewModelFactory(
+                                owner = it, factory = BaseViewModel.Companion.MyViewModelFactory(
                                     viewModel.application,
                                     viewModel.userAction,
                                     viewModel.settings
@@ -191,7 +191,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                     groupingScreenViewModel.value = viewModel.settings.lowMemoryMode.let { mode ->
                         if (mode || viewModel.settings.smbMode) {
                             ViewModelProvider.create(
-                                owner = it, factory = Companion.MyViewModelFactory(
+                                owner = it, factory = BaseViewModel.Companion.MyViewModelFactory(
                                     viewModel.application,
                                     viewModel.userAction,
                                     viewModel.settings
@@ -214,7 +214,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
                 val settingsScreenViewModel: MutableState<SettingsScreenViewModel?> = remember { mutableStateOf(null) }
                 LaunchedEffect(Unit) {
                     settingsScreenViewModel.value = ViewModelProvider.create(
-                        it, factory = Companion.MyViewModelFactory(
+                        it, factory = BaseViewModel.Companion.MyViewModelFactory(
                             application = viewModel.application,
                             userAction = viewModel.userAction,
                             settings = viewModel.settings
@@ -230,7 +230,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
             }
             composable(route = "ViewImage?directory={directory}&id={id}&local={local}&albumId={albumId}") {
                 val viewMediaFileViewModel = ViewModelProvider.create(
-                    it, factory = Companion.MyViewModelFactory(
+                    it, factory = BaseViewModel.Companion.MyViewModelFactory(
                         application = viewModel.application,
                         userAction = viewModel.userAction,
                         settings = viewModel.settings
