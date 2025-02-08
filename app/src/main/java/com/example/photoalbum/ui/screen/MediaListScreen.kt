@@ -799,6 +799,7 @@ fun MediaList(
                         }
                     }
                 ) {
+                    println(item.data)
                     MediaFilePreview(
                         image = image,
                         nullPreviewIcon = nullPreviewIcon,
