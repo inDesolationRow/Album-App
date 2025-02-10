@@ -122,7 +122,6 @@ class LocalDataSource(
             if (!directories.isNullOrEmpty()) {
                 for (dir in directories) {
                     val directoryName = getLastPath(dir.path)
-                    println("name $")
                     val item = MediaItem(
                         id = dir.directoryId,
                         type = ItemType.DIRECTORY,
@@ -193,7 +192,9 @@ class LocalDataSource(
                 displayName = mediaFile.displayName,
                 mimeType = mediaFile.mimeType,
                 orientation = mediaFile.orientation,
-                fileSize = mediaFile.size
+                fileSize = mediaFile.size,
+                resolution = mediaFile.resolution,
+                duration = mediaFile.duration,
             )
             if (mediaFile.mediaFileId == selectItemId) {
                 index = allData.size

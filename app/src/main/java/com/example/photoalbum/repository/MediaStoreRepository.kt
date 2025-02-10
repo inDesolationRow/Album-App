@@ -14,7 +14,8 @@ interface MediaStoreRepository {
 class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRepository {
 
     override suspend fun getMediaList(): List<MediaFile> {
-        val projection = arrayOf(
+        val mediaItems = mutableListOf<MediaFile>()
+        val imageProjection = arrayOf(
             MediaStore.Images.Media._ID,
             MediaStore.Images.Media.DISPLAY_NAME,
             MediaStore.Images.Media.DATE_TAKEN,
@@ -31,16 +32,15 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
             MediaStore.Images.Media.ORIENTATION
         )
 
-        val cursor = context.contentResolver.query(
+        val imageCursor = context.contentResolver.query(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            projection,
+            imageProjection,
             null,
             null,
             "${MediaStore.Images.Media.DATE_TAKEN} DESC"
         )
 
-        val mediaItems = mutableListOf<MediaFile>()
-        cursor?.use {
+        imageCursor?.use {
             while (it.moveToNext()) {
                 val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.Images.Media._ID))
                 val name = it.getString(it.getColumnIndexOrThrow(MediaStore.Images.Media.DISPLAY_NAME))
@@ -77,6 +77,80 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
                         orientation = orientation
                     )
                 )
+            }
+        }
+
+        val videoProjection = arrayOf(
+            MediaStore.Video.Media._ID,
+            MediaStore.Video.Media.DISPLAY_NAME,
+            MediaStore.Video.Media.DATE_TAKEN,
+            MediaStore.Video.Media.DATA,
+            MediaStore.Video.Media.OWNER_PACKAGE_NAME,
+            MediaStore.Video.Media.VOLUME_NAME,
+            MediaStore.Video.Media.RELATIVE_PATH,
+            MediaStore.Video.Media.BUCKET_ID,
+            MediaStore.Video.Media.BUCKET_DISPLAY_NAME,
+            MediaStore.Video.Media.GENERATION_ADDED,
+            MediaStore.Video.Media.MIME_TYPE,
+            MediaStore.Video.Media.IS_DOWNLOAD,
+            MediaStore.Video.Media.SIZE,
+            MediaStore.Video.Media.ORIENTATION,
+            MediaStore.Video.Media.RESOLUTION,
+            MediaStore.Video.Media.DURATION
+        )
+
+        val videoCursor = context.contentResolver.query(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+            videoProjection,
+            null,
+            null,
+            "${MediaStore.Images.Media.DATE_TAKEN} DESC"
+        )
+
+        videoCursor?.use {
+            while (it.moveToNext()) {
+                val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media._ID))
+                val name = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME))
+                val dateTaken = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_TAKEN))
+                val data = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.DATA))
+                val packName = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.OWNER_PACKAGE_NAME))
+                val volName = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.VOLUME_NAME))
+                val path = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.RELATIVE_PATH))
+                val bucket = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media.BUCKET_ID))
+                val bucketName = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.BUCKET_DISPLAY_NAME))
+                val add = it.getInt(it.getColumnIndexOrThrow(MediaStore.Video.Media.GENERATION_ADDED))
+                val mimeType = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE))
+                val isDownload = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.IS_DOWNLOAD))
+                val size = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE))
+                val orientation = it.getInt(it.getColumnIndexOrThrow(MediaStore.Video.Media.ORIENTATION))
+                val resolution = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.RESOLUTION))
+                val duration = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION))
+
+                if (name.isNullOrEmpty() || data.isNullOrEmpty() || size == 0L) {
+                    continue
+                }
+                if (size > 0 && duration > 0 && resolution != null) {
+                    mediaItems.add(
+                        MediaFile(
+                            mediaFileId = id,
+                            dateTaken = dateTaken,
+                            bucketId = bucket,
+                            generationAdded = add,
+                            bucketDisplayName = bucketName,
+                            displayName = name,
+                            data = data,
+                            relativePath = path,
+                            ownerPackageName = packName ?: "",
+                            volumeName = volName,
+                            isDownload = isDownload,
+                            mimeType = mimeType,
+                            size = size,
+                            orientation = orientation,
+                            resolution = resolution,
+                            duration = duration
+                        )
+                    )
+                }
             }
         }
         return mediaItems
@@ -144,6 +218,82 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
                         orientation = orientation
                     )
                 )
+            }
+        }
+
+        val videoProjection = arrayOf(
+            MediaStore.Video.Media._ID,
+            MediaStore.Video.Media.DISPLAY_NAME,
+            MediaStore.Video.Media.DATE_TAKEN,
+            MediaStore.Video.Media.DATA,
+            MediaStore.Video.Media.OWNER_PACKAGE_NAME,
+            MediaStore.Video.Media.VOLUME_NAME,
+            MediaStore.Video.Media.RELATIVE_PATH,
+            MediaStore.Video.Media.BUCKET_ID,
+            MediaStore.Video.Media.BUCKET_DISPLAY_NAME,
+            MediaStore.Video.Media.GENERATION_ADDED,
+            MediaStore.Video.Media.MIME_TYPE,
+            MediaStore.Video.Media.IS_DOWNLOAD,
+            MediaStore.Video.Media.SIZE,
+            MediaStore.Video.Media.ORIENTATION,
+            MediaStore.Video.Media.RESOLUTION,
+            MediaStore.Video.Media.DURATION
+        )
+
+        val videoCursor = context.contentResolver.query(
+            MediaStore.Video.Media.EXTERNAL_CONTENT_URI,
+            videoProjection,
+            "${MediaStore.Video.Media.GENERATION_ADDED} > ?",
+            arrayOf("$generationAdded"),
+            "${MediaStore.Video.Media.DATE_TAKEN} DESC"
+        )
+
+        videoCursor?.use {
+            while (it.moveToNext()) {
+                val id = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media._ID))
+                val name = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.DISPLAY_NAME))
+                val dateTaken = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media.DATE_TAKEN))
+                val data = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.DATA))
+                val packName = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.OWNER_PACKAGE_NAME))
+                val volName = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.VOLUME_NAME))
+                val path = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.RELATIVE_PATH))
+                val bucket = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media.BUCKET_ID))
+                val bucketName = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.BUCKET_DISPLAY_NAME))
+                val add = it.getInt(it.getColumnIndexOrThrow(MediaStore.Video.Media.GENERATION_ADDED))
+                val mimeType = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.MIME_TYPE))
+                val isDownload = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.IS_DOWNLOAD))
+                val size = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media.SIZE))
+                val orientation = it.getInt(it.getColumnIndexOrThrow(MediaStore.Video.Media.ORIENTATION))
+                val resolution = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.RESOLUTION))
+                val duration = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION))
+
+                //println("增长id$generationAdded 文件的增长id$add")
+
+                if (name.isNullOrEmpty() || data.isNullOrEmpty() || size == 0L) {
+                    continue
+                }
+                if (size > 0 && duration > 0 && resolution != null) {
+                    mediaItems.add(
+                        MediaFile(
+                            mediaFileId = id,
+                            dateTaken = dateTaken,
+                            bucketId = bucket,
+                            generationAdded = add,
+                            bucketDisplayName = bucketName,
+                            displayName = name,
+                            data = data,
+                            relativePath = path,
+                            ownerPackageName = packName ?: "",
+                            volumeName = volName,
+                            isDownload = isDownload,
+                            mimeType = mimeType,
+                            size = size,
+                            orientation = orientation,
+                            resolution = resolution,
+                            duration = duration
+                        )
+                    )
+                }
             }
         }
         return mediaItems

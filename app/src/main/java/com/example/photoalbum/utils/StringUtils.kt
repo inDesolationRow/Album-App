@@ -1,5 +1,17 @@
 package com.example.photoalbum.utils
 
+fun millisToTime(millis: Long): Triple<String, String, String> {
+    val totalSeconds = millis / 1000
+
+    val hours = (totalSeconds / 3600).toInt()
+    val minutes = ((totalSeconds % 3600) / 60).toInt()
+    val seconds = (totalSeconds % 60).toInt()
+
+    val formattedMinutes = minutes.toString().padStart(2, '0')
+    val formattedSeconds = seconds.toString().padStart(2, '0')
+    return Triple(hours.toString(), formattedMinutes, formattedSeconds)
+}
+
 fun getThumbnailName(name: String, otherStr: String? = null): String {
     val other = otherStr?.let { "_$it" } ?: ""
     return name.split(".").dropLast(1).joinToString(".").plus(other).plus("_thumbnail.png")

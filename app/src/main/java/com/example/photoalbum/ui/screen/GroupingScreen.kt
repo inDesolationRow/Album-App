@@ -515,7 +515,8 @@ private fun TopBar(
                         R.string.top_bar_directory_info_2,
                         viewModel.directoryNum.intValue,
                         viewModel.typeName.value,
-                        viewModel.photosNum.intValue
+                        viewModel.photosNum.intValue,
+                        viewModel.videoNum.intValue
                     ),
                     style = MaterialTheme.typography.labelMedium,
                 )

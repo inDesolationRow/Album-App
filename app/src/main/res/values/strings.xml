@@ -36,8 +36,8 @@
     <string name="top_bar_add_grouping">收藏</string>
     <string name="top_bar_remove_grouping">移除</string>
     <string name="top_bar_move_grouping">移动</string>
-    <string name="top_bar_directory_info">%1$s个目录 %2$s张图片</string>
-    <string name="top_bar_directory_info_2">%1$s个%2$s %3$s张图片</string>
+    <string name="top_bar_directory_info">%1$s个目录 %2$s张图片 %3$s部视频</string>
+    <string name="top_bar_directory_info_2">%1$s个%2$s %3$s张图片 %4$s部视频</string>
     <string name="popup_add_grouping">新建分组</string>
     <string name="popup_select_grouping">选择分组</string>
     <string name="grouping">分组%1$s</string>
@@ -54,4 +54,6 @@
     <string name="high_thumbnail_mode_label">占用更多的存储与内存。</string>
     <string name="smb_mode">smb优化</string>
     <string name="smb_mode_label">smb占用更多内存提高加载速度，但是切换页面不再保留数据。(开启后再次关闭需要重启应用才能生效)</string>
+    <string name="duration1">%1$s:%2$s</string>
+    <string name="duration2">%1$s:%2$s:%3$s</string>
 </resources>

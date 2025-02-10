@@ -6,6 +6,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
+import android.media.MediaMetadataRetriever
+import android.net.Uri
 import android.renderscript.Allocation
 import android.renderscript.Element
 import android.renderscript.RenderScript
@@ -13,6 +15,28 @@ import android.renderscript.ScriptIntrinsicBlur
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+
+fun getMiddleFrame(
+    context: Context,
+    videoUri: Uri,
+    duration: Long,
+    reqWidth: Int = 300,
+    reqHeight: Int = 300,
+): Bitmap? {
+    val retriever = MediaMetadataRetriever()
+    return try {
+        retriever.setDataSource(context, videoUri)
+
+        val timeUs = (duration / 2) * 1000L
+        // 获取中间帧。OPTION_CLOSEST_SYNC 可保证获取距离指定时间最近的关键帧
+        retriever.getScaledFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_PREVIOUS_SYNC, reqWidth, reqHeight)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    } finally {
+        retriever.release()
+    }
+}
 
 fun getImageRatio(
     filePath: String,

@@ -33,5 +33,9 @@ data class MediaItem(
 
     var orientation: Int = 0,
 
-    var local: Boolean = true
+    var local: Boolean = true,
+
+    var resolution: String = "",
+
+    var duration: Long = 0,
 )
