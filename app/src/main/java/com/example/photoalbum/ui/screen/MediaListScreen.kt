@@ -6,6 +6,7 @@ import android.graphics.Bitmap
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -64,6 +65,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -104,6 +106,7 @@ import com.example.photoalbum.ui.common.ProgressDialog
 import com.example.photoalbum.ui.theme.LargePadding
 import com.example.photoalbum.ui.theme.MediumPadding
 import com.example.photoalbum.ui.theme.TinyPadding
+import com.example.photoalbum.utils.millisToTime
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -530,7 +533,8 @@ private fun TopBar(
                     text = stringResource(
                         R.string.top_bar_directory_info,
                         viewModel.directoryNum.intValue,
-                        viewModel.photosNum.intValue
+                        viewModel.photosNum.intValue,
+                        viewModel.videoNum.intValue
                     ),
                     style = MaterialTheme.typography.labelMedium,
                 )
@@ -799,7 +803,6 @@ fun MediaList(
                         }
                     }
                 ) {
-                    println(item.data)
                     MediaFilePreview(
                         image = image,
                         nullPreviewIcon = nullPreviewIcon,
@@ -807,6 +810,7 @@ fun MediaList(
                         directoryName = item.displayName,
                         fileType = item.type,
                         context = context,
+                        duration = millisToTime(item.duration),
                         modifier = Modifier
                             .padding(end = TinyPadding, top = TinyPadding)
                     )
@@ -890,10 +894,11 @@ fun MediaFilePreview(
     directoryName: String,
     context: Context,
     modifier: Modifier = Modifier,
+    duration: Triple<String, String, String>? = null,
 ) {
     Column(modifier = modifier) {
         if (image == null || image.width == 0 && image.height == 0) {
-            if (fileType == ItemType.IMAGE)
+            if (fileType == ItemType.IMAGE || fileType == ItemType.VIDEO)
                 DisplayImage(
                     bitmap = nullPreviewIcon,
                     context = context,
@@ -906,11 +911,45 @@ fun MediaFilePreview(
                     modifier = Modifier.aspectRatio(1f)
                 )
         } else {
-            DisplayImage(
-                bitmap = image,
-                context = context,
-                modifier = Modifier.aspectRatio(1f)
-            )
+            if (fileType == ItemType.IMAGE) {
+                DisplayImage(
+                    bitmap = image,
+                    context = context,
+                    modifier = Modifier.aspectRatio(1f)
+                )
+            } else if (fileType == ItemType.VIDEO) {
+                Box(
+                    contentAlignment = Alignment.BottomStart,
+                    modifier = Modifier.fillMaxSize()
+                ) {
+                    DisplayImage(
+                        bitmap = image,
+                        context = context,
+                        modifier = Modifier.aspectRatio(1f)
+                    )
+                    Column(
+                        modifier = Modifier
+                            .padding(
+                                start = TinyPadding,
+                                bottom = TinyPadding
+                            )
+                            .clip(MaterialTheme.shapes.extraSmall)
+                            .background(Color(0x80000000))
+                    ) {
+                        duration?.let { timer ->
+                            Text(
+                                text = if (timer.first == "0")
+                                    stringResource(R.string.duration1, timer.second, timer.third)
+                                else
+                                    stringResource(R.string.duration2, timer.first, timer.second, timer.third),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.White,
+                                modifier = Modifier.padding(start = TinyPadding, end = TinyPadding)
+                            )
+                        }
+                    }
+                }
+            }
         }
         if (fileType == ItemType.DIRECTORY) {
             Text(

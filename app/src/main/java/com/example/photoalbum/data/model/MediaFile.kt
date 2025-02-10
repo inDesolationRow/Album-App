@@ -51,8 +51,12 @@ data class MediaFile(
     @ColumnInfo(name = "thumbnail_path")
     var thumbnail: String = "",
 
-    var orientation: Int = 0
-){
+    var orientation: Int = 0,
+
+    var duration: Long = 0,
+
+    var resolution: String = "",
+) {
     @Ignore
     val thumbnailBitmap: MutableState<Bitmap?> = mutableStateOf(null)
 }

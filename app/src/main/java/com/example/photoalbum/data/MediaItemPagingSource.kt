@@ -33,14 +33,7 @@ class MediaItemPagingSource(
     override suspend fun load(params: LoadParams<Int>): LoadResult<Int, MediaItem> {
         return try {
             val page = params.key ?: 1
-            val response = apiService.getData(page, params.loadSize)/*if (page == 1) {
-                if (directoryCount > params.loadSize)
-                    apiService.getData(page, directoryCount)
-                else
-                    apiService.getData(page, params.loadSize)
-            } else {
-                apiService.getData(page, params.loadSize)
-            }*/
+            val response = apiService.getData(page, params.loadSize)
             LoadResult.Page(
                 data = response,
                 prevKey = if (page == 1) null else page - 1,
@@ -75,7 +68,7 @@ interface MediaFileService<T> {
 
     fun sharedAllData(allData: MutableList<MediaItem>? = null): MutableList<MediaItem>
 
-    suspend fun getAllData(param: T, onlyMediaFile: Boolean = false): Pair<Int, Int>
+    suspend fun getAllData(param: T, onlyMediaFile: Boolean = false): Triple<Int, Int, Int>
 
     suspend fun getData(page: Int, loadSize: Int): List<MediaItem>
 
@@ -102,7 +95,7 @@ class LocalStorageThumbnailService(
         return this.allData
     }
 
-    override suspend fun getAllData(param: Long, onlyMediaFile: Boolean): Pair<Int, Int> {
+    override suspend fun getAllData(param: Long, onlyMediaFile: Boolean): Triple<Int, Int, Int> {
         allData.clear()
         var directories: List<Directory>? = null
         if (!onlyMediaFile) {
@@ -159,7 +152,9 @@ class LocalStorageThumbnailService(
 
         val mediaList =
             application.mediaDatabase.mediaFileDao.querySortedMediaFilesByDirectoryId(param)
-        if (mediaList.isNullOrEmpty()) return (directories?.size ?: 0) to 0
+        if (mediaList.isNullOrEmpty()) return Triple((directories?.size ?: 0), 0, 0)
+        var photoNum = 0
+        var videoNum = 0
         for (mediaFile in mediaList) {
             val item = MediaItem(
                 id = mediaFile.mediaFileId,
@@ -167,10 +162,12 @@ class LocalStorageThumbnailService(
                     val test = it.lowercase()
                     return@let when {
                         test.contains("image") -> {
+                            photoNum++
                             ItemType.IMAGE
                         }
 
                         test.contains("video") -> {
+                            videoNum++
                             ItemType.VIDEO
                         }
 
@@ -184,14 +181,16 @@ class LocalStorageThumbnailService(
                 displayName = mediaFile.displayName,
                 mimeType = mediaFile.mimeType,
                 orientation = mediaFile.orientation,
-                fileSize = mediaFile.size
+                fileSize = mediaFile.size,
+                resolution = mediaFile.resolution,
+                duration = mediaFile.duration
             )
             allData.add(item)
         }
-        return (directories?.size ?: 0) to mediaList.size
+        return Triple((directories?.size ?: 0), photoNum, videoNum)
     }
 
-    suspend fun getAllDataByAlbumId(albumId: Long): Pair<Int, Int> {
+    suspend fun getAllDataByAlbumId(albumId: Long): Triple<Int, Int, Int> {
         allData.clear()
         val directories = application.mediaDatabase.directoryDao.queryDirectoryByAlbumId(albumId)
         if (!directories.isNullOrEmpty()) {
@@ -209,7 +208,9 @@ class LocalStorageThumbnailService(
 
         val mediaList =
             application.mediaDatabase.mediaFileDao.queryByAlbumId(albumId)
-        if (mediaList.isNullOrEmpty()) return (directories?.size ?: 0) to 0
+        if (mediaList.isNullOrEmpty()) return Triple((directories?.size ?: 0), 0, 0)
+        var photoNum = 0
+        var videoNum = 0
         for (mediaFile in mediaList) {
             val item = MediaItem(
                 id = mediaFile.mediaFileId,
@@ -217,10 +218,12 @@ class LocalStorageThumbnailService(
                     val test = it.lowercase()
                     return@let when {
                         test.contains("image") -> {
+                            photoNum++
                             ItemType.IMAGE
                         }
 
                         test.contains("video") -> {
+                            videoNum++
                             ItemType.VIDEO
                         }
 
@@ -234,11 +237,13 @@ class LocalStorageThumbnailService(
                 displayName = mediaFile.displayName,
                 mimeType = mediaFile.mimeType,
                 orientation = mediaFile.orientation,
-                fileSize = mediaFile.size
+                fileSize = mediaFile.size,
+                resolution = mediaFile.resolution,
+                duration = mediaFile.duration
             )
             allData.add(item)
         }
-        return (directories?.size ?: 0) to mediaList.size
+        return Triple((directories?.size ?: 0), photoNum, videoNum)
     }
 
 
@@ -249,7 +254,7 @@ class LocalStorageThumbnailService(
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         val jobs: MutableList<Job> = mutableListOf()
         for (item in items) {
-            if (item.type == ItemType.IMAGE) {
+            if (item.type == ItemType.IMAGE || item.type == ItemType.VIDEO) {
                 if (item.thumbnail == null && item.thumbnailState.let {
                         if (it.value == null) return@let true
                         else return@let it.value!!.isRecycled
@@ -415,7 +420,7 @@ class LocalNetStorageThumbnailService(
         return allData.indexOfFirst { id == it.id }
     }
 
-    override suspend fun getAllData(param: String, onlyMediaFile: Boolean): Pair<Int, Int> {
+    override suspend fun getAllData(param: String, onlyMediaFile: Boolean): Triple<Int, Int, Int> {
         var directoryNum = 0
         var imageNum = 0
         allData.clear()
@@ -427,7 +432,8 @@ class LocalNetStorageThumbnailService(
                 imageNum++
             }
         }
-        return directoryNum to imageNum
+        //TODO
+        return Triple(directoryNum, imageNum, 0)
     }
 
     private suspend fun loadThumbnail(mediaItem: MediaItem): Bitmap? {

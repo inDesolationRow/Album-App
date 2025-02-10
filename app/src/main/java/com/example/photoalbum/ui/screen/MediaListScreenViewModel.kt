@@ -58,7 +58,9 @@ class MediaListScreenViewModel(
 
     var photosNum = mutableIntStateOf(0)
 
-    private var localDirectoryInfo = 0 to 0
+    var videoNum = mutableIntStateOf(0)
+
+    private var localDirectoryInfo = Triple(0, 0, 0)
 
     /**
      * 弹出窗的状态
@@ -236,19 +238,22 @@ class MediaListScreenViewModel(
         }
     }
 
-    fun updateDirectoryInfo(local: Boolean, directoryNum: Int? = null, imageNum: Int? = null) {
+    fun updateDirectoryInfo(local: Boolean, directoryNum: Int? = null, imageNum: Int? = null, videoNum: Int? = null) {
         if (local) {
-            if (directoryNum != null && imageNum != null) {
+            if (directoryNum != null && imageNum != null && videoNum != null) {
                 this.directoryNum.intValue = directoryNum
                 photosNum.intValue = imageNum
-                localDirectoryInfo = directoryNum to imageNum
+                this.videoNum.intValue = videoNum
+                localDirectoryInfo = Triple(directoryNum, imageNum, videoNum)
             } else {
                 this.directoryNum.intValue = localDirectoryInfo.first
                 photosNum.intValue = localDirectoryInfo.second
+                this.videoNum.intValue = localDirectoryInfo.third
             }
         } else {
             this.directoryNum.intValue = directoryNum ?: 0
             photosNum.intValue = imageNum ?: 0
+            this.videoNum.intValue = videoNum ?: 0
         }
     }
 
@@ -261,7 +266,7 @@ class MediaListScreenViewModel(
                     initialLoadSize = settings.initialLoadSizeLarge
                 )
             val result = localMediaFileService.getAllData(directoryId)
-            updateDirectoryInfo(true, result.first, result.second)
+            updateDirectoryInfo(true, result.first, result.second, result.third)
             localMediaFileFlow.value = Pager(
                 PagingConfig(
                     pageSize = settings.pageSizeLarge,
@@ -281,7 +286,7 @@ class MediaListScreenViewModel(
     private suspend fun initLocalMediaFilePaging(): Flow<PagingData<MediaItem>> {
         val result = viewModelScope.async(Dispatchers.IO) {
             val result = localMediaFileService.getAllData(-1)
-            updateDirectoryInfo(true, result.first, result.second)
+            updateDirectoryInfo(true, result.first, result.second, result.third)
             MediaItemPagingSource(
                 localMediaFileService
             )
@@ -438,7 +443,7 @@ class MediaListScreenViewModel(
                 initialLoadSize = settings.maxSizeLarge
             )
             val result = localNetMediaFileService.getAllData(test)
-            updateDirectoryInfo(false, result.first, result.second)
+            updateDirectoryInfo(false, result.first, result.second, result.third)
             localNetMediaFileFlow.value = Pager(
                 PagingConfig(
                     pageSize = settings.pageSizeLarge,

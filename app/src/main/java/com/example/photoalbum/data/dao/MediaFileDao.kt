@@ -42,7 +42,7 @@ interface MediaFileDao {
         FROM media_file_table AS m
         INNER JOIN album_media_file_cross_ref AS r 
         ON m.media_file_id = r.media_file_id
-        WHERE r.id = :albumId AND r.type = 2""")
+        WHERE r.id = :albumId AND r.type IN (2, 3)""")
     suspend fun queryByAlbumId(albumId: Long):List<MediaFile>?
 
     @Query(value = "DELETE FROM media_file_table")

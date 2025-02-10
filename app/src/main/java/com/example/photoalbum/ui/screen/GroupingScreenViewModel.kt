@@ -43,6 +43,8 @@ class GroupingScreenViewModel(
 
     var photosNum = mutableIntStateOf(0)
 
+    var videoNum = mutableIntStateOf(0)
+
     /**
      * 分组数据源
      */
@@ -93,32 +95,34 @@ class GroupingScreenViewModel(
             currentPageInfo.collect { pageInfo ->
                 if (pageInfo.first != -1L && pageInfo.second == ItemType.GROUPING.value) {
                     groupingId.value = pageInfo.first
-                    viewModelScope.launch(Dispatchers.IO) {
-                        localMediaFileService =
-                            LocalStorageThumbnailService(
-                                application,
-                                maxSize = settings.maxSizeLarge,
-                                initialLoadSize = settings.initialLoadSizeLarge
-                            )
-                        val result = localMediaFileService.getAllDataByAlbumId(pageInfo.first)
-                        val groupingName = application.mediaDatabase.albumDao.getNameById(pageInfo.first)
-                        updateTopBarInfo(groupingName, result.first, result.second)
-                        localMediaFileFlow.value = Pager(
-                            PagingConfig(
-                                pageSize = settings.pageSizeLarge,
-                                initialLoadSize = settings.initialLoadSizeLarge,
-                                prefetchDistance = settings.prefetchDistanceLarge,
-                                maxSize = settings.maxSizeLarge
-                            )
-                        ) {
-                            MediaItemPagingSource(
-                                localMediaFileService
-                            )
-                        }.flow.cachedIn(viewModelScope)
-                        System.gc()
-                    }
+                    initializeMediaService(pageInfo.first)
+                    /*                    viewModelScope.launch(Dispatchers.IO) {
+                                            localMediaFileService =
+                                                LocalStorageThumbnailService(
+                                                    application,
+                                                    maxSize = settings.maxSizeLarge,
+                                                    initialLoadSize = settings.initialLoadSizeLarge
+                                                )
+                                            val result = localMediaFileService.getAllDataByAlbumId(pageInfo.first)
+                                            val groupingName = application.mediaDatabase.albumDao.getNameById(pageInfo.first)
+                                            updateTopBarInfo(groupingName, result.first, result.second)
+                                            localMediaFileFlow.value = Pager(
+                                                PagingConfig(
+                                                    pageSize = settings.pageSizeLarge,
+                                                    initialLoadSize = settings.initialLoadSizeLarge,
+                                                    prefetchDistance = settings.prefetchDistanceLarge,
+                                                    maxSize = settings.maxSizeLarge
+                                                )
+                                            ) {
+                                                MediaItemPagingSource(
+                                                    localMediaFileService
+                                                )
+                                            }.flow.cachedIn(viewModelScope)
+                                            System.gc()
+                                        }*/
                 } else if (pageInfo.second == ItemType.DIRECTORY.value) {
-                    viewModelScope.launch(Dispatchers.IO) {
+                    initializeMediaServiceForDirectory(pageInfo.first)
+                    /*viewModelScope.launch(Dispatchers.IO) {
                         localMediaFileService =
                             LocalStorageThumbnailService(
                                 application,
@@ -143,7 +147,7 @@ class GroupingScreenViewModel(
                             )
                         }.flow.cachedIn(viewModelScope)
                         System.gc()
-                    }
+                    }*/
                 } else if (pageInfo.first == -1L) {
                     groupingId.value = -1L
                     val list = application.mediaDatabase.albumDao.queryByParentId(-1)
@@ -162,7 +166,8 @@ class GroupingScreenViewModel(
         viewModelScope.launch(Dispatchers.IO) {
             clearCache(clearList)
             if (currentPageInfo.value.first != -1L && currentPageInfo.value.second == ItemType.GROUPING.value) {
-                viewModelScope.launch(Dispatchers.IO) {
+                initializeMediaService(currentPageInfo.value.first)
+                /*viewModelScope.launch(Dispatchers.IO) {
                     localMediaFileService =
                         LocalStorageThumbnailService(
                             application,
@@ -185,9 +190,10 @@ class GroupingScreenViewModel(
                         )
                     }.flow.cachedIn(viewModelScope)
                     System.gc()
-                }
+                }*/
             } else if (currentPageInfo.value.second == ItemType.DIRECTORY.value) {
-                viewModelScope.launch(Dispatchers.IO) {
+                initializeMediaServiceForDirectory(currentPageInfo.value.first)
+                /*viewModelScope.launch(Dispatchers.IO) {
                     localMediaFileService =
                         LocalStorageThumbnailService(
                             application,
@@ -211,7 +217,7 @@ class GroupingScreenViewModel(
                         )
                     }.flow.cachedIn(viewModelScope)
                     System.gc()
-                }
+                }*/
             } else if (currentPageInfo.value.first == -1L) {
                 val list = application.mediaDatabase.albumDao.queryByParentId(-1)
                 updateTopBarInfo(directoryNum = list?.size)
@@ -219,6 +225,56 @@ class GroupingScreenViewModel(
             if (localLevelStack.isEmpty() || currentPageInfo.value.first != localLevelStack.last().first) {
                 localLevelStack.add(Triple(currentPageInfo.value.first, currentPageInfo.value.second, 0))
             }
+        }
+    }
+
+    private fun initializeMediaService(albumId: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val localMediaFileService = LocalStorageThumbnailService(
+                application,
+                maxSize = settings.maxSizeLarge,
+                initialLoadSize = settings.initialLoadSizeLarge
+            )
+            val result = localMediaFileService.getAllDataByAlbumId(albumId)
+            val groupingName = application.mediaDatabase.albumDao.getNameById(albumId)
+            updateTopBarInfo(groupingName, result.first, result.second, result.third)
+            localMediaFileFlow.value = Pager(
+                PagingConfig(
+                    pageSize = settings.pageSizeLarge,
+                    initialLoadSize = settings.initialLoadSizeLarge,
+                    prefetchDistance = settings.prefetchDistanceLarge,
+                    maxSize = settings.maxSizeLarge
+                )
+            ) {
+                MediaItemPagingSource(localMediaFileService)
+            }.flow.cachedIn(viewModelScope)
+            System.gc()
+        }
+    }
+
+    private fun initializeMediaServiceForDirectory(id: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val localMediaFileService = LocalStorageThumbnailService(
+                application,
+                maxSize = settings.maxSizeLarge,
+                initialLoadSize = settings.initialLoadSizeLarge
+            )
+            val result = localMediaFileService.getAllData(id)
+            val directoryName = application.mediaDatabase.directoryDao.getPathById(id)?.let { path ->
+                getLastPath(path)
+            }
+            updateTopBarInfo(directoryName, result.first, result.second, result.third)
+            localMediaFileFlow.value = Pager(
+                PagingConfig(
+                    pageSize = settings.pageSizeLarge,
+                    initialLoadSize = settings.initialLoadSizeLarge,
+                    prefetchDistance = settings.prefetchDistanceLarge,
+                    maxSize = settings.maxSizeLarge
+                )
+            ) {
+                MediaItemPagingSource(localMediaFileService)
+            }.flow.cachedIn(viewModelScope)
+            System.gc()
         }
     }
 
@@ -232,7 +288,12 @@ class GroupingScreenViewModel(
         currentPageInfo.value = album.id to ItemType.GROUPING.value
     }
 
-    fun updateTopBarInfo(name: String? = null, directoryNum: Int? = null, imageNum: Int? = null) {
+    fun updateTopBarInfo(
+        name: String? = null,
+        directoryNum: Int? = null,
+        imageNum: Int? = null,
+        videoNum: Int? = null,
+    ) {
         if (currentPageInfo.value.first == -1L) {
             typeName.value = "分组"
         } else {
@@ -240,6 +301,7 @@ class GroupingScreenViewModel(
         }
         this.directoryNum.intValue = directoryNum ?: 0
         this.photosNum.intValue = imageNum ?: 0
+        this.videoNum.intValue = videoNum ?: 0
         this.directoryName.value = name ?: "收藏夹"
     }
 

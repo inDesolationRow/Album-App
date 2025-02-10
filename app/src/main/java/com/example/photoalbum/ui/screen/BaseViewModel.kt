@@ -4,6 +4,7 @@ import android.app.Activity
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.core.net.toUri
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.ViewModel
@@ -21,6 +22,7 @@ import com.example.photoalbum.enums.ScanMode
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.utils.decodeSampledBitmap
+import com.example.photoalbum.utils.getMiddleFrame
 import com.example.photoalbum.utils.getPaths
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
@@ -29,6 +31,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import java.io.File
@@ -65,7 +68,6 @@ abstract class BaseViewModel(
         viewModelScope.launch(context = Dispatchers.IO) {
             var bigImage = 0
             val semaphore = Semaphore(16)
-            val jobs = mutableListOf<Job>()
             val path = (application.applicationContext.getExternalFilesDir(null) ?: application.applicationContext.filesDir)
                 .absolutePath.plus(ThumbnailsPath.LOCAL_STORAGE.path)
             val imageSize = when (scanMode.mode) {
@@ -90,6 +92,7 @@ abstract class BaseViewModel(
                             application.mediaDatabase.directoryMediaFileCrossRefDao.clearTable()
                             val scanJob = viewModelScope.launch(Dispatchers.IO) {
                                 val crossRefList: MutableList<DirectoryMediaFileCrossRef> = mutableListOf()
+                                val jobs = mutableListOf<Job>()
                                 for (item in lists) {
                                     //分析目录并插入directory表
                                     var directoryId: Long?
@@ -110,6 +113,7 @@ abstract class BaseViewModel(
                                             map[directoryPath] = id
                                         }
                                     }
+
                                     directoryId = map[paths.last()]
                                     val itemId = application.mediaDatabase.mediaFileDao.insert(item)
                                     crossRefList.add(
@@ -118,10 +122,10 @@ abstract class BaseViewModel(
                                             itemId
                                         )
                                     )
-                                    if (item.size > imageSize.size) {
-                                        bigImage += 1
+                                    if (item.mimeType.contains("image") && item.size > imageSize.size) {
                                         val createJob = viewModelScope.launch(Dispatchers.IO) {
                                             semaphore.acquire()
+                                            bigImage += 1
                                             val fileName = getThumbnailName(item.displayName, otherStr = itemId.toString())
                                             val testFile = File(path, fileName)
                                             if (!testFile.exists()) {
@@ -141,16 +145,37 @@ abstract class BaseViewModel(
                                             semaphore.release()
                                         }
                                         jobs.add(createJob)
+                                    } else if ((item.mimeType.contains("video"))) {
+                                        val createJob = viewModelScope.launch(Dispatchers.IO) {
+                                            semaphore.acquire()
+                                            val fileName = getThumbnailName(item.displayName, otherStr = itemId.toString())
+                                            val testFile = File(path, fileName)
+                                            if (!testFile.exists()) {
+                                                getMiddleFrame(
+                                                    context = application.baseContext ?: application.applicationContext,
+                                                    videoUri = item.data.toUri(),
+                                                    duration = item.duration,
+                                                    reqHeight = if (highThumbnail) 400 else 300,
+                                                    reqWidth = if (highThumbnail) 400 else 300
+                                                )?.let {
+                                                    saveBitmapToPrivateStorage(
+                                                        it,
+                                                        fileName,
+                                                        path
+                                                    )
+                                                }
+                                            }
+                                            semaphore.release()
+                                        }
+                                        jobs.add(createJob)
                                     }
                                 }
+                                jobs.joinAll()
                                 viewModelScope.launch(context = Dispatchers.IO) {
                                     application.mediaDatabase.directoryMediaFileCrossRefDao.insert(crossRefList)
                                 }
                             }
-                            jobs.add(scanJob)
-                            jobs.forEach {
-                                it.join()
-                            }
+                            scanJob.join()
 
                             val endTime = System.currentTimeMillis()
                             val duration = endTime - startTime

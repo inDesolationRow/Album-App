@@ -1,6 +1,8 @@
 package com.example.photoalbum.data
 
 import android.content.Context
+import androidx.core.net.toUri
+import androidx.lifecycle.viewModelScope
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
@@ -13,6 +15,7 @@ import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.enums.WorkTag
 import com.example.photoalbum.utils.decodeSampledBitmap
+import com.example.photoalbum.utils.getMiddleFrame
 import com.example.photoalbum.utils.getPaths
 import com.example.photoalbum.utils.getThumbnailName
 import com.example.photoalbum.utils.saveBitmapToPrivateStorage
@@ -59,7 +62,7 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
 
                     added?.let {
                         val result = myapplication.mediaStoreContainer.imageStoreRepository.updateMediaList(added)
-                        println("同步${result.size}张图片")
+                        println("同步${result.size}个文件")
                         if (result.isNotEmpty()) {
                             val crossRefList: MutableList<DirectoryMediaFileCrossRef> = mutableListOf()
                             val jobs = mutableListOf<Job>()
@@ -67,7 +70,7 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
                                 //分析目录并插入directory表
                                 val paths = getPaths(item.relativePath)
                                 var directoryId: Long? = myapplication.mediaDatabase.directoryDao.queryByPath(paths.last())?.directoryId
-                                if (directoryId == null){
+                                if (directoryId == null) {
                                     for ((index, directoryPath) in paths.withIndex()) {
                                         val inserted = myapplication.mediaDatabase.directoryDao.queryByPath(directoryPath)
                                         if (inserted == null) {
@@ -90,8 +93,7 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
                                 val itemId = myapplication.mediaDatabase.mediaFileDao.insert(item)
                                 crossRefList.add(DirectoryMediaFileCrossRef(directoryId!!, itemId))
 
-                                //文件信息插入media_file表 文件大于2m生成缩略图
-                                if (item.size > ImageSize.M_2.size) {
+                                if (item.mimeType.contains("image")) {
                                     val job = coroutine.launch(Dispatchers.IO) {
                                         semaphore.acquire()
                                         val fileName = getThumbnailName(item.displayName, itemId.toString())
@@ -104,6 +106,29 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
                                                 reqHeight = if (myapplication.settings?.highPixelThumbnail == true) 400 else 300
                                             )?.let {
                                                 saveBitmapToPrivateStorage(it, fileName, path)
+                                            }
+                                        }
+                                        semaphore.release()
+                                    }
+                                    jobs.add(job)
+                                } else if ((item.mimeType.contains("video"))) {
+                                    val job = coroutine.launch(Dispatchers.IO) {
+                                        semaphore.acquire()
+                                        val fileName = getThumbnailName(item.displayName, otherStr = itemId.toString())
+                                        val testFile = File(path, fileName)
+                                        if (!testFile.exists()) {
+                                            getMiddleFrame(
+                                                context = applicationContext,
+                                                videoUri = item.data.toUri(),
+                                                duration = item.duration,
+                                                reqWidth = if (myapplication.settings?.highPixelThumbnail == true) 400 else 300,
+                                                reqHeight = if (myapplication.settings?.highPixelThumbnail == true) 400 else 300
+                                            )?.let {
+                                                saveBitmapToPrivateStorage(
+                                                    it,
+                                                    fileName,
+                                                    path
+                                                )
                                             }
                                         }
                                         semaphore.release()
