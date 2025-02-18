@@ -34,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
@@ -60,18 +59,23 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
-import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
 import com.example.photoalbum.R
 import com.example.photoalbum.data.DataList
 import com.example.photoalbum.data.DataService
+import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.MediaListDialog
 import com.example.photoalbum.ui.action.UserAction
 import com.example.photoalbum.ui.common.DisplayImage
 import com.example.photoalbum.ui.common.MessageDialog
+import com.example.photoalbum.ui.common.VideoPlayerComposable
 import com.example.photoalbum.ui.theme.SmallPadding
 import com.example.photoalbum.ui.theme.TinyPadding
 import kotlinx.coroutines.Job
@@ -435,7 +439,7 @@ fun View(
                 }
             }
         }
-        ZoomViewImage(
+        MediaDisplay(
             isRow = viewModel.isRow,
             items = viewModel.source.items,
             notPreview = viewModel.notPreviewIcon,
@@ -464,7 +468,7 @@ fun View(
 }
 
 @Composable
-fun ZoomViewImage(
+fun MediaDisplay(
     isRow: Boolean,
     items: DataList,
     notPreview: Bitmap,
@@ -558,14 +562,14 @@ fun ZoomViewImage(
         }
 
         LaunchedEffect(Unit) {
-            source.loadImage(selectItemIndex.intValue)
+            source.loadMediaFile(selectItemIndex.intValue)
         }
 
         LaunchedEffect(state.currentPage) {
             if (state.currentPage != selectItemIndex.intValue) {
                 clearParams()
                 selectItemIndex.intValue = state.currentPage
-                source.loadImage(selectItemIndex.intValue)
+                source.loadMediaFile(selectItemIndex.intValue)
             }
         }
 
@@ -573,12 +577,11 @@ fun ZoomViewImage(
             if (selectItemIndex.intValue != state.currentPage) {
                 clearParams()
                 state.scrollToPage(selectItemIndex.intValue)
-                source.loadImage(selectItemIndex.intValue)
+                source.loadMediaFile(selectItemIndex.intValue)
             }
         }
 
         val scope = rememberCoroutineScope()
-
         Box(
             contentAlignment = Alignment.Center,
             modifier = modifier
@@ -629,6 +632,7 @@ fun ZoomViewImage(
                             if (bitmap.isRecycled) item.thumbnail
                             else bitmap
                         } ?: item.thumbnail
+                        val video = item.exoPlayer.value
 
                         imageRatio = item.imageRatio ?: thumbnail?.let { t ->
                             t.width.toFloat() / t.height.toFloat()
@@ -938,7 +942,7 @@ fun ZoomViewImage(
                                                                     else
                                                                         topEdge
                                                                 }
-                                                            } else{
+                                                            } else {
                                                                 transformOrigin.y
                                                             }
                                                         }
@@ -978,9 +982,10 @@ fun ZoomViewImage(
                                 }
                         ) {
                             val thumbnailAlpha by animateFloatAsState(
-                                targetValue = if (image == null) 1f else 0f,
+                                targetValue = if (image == null || video == null) 1f else 0f,
                                 animationSpec = tween(durationMillis = 10), label = "" // 淡出动画
                             )
+                            println("image:$image video:$video $${image == null || video == null}")
                             DisplayImage(
                                 bitmap = thumbnail ?: notPreview,
                                 context = context,
@@ -991,20 +996,26 @@ fun ZoomViewImage(
                                         alpha = thumbnailAlpha
                                     )
                             )
-                            DisplayImage(
-                                bitmap = image ?: notPreview,
-                                context = context,
-                                contentScale = if (heightAdapter) ContentScale.FillHeight else ContentScale.FillWidth,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .wrapContentHeight()
-                                    .graphicsLayer(
-                                        alpha = if (image == null) 0f else 1f,
-                                        scaleX = aniScale.value,
-                                        scaleY = aniScale.value,
-                                        transformOrigin = TransformOrigin(transformOrigin.x, transformOrigin.y)
-                                    )
-                            )
+                            if (item.type == ItemType.IMAGE)
+                                DisplayImage(
+                                    bitmap = image ?: notPreview,
+                                    context = context,
+                                    contentScale = if (heightAdapter) ContentScale.FillHeight else ContentScale.FillWidth,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .wrapContentHeight()
+                                        .graphicsLayer(
+                                            alpha = if (image == null) 0f else 1f,
+                                            scaleX = aniScale.value,
+                                            scaleY = aniScale.value,
+                                            transformOrigin = TransformOrigin(transformOrigin.x, transformOrigin.y)
+                                        )
+                                )
+                            else if (item.type == ItemType.VIDEO)
+                                video.let {
+                                    if (it != null)
+                                        VideoPlayerComposable(exoPlayer = it)
+                                }
                         }
                     }
                 }

@@ -236,6 +236,7 @@ class GroupingScreenViewModel(
                 initialLoadSize = settings.initialLoadSizeLarge
             )
             val result = localMediaFileService.getAllDataByAlbumId(albumId)
+            println("测试相册id${albumId}")
             val groupingName = application.mediaDatabase.albumDao.getNameById(albumId)
             updateTopBarInfo(groupingName, result.first, result.second, result.third)
             localMediaFileFlow.value = Pager(

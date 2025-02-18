@@ -232,8 +232,8 @@ fun AlbumGrouping(
                                     val list: MutableList<AlbumMediaFileCrossRef> = mutableListOf()
                                     val groupingId = items[n].id
                                     application.mediaDatabase.runInTransaction {
-                                        if (albumId != groupingId) {
-                                            scope.launch(Dispatchers.IO) {
+                                        scope.launch(Dispatchers.IO) {
+                                            if (albumId != groupingId) {
                                                 groupingList.forEach { fileId ->
                                                     val info = fileId.split("_")
                                                     list.add(
@@ -251,10 +251,10 @@ fun AlbumGrouping(
                                                     application.mediaDatabase.albumMediaFileCrossRefDao.deleteByAlbumIdAndMediaFileIds(id, deleteIds)
                                                 }
                                             }
+                                            showPopup.value = false
+                                            onAddGroupingSuccess()
                                         }
                                     }
-                                    showPopup.value = false
-                                    onAddGroupingSuccess()
                                 }
                             }
                         }

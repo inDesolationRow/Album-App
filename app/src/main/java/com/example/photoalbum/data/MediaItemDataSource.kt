@@ -2,6 +2,9 @@ package com.example.photoalbum.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.compose.ui.platform.LocalContext
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.enums.Direction
 import com.example.photoalbum.enums.ImageSize
@@ -22,7 +25,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.yield
 import java.io.File
+import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.max
 import kotlin.math.min
 
@@ -47,7 +52,7 @@ interface DataService<T> {
         orientation: Float,
     ): Bitmap?
 
-    suspend fun loadImage(position: Int)
+    suspend fun loadMediaFile(position: Int)
 
     fun clearCache()
 }
@@ -75,6 +80,8 @@ class LocalDataSource(
                     item.thumbnail = null
                     item.thumbnailState.value?.recycle()
                     item.thumbnailState.value = null
+                    item.exoPlayer.value?.stop()
+                    item.exoPlayer.value?.release()
                 }
             }) { top, bottom ->
             val items = allData.subList(top, bottom + 1)
@@ -82,7 +89,7 @@ class LocalDataSource(
             val jobs: MutableList<Job> = mutableListOf()
             coroutineScope.launch {
                 for (item in items) {
-                    if (item.type == ItemType.IMAGE) {
+                    if (item.type == ItemType.IMAGE || item.type == ItemType.VIDEO) {
                         if (item.thumbnail == null && item.thumbnailState.let {
                                 if (it.value == null) return@let true
                                 else return@let it.value!!.isRecycled
@@ -306,23 +313,66 @@ class LocalDataSource(
         }.await()
     }
 
-    override suspend fun loadImage(position: Int) {
+    override suspend fun loadMediaFile(position: Int) {
         loadImageJob?.cancel()
+        val item = allData[position]
         val coroutineScope = CoroutineScope(Dispatchers.IO)
-        loadImageJob = coroutineScope.launch {
-            //给加载图片一个延迟，以减轻内存负担，且可以减少因状态重组导致的画面闪烁
-            delay(200)
-            previousLoadItem?.dataBitmap?.value?.recycle()
-            previousLoadItem?.dataBitmap?.value = null
-            val item = allData[position]
-            decodeBitmap(filePath = item.data!!, orientation = item.orientation.toFloat())?.let {
-                item.dataBitmap.value = it
-                previousLoadItem = item
+        if (item.data != null && item.type == ItemType.IMAGE) {
+            loadImageJob = coroutineScope.launch {
+                previousLoadItem?.dataBitmap?.value?.recycle()
+                previousLoadItem?.dataBitmap?.value = null
+                launch(Dispatchers.Main) {
+                    previousLoadItem?.exoPlayer?.value?.stop()
+                    previousLoadItem?.exoPlayer?.value?.release()
+                }
+                //给加载图片一个延迟，以减轻内存负担，且可以减少因状态重组导致的画面闪烁
+                delay(200)
+                try {
+                    decodeBitmap(filePath = item.data, orientation = item.orientation.toFloat())?.let {
+                        item.dataBitmap.value = it
+                        previousLoadItem = item
+                    }
+                } catch (e: CancellationException) {
+                    previousLoadItem?.dataBitmap?.value?.recycle()
+                    previousLoadItem?.dataBitmap?.value = null
+                    launch(Dispatchers.Main) {
+                        previousLoadItem?.exoPlayer?.value?.stop()
+                        previousLoadItem?.exoPlayer?.value?.release()
+                    }
+                    throw e
+                }
+            }
+        } else if (item.data != null && item.type == ItemType.VIDEO) {
+            loadImageJob = coroutineScope.launch(Dispatchers.Main) {
+                previousLoadItem?.dataBitmap?.value?.recycle()
+                previousLoadItem?.dataBitmap?.value = null
+                previousLoadItem?.exoPlayer?.value?.stop()
+                previousLoadItem?.exoPlayer?.value?.release()
+                delay(200)
+                println("上一个item exo:${previousLoadItem?.exoPlayer?.value?.isPlaying} data:${previousLoadItem?.data}")
+                try {
+                    item.exoPlayer.value = ExoPlayer.Builder(application.baseContext).build()
+                        .apply {
+                            setMediaItem(androidx.media3.common.MediaItem.fromUri(item.data))
+                            prepare()
+                            playWhenReady = true
+                            repeatMode = Player.REPEAT_MODE_ONE
+                            previousLoadItem = item
+                        }
+                } catch (e: CancellationException) {
+                    previousLoadItem?.dataBitmap?.value?.recycle()
+                    previousLoadItem?.dataBitmap?.value = null
+                    previousLoadItem?.exoPlayer?.value?.stop()
+                    previousLoadItem?.exoPlayer?.value?.release()
+                    throw e
+                }
             }
         }
     }
 
     override fun clearCache() {
+        previousLoadItem?.exoPlayer?.value?.stop()
+        previousLoadItem?.exoPlayer?.value?.release()
         allData.forEach {
             it.dataBitmap.value?.recycle()
             it.thumbnailState.value?.recycle()
@@ -459,7 +509,7 @@ class LocalNetDataSource(
         }.await()
     }
 
-    override suspend fun loadImage(position: Int) {
+    override suspend fun loadMediaFile(position: Int) {
         loadImageJob?.cancel()
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         loadImageJob = coroutineScope.launch {
