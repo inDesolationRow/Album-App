@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.unit.IntSize
+import androidx.media3.exoplayer.ExoPlayer
 import com.example.photoalbum.enums.ItemType
 
 data class MediaItem(
@@ -21,7 +22,7 @@ data class MediaItem(
 
     var thumbnail: Bitmap? = null,
 
-    var thumbnailState: MutableState<Bitmap?> = mutableStateOf(null),
+    val thumbnailState: MutableState<Bitmap?> = mutableStateOf(null),
 
     val type: ItemType,
 
@@ -38,4 +39,6 @@ data class MediaItem(
     var resolution: String = "",
 
     var duration: Long = 0,
+
+    val exoPlayer: MutableState<ExoPlayer?> = mutableStateOf(null),
 )
