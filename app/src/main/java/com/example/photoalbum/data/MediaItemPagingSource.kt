@@ -367,7 +367,7 @@ class LocalNetStorageThumbnailService(
     override val thumbnailsPath = (application.applicationContext.getExternalFilesDir(null)
         ?: application.applicationContext.filesDir).absolutePath.plus(ThumbnailsPath.LOCAL_NET_STORAGE.path)
 
-    private val loadSemaphore = Semaphore(10)
+    private val loadSemaphore = Semaphore(2)
 
     override fun sharedAllData(allData: MutableList<MediaItem>?): MutableList<MediaItem> {
         allData?.let {

@@ -2,8 +2,11 @@ package com.example.photoalbum.data
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import androidx.compose.ui.platform.LocalContext
+import androidx.annotation.OptIn
+import androidx.compose.runtime.MutableState
 import androidx.media3.common.Player
+import androidx.media3.common.Player.Listener
+import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.enums.Direction
@@ -25,7 +28,6 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.yield
 import java.io.File
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.math.max
@@ -40,6 +42,8 @@ interface DataService<T> {
     val items: DataList
 
     var loadImageJob: Job?
+
+    val exoPlayer: ExoPlayer
 
     suspend fun getAllData(param: T, onlyMediaFile: Boolean, selectItemId: Long): Int
 
@@ -80,8 +84,6 @@ class LocalDataSource(
                     item.thumbnail = null
                     item.thumbnailState.value?.recycle()
                     item.thumbnailState.value = null
-                    item.exoPlayer.value?.stop()
-                    item.exoPlayer.value?.release()
                 }
             }) { top, bottom ->
             val items = allData.subList(top, bottom + 1)
@@ -115,6 +117,15 @@ class LocalDataSource(
             }
         }
     override var loadImageJob: Job? = null
+
+    override val exoPlayer: ExoPlayer by lazy {
+        ExoPlayer.Builder(application.baseContext).build().apply {
+            playWhenReady = false
+            repeatMode = Player.REPEAT_MODE_ONE
+        }
+    }
+
+    var playerListener: PlayerListener? = null
 
     private var previousLoadItem: MediaItem? = null
 
@@ -321,9 +332,9 @@ class LocalDataSource(
             loadImageJob = coroutineScope.launch {
                 previousLoadItem?.dataBitmap?.value?.recycle()
                 previousLoadItem?.dataBitmap?.value = null
+                previousLoadItem?.videoWhenReady?.value = false
                 launch(Dispatchers.Main) {
-                    previousLoadItem?.exoPlayer?.value?.stop()
-                    previousLoadItem?.exoPlayer?.value?.release()
+                    exoPlayer.stop()
                 }
                 //给加载图片一个延迟，以减轻内存负担，且可以减少因状态重组导致的画面闪烁
                 delay(200)
@@ -336,8 +347,7 @@ class LocalDataSource(
                     previousLoadItem?.dataBitmap?.value?.recycle()
                     previousLoadItem?.dataBitmap?.value = null
                     launch(Dispatchers.Main) {
-                        previousLoadItem?.exoPlayer?.value?.stop()
-                        previousLoadItem?.exoPlayer?.value?.release()
+                        exoPlayer.stop()
                     }
                     throw e
                 }
@@ -346,24 +356,24 @@ class LocalDataSource(
             loadImageJob = coroutineScope.launch(Dispatchers.Main) {
                 previousLoadItem?.dataBitmap?.value?.recycle()
                 previousLoadItem?.dataBitmap?.value = null
-                previousLoadItem?.exoPlayer?.value?.stop()
-                previousLoadItem?.exoPlayer?.value?.release()
+                previousLoadItem?.videoWhenReady?.value = false
+                exoPlayer.stop()
                 delay(200)
-                println("上一个item exo:${previousLoadItem?.exoPlayer?.value?.isPlaying} data:${previousLoadItem?.data}")
                 try {
-                    item.exoPlayer.value = ExoPlayer.Builder(application.baseContext).build()
-                        .apply {
-                            setMediaItem(androidx.media3.common.MediaItem.fromUri(item.data))
-                            prepare()
-                            playWhenReady = true
-                            repeatMode = Player.REPEAT_MODE_ONE
-                            previousLoadItem = item
-                        }
+                    playerListener?.let { listener ->
+                        exoPlayer.removeListener(listener)
+                    }
+                    playerListener = PlayerListener(item.videoWhenReady)
+                    exoPlayer.addListener(playerListener!!).apply {
+                        exoPlayer.setMediaItem(androidx.media3.common.MediaItem.fromUri(item.data))
+                        exoPlayer.prepare()
+                        println("准备完成")
+                        previousLoadItem = item
+                    }
                 } catch (e: CancellationException) {
                     previousLoadItem?.dataBitmap?.value?.recycle()
                     previousLoadItem?.dataBitmap?.value = null
-                    previousLoadItem?.exoPlayer?.value?.stop()
-                    previousLoadItem?.exoPlayer?.value?.release()
+                    exoPlayer.stop()
                     throw e
                 }
             }
@@ -371,8 +381,8 @@ class LocalDataSource(
     }
 
     override fun clearCache() {
-        previousLoadItem?.exoPlayer?.value?.stop()
-        previousLoadItem?.exoPlayer?.value?.release()
+        exoPlayer.stop()
+        exoPlayer.release()
         allData.forEach {
             it.dataBitmap.value?.recycle()
             it.thumbnailState.value?.recycle()
@@ -440,6 +450,13 @@ class LocalNetDataSource(
     }
 
     override var loadImageJob: Job? = null
+
+    override val exoPlayer: ExoPlayer by lazy {
+        ExoPlayer.Builder(application.baseContext).build().apply {
+            playWhenReady = false
+            repeatMode = Player.REPEAT_MODE_ONE
+        }
+    }
 
     private var previousLoadItem: MediaItem? = null
 
@@ -609,4 +626,14 @@ class DataList(
         return list.size
     }
 
+}
+
+class PlayerListener(private val mutableState: MutableState<Boolean>) : Listener {
+    @OptIn(UnstableApi::class)
+    override fun onPlaybackStateChanged(playbackState: Int) {
+        super.onPlaybackStateChanged(playbackState)
+        if (playbackState == Player.STATE_READY) {
+            mutableState.value = true
+        }
+    }
 }

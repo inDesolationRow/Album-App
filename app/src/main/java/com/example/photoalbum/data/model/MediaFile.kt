@@ -1,11 +1,7 @@
 package com.example.photoalbum.data.model
 
-import android.graphics.Bitmap
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.mutableStateOf
 import androidx.room.ColumnInfo
 import androidx.room.Entity
-import androidx.room.Ignore
 import androidx.room.PrimaryKey
 
 @Entity(tableName = "media_file_table")
@@ -56,7 +52,4 @@ data class MediaFile(
     var duration: Long = 0,
 
     var resolution: String = "",
-) {
-    @Ignore
-    val thumbnailBitmap: MutableState<Bitmap?> = mutableStateOf(null)
-}
+)
