@@ -40,5 +40,5 @@ data class MediaItem(
 
     var duration: Long = 0,
 
-    val exoPlayer: MutableState<ExoPlayer?> = mutableStateOf(null),
+    val videoWhenReady: MutableState<Boolean> = mutableStateOf(false),
 )
