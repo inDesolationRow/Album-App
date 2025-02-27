@@ -121,11 +121,11 @@ class LocalDataSource(
     override val exoPlayer: ExoPlayer by lazy {
         ExoPlayer.Builder(application.baseContext).build().apply {
             playWhenReady = false
-            repeatMode = Player.REPEAT_MODE_ONE
+            repeatMode = Player.REPEAT_MODE_OFF
         }
     }
 
-    var playerListener: PlayerListener? = null
+    private var playerListener: PlayerListener? = null
 
     private var previousLoadItem: MediaItem? = null
 
@@ -367,7 +367,6 @@ class LocalDataSource(
                     exoPlayer.addListener(playerListener!!).apply {
                         exoPlayer.setMediaItem(androidx.media3.common.MediaItem.fromUri(item.data))
                         exoPlayer.prepare()
-                        println("准备完成")
                         previousLoadItem = item
                     }
                 } catch (e: CancellationException) {
@@ -454,7 +453,7 @@ class LocalNetDataSource(
     override val exoPlayer: ExoPlayer by lazy {
         ExoPlayer.Builder(application.baseContext).build().apply {
             playWhenReady = false
-            repeatMode = Player.REPEAT_MODE_ONE
+            repeatMode = Player.REPEAT_MODE_OFF
         }
     }
 
