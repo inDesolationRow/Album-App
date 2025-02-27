@@ -460,7 +460,7 @@ class LocalNetDataSource(
 
     private var previousLoadItem: MediaItem? = null
 
-    private val loadSemaphore = Semaphore(10)
+    private val loadSemaphore = Semaphore(2)
 
     override suspend fun getAllData(
         param: String,
@@ -500,15 +500,13 @@ class LocalNetDataSource(
         return coroutineScope.async(context = Dispatchers.IO) {
             var image: Bitmap? = null
             try {
-                loadSemaphore.acquire()
                 val thumbnailName =
                     getThumbnailName(name = fileName, otherStr = mediaFileId.toString())
                 val testFile = File(thumbnailsPath, thumbnailName)
-
                 if (testFile.exists()) {
-                    loadSemaphore.release()
                     return@async null
                 }
+                loadSemaphore.acquire()
                 smbClient.getImageThumbnail(name = fileName, mediaFileId)?.let {
                     image = it
                     saveBitmapToPrivateStorage(
