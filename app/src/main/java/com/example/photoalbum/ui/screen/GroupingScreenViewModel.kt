@@ -96,58 +96,8 @@ class GroupingScreenViewModel(
                 if (pageInfo.first != -1L && pageInfo.second == ItemType.GROUPING.value) {
                     groupingId.value = pageInfo.first
                     initializeMediaService(pageInfo.first)
-                    /*                    viewModelScope.launch(Dispatchers.IO) {
-                                            localMediaFileService =
-                                                LocalStorageThumbnailService(
-                                                    application,
-                                                    maxSize = settings.maxSizeLarge,
-                                                    initialLoadSize = settings.initialLoadSizeLarge
-                                                )
-                                            val result = localMediaFileService.getAllDataByAlbumId(pageInfo.first)
-                                            val groupingName = application.mediaDatabase.albumDao.getNameById(pageInfo.first)
-                                            updateTopBarInfo(groupingName, result.first, result.second)
-                                            localMediaFileFlow.value = Pager(
-                                                PagingConfig(
-                                                    pageSize = settings.pageSizeLarge,
-                                                    initialLoadSize = settings.initialLoadSizeLarge,
-                                                    prefetchDistance = settings.prefetchDistanceLarge,
-                                                    maxSize = settings.maxSizeLarge
-                                                )
-                                            ) {
-                                                MediaItemPagingSource(
-                                                    localMediaFileService
-                                                )
-                                            }.flow.cachedIn(viewModelScope)
-                                            System.gc()
-                                        }*/
                 } else if (pageInfo.second == ItemType.DIRECTORY.value) {
                     initializeMediaServiceForDirectory(pageInfo.first)
-                    /*viewModelScope.launch(Dispatchers.IO) {
-                        localMediaFileService =
-                            LocalStorageThumbnailService(
-                                application,
-                                maxSize = settings.maxSizeLarge,
-                                initialLoadSize = settings.initialLoadSizeLarge
-                            )
-                        val result = localMediaFileService.getAllData(pageInfo.first)
-                        val directoryName = application.mediaDatabase.directoryDao.getPathById(pageInfo.first)?.let { path ->
-                            getLastPath(path)
-                        }
-                        updateTopBarInfo(directoryName, result.first, result.second)
-                        localMediaFileFlow.value = Pager(
-                            PagingConfig(
-                                pageSize = settings.pageSizeLarge,
-                                initialLoadSize = settings.initialLoadSizeLarge,
-                                prefetchDistance = settings.prefetchDistanceLarge,
-                                maxSize = settings.maxSizeLarge
-                            )
-                        ) {
-                            MediaItemPagingSource(
-                                localMediaFileService
-                            )
-                        }.flow.cachedIn(viewModelScope)
-                        System.gc()
-                    }*/
                 } else if (pageInfo.first == -1L) {
                     groupingId.value = -1L
                     val list = application.mediaDatabase.albumDao.queryByParentId(-1)
@@ -167,57 +117,8 @@ class GroupingScreenViewModel(
             clearCache(clearList)
             if (currentPageInfo.value.first != -1L && currentPageInfo.value.second == ItemType.GROUPING.value) {
                 initializeMediaService(currentPageInfo.value.first)
-                /*viewModelScope.launch(Dispatchers.IO) {
-                    localMediaFileService =
-                        LocalStorageThumbnailService(
-                            application,
-                            maxSize = settings.maxSizeLarge,
-                            initialLoadSize = settings.initialLoadSizeLarge
-                        )
-                    val result = localMediaFileService.getAllDataByAlbumId(currentPageInfo.value.first)
-                    val groupingName = application.mediaDatabase.albumDao.getNameById(currentPageInfo.value.first)
-                    updateTopBarInfo(groupingName, result.first, result.second)
-                    localMediaFileFlow.value = Pager(
-                        PagingConfig(
-                            pageSize = settings.pageSizeLarge,
-                            initialLoadSize = settings.initialLoadSizeLarge,
-                            prefetchDistance = settings.prefetchDistanceLarge,
-                            maxSize = settings.maxSizeLarge
-                        )
-                    ) {
-                        MediaItemPagingSource(
-                            localMediaFileService
-                        )
-                    }.flow.cachedIn(viewModelScope)
-                    System.gc()
-                }*/
             } else if (currentPageInfo.value.second == ItemType.DIRECTORY.value) {
                 initializeMediaServiceForDirectory(currentPageInfo.value.first)
-                /*viewModelScope.launch(Dispatchers.IO) {
-                    localMediaFileService =
-                        LocalStorageThumbnailService(
-                            application,
-                            maxSize = settings.maxSizeLarge,
-                            initialLoadSize = settings.initialLoadSizeLarge
-                        )
-                    val result = localMediaFileService.getAllData(currentPageInfo.value.first)
-                    val directoryName =
-                        application.mediaDatabase.directoryDao.getPathById(currentPageInfo.value.first)?.let { path -> getLastPath(path) }
-                    updateTopBarInfo(directoryName, result.first, result.second)
-                    localMediaFileFlow.value = Pager(
-                        PagingConfig(
-                            pageSize = settings.pageSizeLarge,
-                            initialLoadSize = settings.initialLoadSizeLarge,
-                            prefetchDistance = settings.prefetchDistanceLarge,
-                            maxSize = settings.maxSizeLarge
-                        )
-                    ) {
-                        MediaItemPagingSource(
-                            localMediaFileService
-                        )
-                    }.flow.cachedIn(viewModelScope)
-                    System.gc()
-                }*/
             } else if (currentPageInfo.value.first == -1L) {
                 val list = application.mediaDatabase.albumDao.queryByParentId(-1)
                 updateTopBarInfo(directoryNum = list?.size)
@@ -230,13 +131,12 @@ class GroupingScreenViewModel(
 
     private fun initializeMediaService(albumId: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            val localMediaFileService = LocalStorageThumbnailService(
+            localMediaFileService = LocalStorageThumbnailService(
                 application,
                 maxSize = settings.maxSizeLarge,
                 initialLoadSize = settings.initialLoadSizeLarge
             )
             val result = localMediaFileService.getAllDataByAlbumId(albumId)
-            println("测试相册id${albumId}")
             val groupingName = application.mediaDatabase.albumDao.getNameById(albumId)
             updateTopBarInfo(groupingName, result.first, result.second, result.third)
             localMediaFileFlow.value = Pager(
@@ -255,7 +155,7 @@ class GroupingScreenViewModel(
 
     private fun initializeMediaServiceForDirectory(id: Long) {
         viewModelScope.launch(Dispatchers.IO) {
-            val localMediaFileService = LocalStorageThumbnailService(
+            localMediaFileService = LocalStorageThumbnailService(
                 application,
                 maxSize = settings.maxSizeLarge,
                 initialLoadSize = settings.initialLoadSizeLarge

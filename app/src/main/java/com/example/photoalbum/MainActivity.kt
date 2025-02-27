@@ -4,6 +4,8 @@ import android.app.Activity
 import android.graphics.Point
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.DisplayMetrics
 import android.util.Size
 import android.view.View

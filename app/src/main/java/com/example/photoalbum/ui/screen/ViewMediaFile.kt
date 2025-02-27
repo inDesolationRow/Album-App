@@ -1028,8 +1028,12 @@ fun MediaDisplay(
                                     modifier = Modifier.height(with(LocalDensity.current) {
                                         val width = item.resolution.split("×").first().toFloat().toDp()
                                         val height = item.resolution.split("×").last().toFloat().toDp()
-                                        val scale = screenWidth / width
-                                        scale * height
+                                        item.orientation.let {
+                                            if (it == 90 || it == 270)
+                                                width * (screenWidth / height)
+                                            else
+                                                height * (screenWidth / width)
+                                        }
                                     })
                                 )
                                 LaunchedEffect(Unit) {

@@ -459,7 +459,6 @@ class LocalNetStorageThumbnailService(
     ): Bitmap? {
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         return coroutineScope.async(context = Dispatchers.IO) {
-            loadSemaphore.acquire()
             var image: Bitmap? = null
             try {
                 val thumbnailName =
@@ -467,9 +466,9 @@ class LocalNetStorageThumbnailService(
                 val testFile = File(thumbnailsPath, thumbnailName)
 
                 if (testFile.exists()) {
-                    loadSemaphore.release()
                     return@async null
                 }
+                loadSemaphore.acquire()
                 smbClient.getImageThumbnail(name = fileName, mediaFileId)?.let {
                     image = it
                     saveBitmapToPrivateStorage(

@@ -3,6 +3,7 @@ package com.example.photoalbum.ui.screen
 import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
+import android.os.Trace
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -1082,7 +1083,6 @@ fun result(
     }
 }
 
-//限制滚动
 @Composable
 fun rememberFlingNestedScrollConnection() = remember {
     object : NestedScrollConnection {
