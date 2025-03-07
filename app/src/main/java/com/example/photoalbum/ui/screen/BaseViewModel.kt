@@ -133,7 +133,9 @@ abstract class BaseViewModel(
                                                     filePath = item.data,
                                                     orientation = item.orientation.toFloat(),
                                                     reqHeight = if (highThumbnail) 400 else 300,
-                                                    reqWidth = if (highThumbnail) 400 else 300
+                                                    reqWidth = if (highThumbnail) 400 else 300,
+                                                    width = item.width,
+                                                    height = item.height
                                                 )?.let {
                                                     saveBitmapToPrivateStorage(
                                                         it,
