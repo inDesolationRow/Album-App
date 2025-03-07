@@ -2,7 +2,6 @@ package com.example.photoalbum.data
 
 import android.content.Context
 import androidx.core.net.toUri
-import androidx.lifecycle.viewModelScope
 import androidx.work.OneTimeWorkRequest
 import androidx.work.OutOfQuotaPolicy
 import androidx.work.WorkManager
@@ -11,7 +10,6 @@ import androidx.work.WorkerParameters
 import com.example.photoalbum.MediaApplication
 import com.example.photoalbum.data.model.Directory
 import com.example.photoalbum.data.model.DirectoryMediaFileCrossRef
-import com.example.photoalbum.enums.ImageSize
 import com.example.photoalbum.enums.ThumbnailsPath
 import com.example.photoalbum.enums.WorkTag
 import com.example.photoalbum.utils.decodeSampledBitmap
@@ -103,7 +101,9 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
                                                 filePath = item.data,
                                                 orientation = item.orientation.toFloat(),
                                                 reqWidth = if (myapplication.settings?.highPixelThumbnail == true) 400 else 300,
-                                                reqHeight = if (myapplication.settings?.highPixelThumbnail == true) 400 else 300
+                                                reqHeight = if (myapplication.settings?.highPixelThumbnail == true) 400 else 300,
+                                                width = item.width,
+                                                height = item.height
                                             )?.let {
                                                 saveBitmapToPrivateStorage(it, fileName, path)
                                             }

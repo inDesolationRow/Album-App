@@ -41,4 +41,8 @@ data class MediaItem(
     var duration: Long = 0,
 
     val videoWhenReady: MutableState<Boolean> = mutableStateOf(false),
+
+    val width: Int = 0,
+
+    val height: Int = 0,
 )

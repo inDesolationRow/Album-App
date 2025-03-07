@@ -1,5 +1,3 @@
-@file:Suppress("DEPRECATION")
-
 package com.example.photoalbum.utils
 
 import android.content.Context
@@ -8,10 +6,6 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import android.renderscript.Allocation
-import android.renderscript.Element
-import android.renderscript.RenderScript
-import android.renderscript.ScriptIntrinsicBlur
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -27,7 +21,8 @@ fun getMiddleFrame(
     return try {
         retriever.setDataSource(context, videoUri)
 
-        val timeUs = (duration / 2) * 1000L
+        //val timeUs = (duration / 2) * 1000L
+        val timeUs = if (duration >= 1000) 1000L * 1000L else 1000L
         // 获取中间帧。OPTION_CLOSEST_SYNC 可保证获取距离指定时间最近的关键帧
         retriever.getScaledFrameAtTime(timeUs, MediaMetadataRetriever.OPTION_PREVIOUS_SYNC, reqWidth, reqHeight)
     } catch (e: Exception) {
@@ -38,6 +33,7 @@ fun getMiddleFrame(
     }
 }
 
+/*
 fun getImageRatio(
     filePath: String,
     orientation: Int = 0,
@@ -54,6 +50,7 @@ fun getImageRatio(
             options.outWidth.toFloat() / options.outHeight.toFloat()
     return ratio
 }
+*/
 
 fun decodeBitmap(
     filePath: String,
@@ -73,6 +70,44 @@ fun decodeBitmap(
             maxMemorySize = maxMemorySize
         )
         options.inJustDecodeBounds = false
+        val bitmap = rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation = orientation)
+        return bitmap
+    } catch (e: Exception) {
+        e.printStackTrace()
+        println("错误:解析失败文件地址 $filePath")
+        return null
+    }
+}
+
+fun decodeBitmap(
+    filePath: String,
+    width: Int,
+    height: Int,
+    orientation: Float,
+    targetWidth: Int = 4320,
+    maxMemorySize: Int = 50 * 1024 * 1024,
+): Bitmap? {
+    try {
+        val options = BitmapFactory.Options().apply {
+            inJustDecodeBounds = true // 只加载图片的元信息，不加载实际内容
+        }
+        val imageWidth: Int
+        val imageHeight: Int
+        if (width > 0 && height > 0) {
+            imageWidth = width
+            imageHeight = height
+        } else {
+            BitmapFactory.decodeFile(filePath, options)
+            imageWidth = options.outWidth
+            imageHeight = options.outHeight
+        }
+        options.inJustDecodeBounds = false
+        options.inSampleSize = calculateOptimalSampleSize(
+            width = imageWidth,
+            height = imageHeight,
+            targetWidth = targetWidth,
+            maxMemorySize = maxMemorySize
+        )
         val bitmap = rotateBitmap(BitmapFactory.decodeFile(filePath, options), orientation = orientation)
         return bitmap
     } catch (e: Exception) {
@@ -108,6 +143,8 @@ fun decodeBitmap(
 fun decodeSampledBitmap(
     filePath: String,
     orientation: Float,
+    width: Int,
+    height: Int,
     reqWidth: Int = 300,
     reqHeight: Int = 300,
 ): Bitmap? {
@@ -116,10 +153,19 @@ fun decodeSampledBitmap(
         val options = BitmapFactory.Options().apply {
             inJustDecodeBounds = true
         }
-        BitmapFactory.decodeFile(filePath, options)
-
+        val imageWidth: Int
+        val imageHeight: Int
+        if (width > 0 && height > 0) {
+            imageWidth = width
+            imageHeight = height
+        } else {
+            BitmapFactory.decodeFile(filePath, options)
+            imageWidth = options.outWidth
+            imageHeight = options.outHeight
+        }
+        options.inJustDecodeBounds = false
         // 计算 inSampleSize 值
-        options.inSampleSize = calculateInSampleSize(options, reqWidth, reqHeight)
+        options.inSampleSize = calculateInSampleSize(width = imageWidth, height = imageHeight, reqWidth, reqHeight)
 
         // 关闭 inJustDecodeBounds 并加载图像
         options.inJustDecodeBounds = false
@@ -157,6 +203,7 @@ fun decodeSampledBitmap(
     }
 }
 
+
 fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
     val (height: Int, width: Int) = options.outHeight to options.outWidth
     var inSampleSize = 1
@@ -170,6 +217,24 @@ fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeig
     return inSampleSize
 }
 
+fun calculateInSampleSize(
+    width: Int,
+    height: Int,
+    reqWidth: Int,
+    reqHeight: Int,
+): Int {
+    val (imageHeight: Int, imageWidth: Int) = height to width
+    var inSampleSize = 1
+
+    if (imageHeight > reqHeight || imageWidth > reqWidth) {
+        val halfHeight: Int = imageHeight / reqWidth
+        val halfWidth: Int = imageWidth / reqHeight
+
+        inSampleSize = if (halfWidth >= halfHeight) halfHeight else halfWidth
+    }
+    return inSampleSize
+}
+
 fun calculateOptimalSampleSize(
     options: BitmapFactory.Options,
     targetWidth: Int,
@@ -177,6 +242,39 @@ fun calculateOptimalSampleSize(
 ): Int {
     val originalWidth: Int = options.outWidth
     val originalHeight: Int = options.outHeight
+    val bytesPerPixel = 4 // ARGB_8888 格式，每像素 4 字节
+    var inSampleSize = 1
+
+    // 宽度适配
+    if (originalWidth > targetWidth) {
+        inSampleSize = originalWidth / targetWidth
+    }
+
+    // 内存限制调整
+    while (true) {
+        val scaledWidth = originalWidth / inSampleSize
+        val scaledHeight = originalHeight / inSampleSize
+        val estimatedMemory = scaledWidth * scaledHeight * bytesPerPixel
+
+        if (estimatedMemory <= maxMemorySize) {
+            break
+        }
+
+        // 优化缩放策略，逐步增加缩放比
+        inSampleSize++
+    }
+
+    return inSampleSize
+}
+
+fun calculateOptimalSampleSize(
+    width: Int,
+    height: Int,
+    targetWidth: Int,
+    maxMemorySize: Int,
+): Int {
+    val originalWidth: Int = width
+    val originalHeight: Int = height
     val bytesPerPixel = 4 // ARGB_8888 格式，每像素 4 字节
     var inSampleSize = 1
 
@@ -234,6 +332,7 @@ fun rotateBitmap(bitmap: Bitmap, orientation: Float): Bitmap {
     return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
 }
 
+/*
 fun blurBitmap(context: Context, bitmap: Bitmap, radius: Float): Bitmap {
     val start = System.currentTimeMillis()
     val renderScript = RenderScript.create(context)
@@ -250,4 +349,5 @@ fun blurBitmap(context: Context, bitmap: Bitmap, radius: Float): Bitmap {
     val end = System.currentTimeMillis()
     return bitmap
 }
+*/
 

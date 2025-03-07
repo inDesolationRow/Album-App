@@ -52,4 +52,8 @@ data class MediaFile(
     var duration: Long = 0,
 
     var resolution: String = "",
+
+    var width: Int = 0,
+
+    var height: Int = 0,
 )

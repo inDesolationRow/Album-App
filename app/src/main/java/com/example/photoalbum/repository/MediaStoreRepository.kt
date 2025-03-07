@@ -29,7 +29,9 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
             MediaStore.Images.Media.MIME_TYPE,
             MediaStore.Images.Media.IS_DOWNLOAD,
             MediaStore.Images.Media.SIZE,
-            MediaStore.Images.Media.ORIENTATION
+            MediaStore.Images.Media.ORIENTATION,
+            MediaStore.Images.Media.WIDTH,
+            MediaStore.Images.Media.HEIGHT
         )
 
         val imageCursor = context.contentResolver.query(
@@ -56,6 +58,8 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
                 val isDownload = it.getString(it.getColumnIndexOrThrow(MediaStore.Images.Media.IS_DOWNLOAD))
                 val size = it.getLong(it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE))
                 val orientation = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.ORIENTATION))
+                val width = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH))
+                val height = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT))
                 if (name.isNullOrEmpty() || data.isNullOrEmpty() || size == 0L) {
                     continue
                 }
@@ -74,7 +78,9 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
                         isDownload = isDownload,
                         mimeType = mimeType,
                         size = size,
-                        orientation = orientation
+                        orientation = orientation,
+                        width = width,
+                        height = height
                     )
                 )
             }
@@ -96,7 +102,9 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
             MediaStore.Video.Media.SIZE,
             MediaStore.Video.Media.ORIENTATION,
             MediaStore.Video.Media.RESOLUTION,
-            MediaStore.Video.Media.DURATION
+            MediaStore.Video.Media.DURATION,
+            MediaStore.Images.Media.WIDTH,
+            MediaStore.Images.Media.HEIGHT
         )
 
         val videoCursor = context.contentResolver.query(
@@ -125,7 +133,8 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
                 val orientation = it.getInt(it.getColumnIndexOrThrow(MediaStore.Video.Media.ORIENTATION))
                 val resolution = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.RESOLUTION))
                 val duration = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION))
-
+                val width = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH))
+                val height = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT))
                 if (name.isNullOrEmpty() || data.isNullOrEmpty() || size == 0L) {
                     continue
                 }
@@ -147,7 +156,9 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
                             size = size,
                             orientation = orientation,
                             resolution = resolution,
-                            duration = duration
+                            duration = duration,
+                            width = width,
+                            height = height
                         )
                     )
                 }
@@ -171,7 +182,9 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
             MediaStore.Images.Media.MIME_TYPE,
             MediaStore.Images.Media.IS_DOWNLOAD,
             MediaStore.Images.Media.SIZE,
-            MediaStore.Images.Media.ORIENTATION
+            MediaStore.Images.Media.ORIENTATION,
+            MediaStore.Images.Media.WIDTH,
+            MediaStore.Images.Media.HEIGHT
         )
         val cursor = context.contentResolver.query(
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
@@ -197,6 +210,8 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
                 val isDownload = it.getString(it.getColumnIndexOrThrow(MediaStore.Images.Media.IS_DOWNLOAD))
                 val size = it.getLong(it.getColumnIndexOrThrow(MediaStore.Images.Media.SIZE))
                 val orientation = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.ORIENTATION))
+                val width = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH))
+                val height = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT))
                 if (name.isNullOrEmpty() || data.isNullOrEmpty() || size == 0L) {
                     continue
                 }
@@ -215,7 +230,9 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
                         isDownload = isDownload,
                         mimeType = mimeType,
                         size = size,
-                        orientation = orientation
+                        orientation = orientation,
+                        width = width,
+                        height = height
                     )
                 )
             }
@@ -237,7 +254,9 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
             MediaStore.Video.Media.SIZE,
             MediaStore.Video.Media.ORIENTATION,
             MediaStore.Video.Media.RESOLUTION,
-            MediaStore.Video.Media.DURATION
+            MediaStore.Video.Media.DURATION,
+            MediaStore.Images.Media.WIDTH,
+            MediaStore.Images.Media.HEIGHT
         )
 
         val videoCursor = context.contentResolver.query(
@@ -266,7 +285,8 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
                 val orientation = it.getInt(it.getColumnIndexOrThrow(MediaStore.Video.Media.ORIENTATION))
                 val resolution = it.getString(it.getColumnIndexOrThrow(MediaStore.Video.Media.RESOLUTION))
                 val duration = it.getLong(it.getColumnIndexOrThrow(MediaStore.Video.Media.DURATION))
-
+                val width = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.WIDTH))
+                val height = it.getInt(it.getColumnIndexOrThrow(MediaStore.Images.Media.HEIGHT))
                 //println("增长id$generationAdded 文件的增长id$add")
 
                 if (name.isNullOrEmpty() || data.isNullOrEmpty() || size == 0L) {
@@ -290,7 +310,9 @@ class ImageStoreImageRepositoryImpl(private val context: Context) : MediaStoreRe
                             size = size,
                             orientation = orientation,
                             resolution = resolution,
-                            duration = duration
+                            duration = duration,
+                            width = width,
+                            height = height
                         )
                     )
                 }

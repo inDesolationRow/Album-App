@@ -54,6 +54,8 @@ interface DataService<T> {
         mediaFileId: Long,
         fileName: String,
         orientation: Float,
+        width: Int,
+        height: Int,
     ): Bitmap?
 
     suspend fun loadMediaFile(position: Int)
@@ -266,7 +268,9 @@ class LocalDataSource(
                 mediaItem.data!!,
                 mediaItem.id,
                 mediaItem.displayName,
-                mediaItem.orientation.toFloat()
+                mediaItem.orientation.toFloat(),
+                mediaItem.width,
+                mediaItem.height
             ) ?: BitmapFactory.decodeFile(
                 File(
                     thumbnailsPath,
@@ -281,6 +285,8 @@ class LocalDataSource(
         mediaFileId: Long,
         fileName: String,
         orientation: Float,
+        width: Int,
+        height: Int,
     ): Bitmap? {
         val file = File(path)
         if (!file.exists()) return null
@@ -302,6 +308,8 @@ class LocalDataSource(
                 decodeSampledBitmap(
                     filePath = path,
                     orientation = orientation,
+                    width = width,
+                    height = height,
                     reqWidth = if (application.settings?.highPixelThumbnail == true) 400 else 300,
                     reqHeight = if (application.settings?.highPixelThumbnail == true) 400 else 300
                 )?.let {
@@ -477,7 +485,9 @@ class LocalNetDataSource(
                 mediaFileId = mediaItem.id,
                 fileName = mediaItem.displayName,
                 path = "",
-                orientation = 0f
+                orientation = 0f,
+                width = 0,
+                height = 0,
             ) ?: BitmapFactory.decodeFile(
                 File(
                     thumbnailsPath,
@@ -494,6 +504,8 @@ class LocalNetDataSource(
         mediaFileId: Long,
         fileName: String,
         orientation: Float,
+        width: Int,
+        height: Int,
     ): Bitmap? {
         val coroutineScope = CoroutineScope(Dispatchers.IO)
         return coroutineScope.async(context = Dispatchers.IO) {

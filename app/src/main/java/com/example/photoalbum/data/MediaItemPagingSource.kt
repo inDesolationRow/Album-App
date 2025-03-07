@@ -296,7 +296,9 @@ class LocalStorageThumbnailService(
                 mediaItem.data!!,
                 mediaItem.id,
                 mediaItem.displayName,
-                mediaItem.orientation.toFloat()
+                mediaItem.orientation.toFloat(),
+                mediaItem.width,
+                mediaItem.height
             ) ?: BitmapFactory.decodeFile(
                 File(
                     thumbnailsPath,
@@ -311,6 +313,8 @@ class LocalStorageThumbnailService(
         mediaFileId: Long,
         fileName: String,
         orientation: Float,
+        width: Int,
+        height: Int,
     ): Bitmap? {
         val file = File(path)
         if (!file.exists()) return null
@@ -333,7 +337,9 @@ class LocalStorageThumbnailService(
                     filePath = path,
                     orientation = orientation,
                     reqWidth = if (application.settings?.highPixelThumbnail == true) 400 else 300,
-                    reqHeight = if (application.settings?.highPixelThumbnail == true) 400 else 300
+                    reqHeight = if (application.settings?.highPixelThumbnail == true) 400 else 300,
+                    width = width,
+                    height = height
                 )?.let {
                     image = it
                     saveBitmapToPrivateStorage(
