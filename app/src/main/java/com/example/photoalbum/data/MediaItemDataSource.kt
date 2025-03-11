@@ -351,6 +351,14 @@ class LocalDataSource(
                         item.dataBitmap.value = it
                         previousLoadItem = item
                     }
+                    /*decodeBitmap(
+                        filePath = item.data,
+                        orientation = item.orientation.toFloat(),
+                        block = 16
+                    )?.let {
+                        item.imageBlockList.addAll(it)
+                        previousLoadItem = item
+                    }*/
                 } catch (e: CancellationException) {
                     previousLoadItem?.dataBitmap?.value?.recycle()
                     previousLoadItem?.dataBitmap?.value = null

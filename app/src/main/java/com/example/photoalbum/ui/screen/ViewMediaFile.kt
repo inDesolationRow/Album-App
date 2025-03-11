@@ -75,6 +75,7 @@ import com.example.photoalbum.data.DataService
 import com.example.photoalbum.enums.ItemType
 import com.example.photoalbum.enums.MediaListDialog
 import com.example.photoalbum.ui.action.UserAction
+import com.example.photoalbum.ui.common.DisplayBlockImage
 import com.example.photoalbum.ui.common.DisplayImage
 import com.example.photoalbum.ui.common.MessageDialog
 import com.example.photoalbum.ui.common.PlayerSurface
@@ -996,7 +997,6 @@ fun MediaDisplay(
                                         }
                                 }
                         ) {
-                            val videoHeight = remember { mutableStateOf(0.dp) }
                             val thumbnailAlpha by animateFloatAsState(
                                 targetValue = if (image == null && !item.videoWhenReady.value) 1f else 0f,
                                 animationSpec = tween(durationMillis = 10), label = "" // 淡出动画
@@ -1011,7 +1011,7 @@ fun MediaDisplay(
                                         alpha = thumbnailAlpha
                                     )
                             )
-                            if (item.type == ItemType.IMAGE)
+                            if (item.type == ItemType.IMAGE) {
                                 DisplayImage(
                                     bitmap = image ?: notPreview,
                                     context = context,
@@ -1025,11 +1025,22 @@ fun MediaDisplay(
                                             scaleY = aniScale.value,
                                             transformOrigin = TransformOrigin(transformOrigin.x, transformOrigin.y)
                                         )
-                                        .onGloballyPositioned { layout ->
-                                            videoHeight.value = layout.size.height.dp
-                                        }
                                 )
-                            else if (item.type == ItemType.VIDEO && item.videoWhenReady.value) {
+                                /*DisplayBlockImage(
+                                    imageBlockList = item.imageBlockList,
+                                    context = context,
+                                    contentScale = if (heightAdapter) ContentScale.FillHeight else ContentScale.FillWidth,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .wrapContentHeight()
+                                        .graphicsLayer(
+                                            alpha = if (item.imageBlockList.isEmpty()) 0f else 1f,
+                                            scaleX = aniScale.value,
+                                            scaleY = aniScale.value,
+                                            transformOrigin = TransformOrigin(transformOrigin.x, transformOrigin.y)
+                                        )
+                                )*/
+                            } else if (item.type == ItemType.VIDEO && item.videoWhenReady.value) {
                                 PlayerSurface(
                                     player = player,
                                     surfaceType = SURFACE_TYPE_TEXTURE_VIEW,

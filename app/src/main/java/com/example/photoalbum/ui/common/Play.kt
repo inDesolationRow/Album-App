@@ -99,6 +99,10 @@ fun PlayerSurface(player: Player, modifier: Modifier = Modifier, surfaceType: @S
                 if (isPlay) {
                     if (!player.isPlaying)
                         player.play()
+                    if (player.currentPosition >= player.duration){
+                        player.seekTo(0)
+                        player.play()
+                    }
                 } else
                     if (player.isPlaying)
                         player.pause()
@@ -114,7 +118,8 @@ fun PlayerUi(
     check: MutableState<Boolean>,
     duration: MutableLongState,
     position: MutableLongState,
-    modifier: Modifier, onCheck: (Boolean) -> Unit,
+    modifier: Modifier,
+    onCheck: (Boolean) -> Unit,
 ) {
     Box(
         contentAlignment = Alignment.BottomCenter,

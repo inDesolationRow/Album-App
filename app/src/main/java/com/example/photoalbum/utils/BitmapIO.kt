@@ -3,12 +3,17 @@ package com.example.photoalbum.utils
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.BitmapRegionDecoder
 import android.graphics.Matrix
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.graphics.Rect
+import android.os.Build
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import kotlin.math.sqrt
+
 
 fun getMiddleFrame(
     context: Context,
@@ -75,6 +80,65 @@ fun decodeBitmap(
     } catch (e: Exception) {
         e.printStackTrace()
         println("错误:解析失败文件地址 $filePath")
+        return null
+    }
+}
+
+fun <T> MutableList<T>.swap(index1: Int, index2: Int) {
+    val temp = this[index1]
+    this[index1] = this[index2]
+    this[index2] = temp
+}
+
+fun decodeBitmap(
+    filePath: String,
+    orientation: Float,
+    block: Int,
+): MutableList<Bitmap>? {
+    val decoder: BitmapRegionDecoder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        BitmapRegionDecoder.newInstance(filePath)
+    } else {
+        BitmapRegionDecoder.newInstance(filePath, true)
+    }
+    val width = decoder.width
+    val height = decoder.height
+    if (width == 0 || height == 0) return null
+
+    try {
+        val line = sqrt(block.toDouble()).toInt()
+        val blockWidth = width / line
+        val blockHeight = height / line
+        val blockList: MutableList<Bitmap> = mutableListOf()
+        val options = BitmapFactory.Options().apply {
+            inMutable = true
+        }
+
+        for (column in 0..<line) {
+            for (row in 0..<line) {
+                val left = row * blockWidth
+                val top = column * blockHeight
+                val right = /*if (row == block - 1) width else */(row + 1) * blockWidth
+                val bottom = /*if (column == block - 1) height else*/ (column + 1) * blockHeight
+                val rect = Rect(left, top, right, bottom)
+                println("左上: (${left}, ${top}) 右下: (${right}, ${bottom}) 宽高：($width*$height)")
+                //blockList.add(rotateBitmap(decoder.decodeRegion(rect, options), orientation))
+                blockList.add(decoder.decodeRegion(rect, options))
+            }
+        }
+        /*        when (orientation) {
+                    90f -> {
+                        TODO()
+                    }
+                    180f -> {
+                        TODO()
+                    }
+                    270f -> {
+                        TODO()
+                    }
+                }*/
+        return blockList
+    } catch (e: Exception) {
+        e.printStackTrace()
         return null
     }
 }
