@@ -212,7 +212,7 @@ fun MediaListMainScreen(
     }
 
     val contentScale by animateFloatAsState(
-        targetValue = if (viewModel.drawerState.isClosed) 1f else 0.9f,
+        targetValue = if (viewModel.drawerState.isClosed) 1f else 0.85f,
         animationSpec = tween(300),
         label = ""
     )
