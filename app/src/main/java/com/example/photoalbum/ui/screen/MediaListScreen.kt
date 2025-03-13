@@ -3,9 +3,9 @@ package com.example.photoalbum.ui.screen
 import android.app.Activity
 import android.content.Context
 import android.graphics.Bitmap
-import android.os.Trace
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -69,6 +69,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -210,6 +211,11 @@ fun MediaListMainScreen(
         null
     }
 
+    val contentScale by animateFloatAsState(
+        targetValue = if (viewModel.drawerState.isClosed) 1f else 0.9f,
+        animationSpec = tween(300),
+        label = ""
+    )
     ModalNavigationDrawer(
         drawerState = viewModel.drawerState,
         gesturesEnabled = gesturesEnabled.value,
@@ -238,33 +244,38 @@ fun MediaListMainScreen(
             }
         },
         content = {
-            Scaffold(topBar = {
-                TopBar(
-                    viewModel = viewModel,
-                    multipleChoiceMode = multipleChoiceMode.value,
-                    multipleChoiceList = multipleChoiceList,
-                    selectAll = selectAll,
-                    showPopup = showAlbumGrouping,
-                    isPopupVisible = isPopupVisible,
-                    modifier = Modifier
-                        .then(
-                            if (topBarAnimateDp != null) {
-                                Modifier.height(topBarAnimateDp.value)
-                            } else {
-                                Modifier
-                            }
-                        )
-                        .padding(start = MediumPadding)
-                        .onGloballyPositioned { layout ->
-                            with(density) {
-                                if (!getNavHostHeight) {
-                                    hostHeight = layout.size.height.toDp()
-                                    getNavHostHeight = true
+            Scaffold(
+                modifier = modifier.graphicsLayer {
+                    scaleX = contentScale
+                    scaleY = contentScale
+                },
+                topBar = {
+                    TopBar(
+                        viewModel = viewModel,
+                        multipleChoiceMode = multipleChoiceMode.value,
+                        multipleChoiceList = multipleChoiceList,
+                        selectAll = selectAll,
+                        showPopup = showAlbumGrouping,
+                        isPopupVisible = isPopupVisible,
+                        modifier = Modifier
+                            .then(
+                                if (topBarAnimateDp != null) {
+                                    Modifier.height(topBarAnimateDp.value)
+                                } else {
+                                    Modifier
+                                }
+                            )
+                            .padding(start = MediumPadding)
+                            .onGloballyPositioned { layout ->
+                                with(density) {
+                                    if (!getNavHostHeight) {
+                                        hostHeight = layout.size.height.toDp()
+                                        getNavHostHeight = true
+                                    }
                                 }
                             }
-                        }
-                )
-            }) { padding ->
+                    )
+                }) { padding ->
                 Column(
                     modifier = Modifier
                         .padding(padding)
@@ -491,7 +502,6 @@ fun MediaListMainScreen(
                 }
             }
         },
-        modifier = modifier.fillMaxSize()
     )
 }
 
