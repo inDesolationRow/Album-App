@@ -81,7 +81,8 @@ class LocalStorageThumbnailService(
     private val application: MediaApplication,
     override var initialLoadSize: Int,
     override var maxSize: Int,
-) : MediaFileService<Long> {
+) :
+    MediaFileService<Long> {
 
     override var allData: MutableList<MediaItem> = mutableListOf()
 

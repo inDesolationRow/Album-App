@@ -247,9 +247,9 @@ fun GroupingScreen(viewModel: GroupingScreenViewModel, modifier: Modifier = Modi
                             viewModel.application.loadThumbnailBitmap = image
                             viewModel.userAction.value = UserAction.ExpandStatusBarAction(false)
                             if (viewModel.currentPageInfo.value.second == ItemType.GROUPING.value) {
-                                viewModel.userAction.value = UserAction.OpenImage(-1L, id, viewModel.currentPageInfo.value.first)
+                                viewModel.userAction.value = UserAction.OpenMediaFile(-1L, id, viewModel.currentPageInfo.value.first)
                             } else if (viewModel.currentPageInfo.value.second == ItemType.DIRECTORY.value) {
-                                viewModel.userAction.value = UserAction.OpenImage(viewModel.currentPageInfo.value.first, id)
+                                viewModel.userAction.value = UserAction.OpenMediaFile(viewModel.currentPageInfo.value.first, id)
                             }
                         }
                     },

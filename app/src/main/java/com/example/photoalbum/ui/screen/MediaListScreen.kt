@@ -371,7 +371,7 @@ fun MediaListMainScreen(
                                     viewModel.application.loadThumbnailBitmap = image
                                     viewModel.userAction.value = UserAction.ExpandStatusBarAction(false)
                                     viewModel.userAction.value =
-                                        UserAction.OpenImage(viewModel.currentDirectoryId.value, id)
+                                        UserAction.OpenMediaFile(viewModel.currentDirectoryId.value, id)
                                 }
                             },
                             expand = {
@@ -476,7 +476,7 @@ fun MediaListMainScreen(
                                             viewModel.application.loadThumbnailBitmap = image
                                             viewModel.userAction.value = UserAction.ExpandStatusBarAction(false)
                                             viewModel.userAction.value =
-                                                UserAction.OpenImage(
+                                                UserAction.OpenMediaFile(
                                                     viewModel.smbClient.getPath().dropLast(1),
                                                     id,
                                                 )
@@ -634,7 +634,6 @@ fun MediaList(
     val farIndex = remember { mutableIntStateOf(0) }
     val preIndex = remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
-
     //隐藏bar
     var invisibleStatusBar by remember(state) { mutableStateOf(false) }
 
@@ -652,6 +651,7 @@ fun MediaList(
             multipleChoiceList?.remove("${id}_$type")
         }
     }
+
 
     val delay = remember { mutableLongStateOf(0L) }
     LaunchedEffect(state, itemCount, back) {

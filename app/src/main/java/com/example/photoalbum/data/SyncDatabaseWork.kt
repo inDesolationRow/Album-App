@@ -21,13 +21,13 @@ import java.util.concurrent.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.yield
 import java.io.File
 
 class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worker(context, workerParams) {
@@ -151,7 +151,7 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
                         println("删除$count 行")
                     }
                 }
-
+                yield()
                 syncJob?.join()
                 val runningTime = System.currentTimeMillis() - startTime
                 println("work log:运行时间 :$runningTime")
@@ -161,11 +161,11 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
                 if (!isStopped)
                     again()
                 Result.success()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                if (e !is CancellationException) {
-                    println("work log:异常流程再次运行")
-                    again()
-                }
+                println("work log:异常流程再次运行")
+                again()
                 Result.failure()
             }
         }
@@ -175,7 +175,7 @@ class SyncDatabaseWork(context: Context, workerParams: WorkerParameters) : Worke
         super.onStopped()
         coroutine.launch {
             println("work log:取消该work")
-            syncJob?.cancelAndJoin()
+            syncJob?.cancel()
         }
     }
 

@@ -56,7 +56,7 @@ fun MainScreen(viewModel: MainScreenViewModel) {
             viewModel.expand = action.expand
         }
 
-        is UserAction.OpenImage -> {
+        is UserAction.OpenMediaFile -> {
             val directory: String
             val local = when (action.directory) {
                 is Long -> {

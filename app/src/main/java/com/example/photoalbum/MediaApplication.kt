@@ -36,7 +36,6 @@ class MediaApplication : Application() {
         appPermission = PermissionHelper(applicationContext)
         mediaDatabase = MediaDatabase.getInstance(applicationContext)
         mediaStoreContainer = MediaStoreContainerImpl(applicationContext)
-
     }
 
 }
